@@ -1,0 +1,9 @@
+node_modules
+dist
+*.local
+.DS_Store
+
+# never commit internal/real data — keep it local only
+*.xlsx
+*.local.ts
+seed.local.*
