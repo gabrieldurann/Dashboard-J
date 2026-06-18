@@ -28,3 +28,12 @@ export const date = (iso?: string) => {
     ? "—"
     : dt.toLocaleDateString("pt-BR");
 };
+
+/** 03/10/2025 14:32 */
+export const datetime = (iso?: string) => {
+  if (!iso) return "—";
+  const dt = new Date(iso);
+  return Number.isNaN(dt.getTime())
+    ? "—"
+    : dt.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+};

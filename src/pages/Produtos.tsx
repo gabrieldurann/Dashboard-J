@@ -6,7 +6,7 @@ import type { StatusCor } from "../calc/constants";
 import { GlowCard } from "../components/GlowCard";
 import { Screen } from "../components/Screen";
 import { StatusDot } from "../components/StatusDot";
-import { money, percent } from "../i18n/format";
+import { money, number, percent } from "../i18n/format";
 import { useStore } from "../store/useStore";
 
 type Filtro = "todos" | StatusCor;
@@ -87,7 +87,7 @@ export function Produtos() {
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="border-b border-line">
-                {["", "Código", "Produto", "Fornecedor", "Custo/un", "Preço", "Margem", "Lucro/mês", "Estoque", "Link"].map(
+                {["", "Código", "Produto", "Fornecedor", "Custo/un", "Preço", "Margem", "Lucro/un", "Lucro/caixa", "Lucro/mês", "Estoque", "Link"].map(
                   (h) => (
                     <th
                       key={h}
@@ -117,8 +117,23 @@ export function Produtos() {
                   <td className="px-4 py-3 font-mono text-sm tabular-nums" style={{ color: marginColor(m.statusCor) }}>
                     {percent(m.margem)}
                   </td>
+                  <td className="px-4 py-3 font-mono text-sm tabular-nums text-txtDim">{money(m.lucroUnit)}</td>
+                  <td className="px-4 py-3 font-mono text-sm tabular-nums text-txtDim">{money(m.lucroCaixa)}</td>
                   <td className="px-4 py-3 font-mono text-sm tabular-nums text-green">{money(m.lucroMensal)}</td>
-                  <td className="px-4 py-3 font-mono text-sm tabular-nums text-txtDim">{p.estoqueAtual ?? "—"}</td>
+                  <td className="px-4 py-3">
+                    {p.estoqueAtual != null ? (
+                      <div className="font-mono text-sm leading-tight tabular-nums">
+                        <span className="text-txt">{number(p.estoqueAtual)} un</span>
+                        {p.qtdCaixa > 0 && (
+                          <span className="block text-[11px] text-txtFaint">
+                            {number(p.estoqueAtual / p.qtdCaixa)} cx
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-txtFaint">—</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     {p.link ? (
                       <a

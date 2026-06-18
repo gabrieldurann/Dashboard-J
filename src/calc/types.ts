@@ -21,7 +21,32 @@ export type Produto = {
   aprovadoManual?: boolean | null;
 };
 
-/** A one-off ("avulsa") sale recorded by hand (idea #4). */
+export type VendaStatus = "pendente" | "enviado" | "entregue" | "cancelado";
+
+/** An individual sale record (the sales ledger). A sale with no `produtoId` is "avulsa". */
+export type Venda = {
+  id: string;
+  data: string; // ISO datetime (timestamp)
+  produtoId?: string; // link to a catalog product (optional → venda avulsa)
+  produtoNome: string; // snapshot of the product name
+  codigoProduto?: string; // snapshot of the product code
+  quantidade: number;
+  valorUnitario: number;
+  valorTotal: number;
+  canal?: string; // sales channel (Amazon, Mercado Livre, Shopee, Site...)
+  status: VendaStatus;
+  numeroPedido?: string;
+  cliente?: string;
+  // shipping
+  enderecoEntrega?: string;
+  cidade?: string;
+  uf?: string;
+  cep?: string;
+  frete?: number;
+  observacao?: string;
+};
+
+/** A one-off ("avulsa") sale recorded by hand (idea #4) — quick manual entry, kept in its own list. */
 export type VendaAvulsa = {
   id: string;
   produtoId?: string;
@@ -45,6 +70,25 @@ export type CalculoSalvo = {
   margemDesejada: number; // e.g. 0.15
   precoSugerido: number;
   criadoEm: string; // ISO datetime
+};
+
+/** A product research entry — the "TabPesquisa" log. Mirrors the sheet's columns. */
+export type Pesquisa = {
+  id: string;
+  link?: string; // LINK DO ANÚNCIO REFERÊNCIA
+  nome: string; // NOME DO PRODUTO
+  imagem?: string; // product image (data URL or remote URL)
+  dataPesquisa?: string; // DATA PESQUISA
+  precoVenda: number; // VALOR VENDA
+  vendasMes: number; // VENDAS/MÊS
+  custoUnit: number; // CUSTO FORNECEDOR
+  fornecedor?: string; // FORNECEDOR
+  qtdCaixa: number; // Quantidade Caixa
+  imposto: number; // IMPOSTO
+  comissao: number; // COMISSÃO CATEGORIA (11–15%)
+  /** manual override of the auto Aprovado/Reprovado verdict; null = auto (margem ≥ 15%) */
+  aprovadoManual?: boolean | null;
+  observacao?: string;
 };
 
 /** Fully derived metrics for a product (computed, never stored). */

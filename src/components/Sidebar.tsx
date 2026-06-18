@@ -1,10 +1,12 @@
-import { Calculator, FileText, LayoutDashboard, Package, Receipt } from "lucide-react";
+import { Calculator, ClipboardList, FileText, LayoutDashboard, Package, Pencil, Plug, Receipt } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const NAV = [
   { to: "/", label: "Painel", icon: LayoutDashboard, end: true },
+  { to: "/pesquisa", label: "Pesquisa", icon: ClipboardList, end: false },
   { to: "/produtos", label: "Produtos", icon: Package, end: false },
-  { to: "/vendas", label: "Vendas avulsas", icon: Receipt, end: false },
+  { to: "/vendas", label: "Vendas", icon: Receipt, end: false },
+  { to: "/vendas-avulsas", label: "Vendas avulsas", icon: Pencil, end: false },
   { to: "/calculadora", label: "Calculadora", icon: Calculator, end: false },
   { to: "/relatorios", label: "Relatórios", icon: FileText, end: false },
 ];
@@ -44,12 +46,20 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="mt-auto px-2 pt-6">
-        <p className="font-mono text-[10px] leading-relaxed text-txtFaint">
-          Uso interno · pt-BR
-          <br />
-          dados locais (seed + edições)
-        </p>
+      <div className="mt-auto pt-6">
+        <NavLink
+          to="/conexoes"
+          className={({ isActive }) =>
+            `flex items-center gap-3 rounded-chip px-3 py-2.5 font-mono text-[13px] tracking-wide transition-colors ${
+              isActive
+                ? "border border-lineStrong bg-greenSoft text-txt"
+                : "border border-line text-txtDim hover:text-txt"
+            }`
+          }
+        >
+          <Plug size={17} strokeWidth={2} />
+          Conexões
+        </NavLink>
       </div>
     </aside>
   );

@@ -17,7 +17,7 @@ export function BigStat({
   const mv = useMotionValue(0);
   const text = useTransform(mv, (v) => format(v));
   useEffect(() => {
-    const controls = animate(mv, value, { duration: 1.3, ease: EASE });
+    const controls = animate(mv, value, { duration: 0.5, ease: EASE });
     return controls.stop;
   }, [value, mv]);
   return (
