@@ -1,4 +1,4 @@
-import { ExternalLink, Plus, Search } from "lucide-react";
+import { ExternalLink, PackageOpen, Plus, Search, SearchX } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { calcularMetricas } from "../calc/engine";
@@ -23,6 +23,7 @@ export function Produtos() {
   const nav = useNavigate();
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<Filtro>("todos");
+  const filtrosAtivos = busca.trim() !== "" || filtro !== "todos";
 
   const linhas = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -100,6 +101,40 @@ export function Produtos() {
               </tr>
             </thead>
             <tbody>
+              {linhas.length === 0 && (
+                <tr>
+                  <td colSpan={12} className="px-4 py-16">
+                    <div className="flex flex-col items-center gap-3 text-center">
+                      {filtrosAtivos ? (
+                        <>
+                          <SearchX size={28} className="text-txtFaint" />
+                          <p className="text-sm text-txtDim">Nenhum produto corresponde aos filtros.</p>
+                          <button
+                            onClick={() => {
+                              setBusca("");
+                              setFiltro("todos");
+                            }}
+                            className="rounded-chip border border-line px-3 py-1.5 font-mono text-xs text-txtDim transition-colors hover:text-txt"
+                          >
+                            Limpar filtros
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <PackageOpen size={28} className="text-txtFaint" />
+                          <p className="text-sm text-txtDim">Nenhum produto cadastrado ainda.</p>
+                          <button
+                            onClick={() => nav("/produtos/novo")}
+                            className="flex items-center gap-2 rounded-chip border border-lineStrong bg-greenSoft px-3 py-1.5 font-mono text-xs text-txt transition-opacity hover:opacity-90"
+                          >
+                            <Plus size={14} /> Adicionar o primeiro produto
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )}
               {linhas.map(({ p, m }) => (
                 <tr
                   key={p.id}

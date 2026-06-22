@@ -1,5 +1,9 @@
-import { HashRouter, Route, Routes } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
+import { HashRouter, Route, Routes, useLocation } from "react-router-dom";
+import { ConfirmDialog } from "./components/ConfirmDialog";
 import { Sidebar } from "./components/Sidebar";
+import { Toaster } from "./components/Toaster";
+import { EASE } from "./theme/tokens";
 import { Calculadora } from "./pages/Calculadora";
 import { Conexoes } from "./pages/Conexoes";
 import { Painel } from "./pages/Painel";
@@ -10,26 +14,46 @@ import { Relatorios } from "./pages/Relatorios";
 import { Vendas } from "./pages/Vendas";
 import { VendasAvulsas } from "./pages/VendasAvulsas";
 
+/** Subtle cross-fade between routes (PLAN.md §9 Phase 1 #5). */
+function AnimatedRoutes() {
+  const location = useLocation();
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.18, ease: EASE }}
+      >
+        <Routes location={location}>
+          <Route path="/" element={<Painel />} />
+          <Route path="/pesquisa" element={<Pesquisa />} />
+          <Route path="/produtos" element={<Produtos />} />
+          <Route path="/produtos/novo" element={<ProdutoForm />} />
+          <Route path="/produtos/:id" element={<ProdutoForm />} />
+          <Route path="/vendas" element={<Vendas />} />
+          <Route path="/vendas-avulsas" element={<VendasAvulsas />} />
+          <Route path="/calculadora" element={<Calculadora />} />
+          <Route path="/relatorios" element={<Relatorios />} />
+          <Route path="/conexoes" element={<Conexoes />} />
+        </Routes>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
 export default function App() {
   return (
     <HashRouter>
       <div className="flex min-h-screen">
         <Sidebar />
         <main className="flex-1 overflow-x-hidden">
-          <Routes>
-            <Route path="/" element={<Painel />} />
-            <Route path="/pesquisa" element={<Pesquisa />} />
-            <Route path="/produtos" element={<Produtos />} />
-            <Route path="/produtos/novo" element={<ProdutoForm />} />
-            <Route path="/produtos/:id" element={<ProdutoForm />} />
-            <Route path="/vendas" element={<Vendas />} />
-            <Route path="/vendas-avulsas" element={<VendasAvulsas />} />
-            <Route path="/calculadora" element={<Calculadora />} />
-            <Route path="/relatorios" element={<Relatorios />} />
-            <Route path="/conexoes" element={<Conexoes />} />
-          </Routes>
+          <AnimatedRoutes />
         </main>
       </div>
+      <Toaster />
+      <ConfirmDialog />
     </HashRouter>
   );
 }

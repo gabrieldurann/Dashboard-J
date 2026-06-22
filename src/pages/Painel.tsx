@@ -1,6 +1,6 @@
-import { Coins, Landmark, Package, TrendingUp, Wallet } from "lucide-react";
+import { Coins, Globe as GlobeIcon, Landmark, Package, TrendingUp, Wallet } from "lucide-react";
 import { useMemo } from "react";
-import { calcularMetricas, totaisPortfolio } from "../calc/engine";
+import { calcularMetricas, totaisPortfolio, vendasPorPais } from "../calc/engine";
 import { BigStat } from "../components/BigStat";
 import { GlowCard } from "../components/GlowCard";
 import { MetricTile } from "../components/MetricTile";
@@ -9,10 +9,28 @@ import { Screen } from "../components/Screen";
 import { StatusDot } from "../components/StatusDot";
 import { money, percent } from "../i18n/format";
 import { useStore } from "../store/useStore";
+import { Globe, type GlobeMarker } from "../components/Globe";
+import { paisByCode } from "../data/countries";
 
 export function Painel() {
   const produtos = useStore((s) => s.produtos);
+  const vendas = useStore((s) => s.vendas);
   const t = useMemo(() => totaisPortfolio(produtos), [produtos]);
+
+  // globe markers from real sales-per-country (PLAN.md §9 Phase 2 #7)
+  const porPais = useMemo(() => vendasPorPais(vendas), [vendas]);
+  const globeMarkers = useMemo<GlobeMarker[]>(
+    () =>
+      porPais
+        .map((a) => {
+          const p = paisByCode(a.code);
+          return p
+            ? { id: a.code.toLowerCase(), location: [p.lat, p.lng] as [number, number], label: `${p.flag} ${p.nome}` }
+            : null;
+        })
+        .filter((m): m is GlobeMarker => m !== null),
+    [porPais],
+  );
 
   // products to re-evaluate (red band), worst margin first
   const reavaliar = useMemo(
@@ -132,6 +150,22 @@ export function Painel() {
               ))}
             </ul>
           )}
+        </GlowCard>
+
+        {/* global reach — sales per country (data wires in next step) */}
+        <GlowCard accent="green" grid className="col-span-12 lg:col-span-6" delay={0.35}>
+          <div className="mb-1 flex items-center gap-2">
+            <span className="flex h-[26px] w-[26px] items-center justify-center rounded-chip bg-greenSoft">
+              <GlobeIcon size={15} className="text-green" strokeWidth={2} />
+            </span>
+            <span className="font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">Alcance Global</span>
+          </div>
+          <p className="mb-3 font-mono text-xs text-txtFaint">
+            {porPais.length} {porPais.length === 1 ? "país" : "países"} com vendas · arraste para girar
+          </p>
+          <div className="mx-auto max-w-[340px]">
+            <Globe markers={globeMarkers} />
+          </div>
         </GlowCard>
       </div>
     </Screen>

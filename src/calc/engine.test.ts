@@ -4,10 +4,15 @@ import {
   capitalParaEstoque,
   freteUnitario,
   precoParaMargem,
+  serieMensal,
   statusCor,
   totaisPortfolio,
+  vendasPorAno,
+  vendasPorDia,
+  vendasPorMes,
+  vendasPorPais,
 } from "./engine";
-import type { Produto } from "./types";
+import type { Produto, Venda } from "./types";
 
 const base: Produto = {
   id: "1",
@@ -100,5 +105,72 @@ describe("totaisPortfolio (Painel Principal, idea #17)", () => {
     expect(totals.receitaMensal).toBeCloseTo(50 * 30 + 100 * 30, 4);
     expect(totals.cores.verde).toBeGreaterThanOrEqual(1);
     expect(totals.margemMedia).toBeGreaterThan(0);
+  });
+});
+
+const venda = (over: Partial<Venda>): Venda => ({
+  id: crypto.randomUUID(),
+  data: "2026-06-01T10:00",
+  produtoNome: "Produto",
+  quantidade: 1,
+  valorUnitario: 100,
+  valorTotal: 100,
+  status: "entregue",
+  ...over,
+});
+
+describe("vendasPorPais (Phase 2 aggregation)", () => {
+  const vendas: Venda[] = [
+    venda({ pais: "BR", valorTotal: 250, quantidade: 2 }),
+    venda({ pais: "US", valorTotal: 200, quantidade: 2 }),
+    venda({ pais: "US", valorTotal: 100, quantidade: 1 }),
+    venda({ pais: "US", valorTotal: 999, status: "cancelado" }), // excluded
+  ];
+  const agg = vendasPorPais(vendas);
+  it("groups by country, richest first", () => {
+    expect(agg.map((a) => a.code)).toEqual(["US", "BR"]); // US 300 > BR 250
+  });
+  it("sums orders, units and revenue (excluding cancelled)", () => {
+    const us = agg.find((a) => a.code === "US")!;
+    expect(us.pedidos).toBe(2);
+    expect(us.unidades).toBe(3);
+    expect(us.valor).toBe(300);
+  });
+  it("computes each country's share of total revenue", () => {
+    const total = agg.reduce((s, a) => s + a.share, 0);
+    expect(total).toBeCloseTo(1, 6);
+  });
+});
+
+describe("time-bucket aggregations (Phase 2)", () => {
+  const vendas: Venda[] = [
+    venda({ data: "2026-05-10T09:00", valorTotal: 100 }),
+    venda({ data: "2026-05-10T18:00", valorTotal: 50 }),
+    venda({ data: "2026-06-02T12:00", valorTotal: 200 }),
+    venda({ data: "2026-06-02T12:00", valorTotal: 999, status: "cancelado" }), // excluded
+  ];
+  it("groups by day with local-date keys", () => {
+    const dias = vendasPorDia(vendas);
+    expect(dias.map((d) => d.chave)).toEqual(["2026-05-10", "2026-06-02"]);
+    expect(dias[0].valor).toBe(150);
+  });
+  it("groups by month chronologically", () => {
+    expect(vendasPorMes(vendas).map((m) => m.chave)).toEqual(["2026-05", "2026-06"]);
+  });
+  it("groups by year", () => {
+    expect(vendasPorAno(vendas).map((a) => a.chave)).toEqual(["2026"]);
+  });
+});
+
+describe("serieMensal (channel-filtered time-series)", () => {
+  const vendas: Venda[] = [
+    venda({ data: "2026-05-01T10:00", canal: "Amazon", valorTotal: 100 }),
+    venda({ data: "2026-05-02T10:00", canal: "Shopee", valorTotal: 80 }),
+    venda({ data: "2026-06-01T10:00", canal: "Amazon", valorTotal: 200 }),
+  ];
+  it("filters to one channel before bucketing by month", () => {
+    const s = serieMensal(vendas, "Amazon");
+    expect(s.map((m) => m.chave)).toEqual(["2026-05", "2026-06"]);
+    expect(s.map((m) => m.valor)).toEqual([100, 200]);
   });
 });

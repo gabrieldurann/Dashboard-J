@@ -8,6 +8,8 @@ import { GlowCard } from "../components/GlowCard";
 import { Screen } from "../components/Screen";
 import { date, money, percent } from "../i18n/format";
 import { useStore } from "../store/useStore";
+import { confirmAction } from "../store/useConfirm";
+import { toast } from "../store/useToast";
 
 type Form = {
   nome: string;
@@ -71,6 +73,19 @@ export function Calculadora() {
       criadoEm: new Date().toISOString(),
     };
     addCalculo(c);
+    toast.success("Cálculo salvo");
+  };
+
+  const excluirCalculo = async (c: CalculoSalvo) => {
+    const ok = await confirmAction({
+      title: "Excluir cálculo?",
+      message: `"${c.nome}" será removido dos cálculos salvos.`,
+      confirmLabel: "Excluir",
+      danger: true,
+    });
+    if (!ok) return;
+    removeCalculo(c.id);
+    toast.success("Cálculo excluído");
   };
 
   const carregar = (c: CalculoSalvo) =>
@@ -215,7 +230,7 @@ export function Calculadora() {
                         <FolderOpen size={15} />
                       </button>
                       <button
-                        onClick={() => removeCalculo(c.id)}
+                        onClick={() => excluirCalculo(c)}
                         className="text-txtDim transition-colors hover:text-danger"
                         title="Excluir"
                       >

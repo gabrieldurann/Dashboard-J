@@ -20,8 +20,8 @@ export default {
         txtFaint: "#5a6678",
       },
       fontFamily: {
-        display: ["'Space Grotesk'", "system-ui", "sans-serif"],
-        mono: ["'IBM Plex Mono'", "ui-monospace", "monospace"],
+        display: ["var(--font-display)", "'Space Grotesk'", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "'IBM Plex Mono'", "ui-monospace", "monospace"],
       },
       borderRadius: { card: "14px", chip: "7px" },
       boxShadow: {

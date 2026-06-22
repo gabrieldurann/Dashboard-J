@@ -8,6 +8,8 @@ import { GlowCard } from "../components/GlowCard";
 import { Screen } from "../components/Screen";
 import { money, percent, date } from "../i18n/format";
 import { useStore } from "../store/useStore";
+import { confirmAction } from "../store/useConfirm";
+import { toast } from "../store/useToast";
 
 type Aprov = "auto" | "sim" | "nao";
 type Draft = {
@@ -108,8 +110,21 @@ export function Pesquisa() {
       observacao: d.observacao || undefined,
     };
     addPesquisa(nova);
+    toast.success("Pesquisa salva");
     setD(emptyDraft());
     setShowForm(false);
+  };
+
+  const excluirPesquisa = async (p: PesquisaT) => {
+    const ok = await confirmAction({
+      title: "Excluir pesquisa?",
+      message: `"${p.nome}" será removida do registro de pesquisas.`,
+      confirmLabel: "Excluir",
+      danger: true,
+    });
+    if (!ok) return;
+    removePesquisa(p.id);
+    toast.success("Pesquisa excluída");
   };
 
   return (
@@ -301,7 +316,7 @@ export function Pesquisa() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <button onClick={() => removePesquisa(p.id)} className="text-txtDim transition-colors hover:text-danger" title="Excluir pesquisa">
+                      <button onClick={() => excluirPesquisa(p)} className="text-txtDim transition-colors hover:text-danger" title="Excluir pesquisa">
                         <Trash2 size={15} />
                       </button>
                     </td>

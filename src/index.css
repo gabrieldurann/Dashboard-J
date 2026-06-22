@@ -4,6 +4,9 @@
 
 :root {
   color-scheme: dark;
+  /* Locked typography: Inter for display + plain Inter numerals (no font switching). */
+  --font-display: "Inter";
+  --font-mono: "Inter";
 }
 
 html,
@@ -16,7 +19,7 @@ body {
   margin: 0;
   background: #06080c;
   color: #e8eef5;
-  font-family: "Space Grotesk", system-ui, sans-serif;
+  font-family: var(--font-display), system-ui, sans-serif;
   /* radial vignette + faint green grid (DESIGN.md §4) */
   background-image:
     radial-gradient(1200px 700px at 78% -10%, rgba(52, 227, 160, 0.06), transparent 60%),
@@ -24,8 +27,17 @@ body {
   background-attachment: fixed;
 }
 
+/* Numerals: plain Inter with a clean-mono rhythm — airier tracking, tabular figures. */
 .font-mono {
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.font-mono.text-xs {
+  font-size: 0.7rem;
+}
+.font-mono.text-sm {
+  font-size: 0.8rem;
 }
 
 /* faint grid overlay for hero cards */
@@ -37,7 +49,7 @@ body {
 }
 
 .eyebrow {
-  font-family: "IBM Plex Mono", monospace;
+  font-family: var(--font-mono), monospace;
   font-size: 11px;
   letter-spacing: 0.22em;
   text-transform: uppercase;

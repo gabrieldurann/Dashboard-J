@@ -11,7 +11,7 @@ import {
   MARGEM_BANDAS,
   type StatusCor,
 } from "./constants";
-import type { MetricasProduto, Produto } from "./types";
+import type { MetricasProduto, Produto, Venda } from "./types";
 
 /** Freight per unit: free above the threshold (sheet O1), else the flat fee (sheet L2:N2). */
 export function freteUnitario(
@@ -181,4 +181,66 @@ export function totaisPortfolio(produtos: Produto[]) {
     cores,
     totalProdutos: produtos.length,
   };
+}
+
+// ─── Sales-ledger aggregations (PLAN.md §9 Phase 2 #7) ───────────────────────
+// Pure rollups over the Vendas ledger. Cancelled sales are excluded — they are
+// not realized revenue. Callers pass the raw ledger; these decide what counts.
+
+/** Sales realized as revenue (everything except cancelled). */
+const vendasRealizadas = (vendas: Venda[]) => vendas.filter((v) => v.status !== "cancelado");
+
+type Bucket = { pedidos: number; unidades: number; valor: number };
+const novoBucket = (): Bucket => ({ pedidos: 0, unidades: 0, valor: 0 });
+const acumular = (b: Bucket, v: Venda) => {
+  b.pedidos += 1;
+  b.unidades += v.quantidade;
+  b.valor += v.valorTotal;
+};
+
+export type AggPais = Bucket & { code: string; share: number };
+
+/** Sales grouped by country, richest first, with each country's share of total revenue. */
+export function vendasPorPais(vendas: Venda[]): AggPais[] {
+  const map = new Map<string, Bucket>();
+  for (const v of vendasRealizadas(vendas)) {
+    const code = v.pais ?? "—";
+    const b = map.get(code) ?? novoBucket();
+    acumular(b, v);
+    map.set(code, b);
+  }
+  const total = [...map.values()].reduce((s, b) => s + b.valor, 0);
+  return [...map.entries()]
+    .map(([code, b]) => ({ code, ...b, share: total > 0 ? b.valor / total : 0 }))
+    .sort((a, b) => b.valor - a.valor);
+}
+
+export type AggPeriodo = Bucket & { chave: string };
+
+/** Local-date key (avoids UTC day-shifts from toISOString on naive datetimes). */
+const ymd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+function agruparPorChave(vendas: Venda[], chaveDe: (d: Date) => string): AggPeriodo[] {
+  const map = new Map<string, Bucket>();
+  for (const v of vendasRealizadas(vendas)) {
+    const k = chaveDe(new Date(v.data));
+    const b = map.get(k) ?? novoBucket();
+    acumular(b, v);
+    map.set(k, b);
+  }
+  return [...map.entries()]
+    .map(([chave, b]) => ({ chave, ...b }))
+    .sort((a, b) => a.chave.localeCompare(b.chave));
+}
+
+/** Sales grouped by day (`YYYY-MM-DD`), month (`YYYY-MM`) and year (`YYYY`), chronologically. */
+export const vendasPorDia = (vendas: Venda[]) => agruparPorChave(vendas, ymd);
+export const vendasPorMes = (vendas: Venda[]) => agruparPorChave(vendas, (d) => ymd(d).slice(0, 7));
+export const vendasPorAno = (vendas: Venda[]) =>
+  agruparPorChave(vendas, (d) => String(d.getFullYear()));
+
+/** Monthly revenue time-series, optionally filtered to a single channel (e.g. "Amazon"). */
+export function serieMensal(vendas: Venda[], canal?: string): AggPeriodo[] {
+  return vendasPorMes(canal ? vendas.filter((v) => v.canal === canal) : vendas);
 }

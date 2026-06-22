@@ -7,6 +7,8 @@ import { MetricTile } from "../components/MetricTile";
 import { Screen } from "../components/Screen";
 import { date, money, percent } from "../i18n/format";
 import { useStore } from "../store/useStore";
+import { confirmAction } from "../store/useConfirm";
+import { toast } from "../store/useToast";
 
 type Form = {
   nome: string;
@@ -54,7 +56,20 @@ export function VendasAvulsas() {
       observacao: f.observacao || undefined,
     };
     addVenda(v);
+    toast.success("Venda avulsa registrada");
     setF(inicial());
+  };
+
+  const excluirVenda = async (v: VendaAvulsa) => {
+    const ok = await confirmAction({
+      title: "Excluir venda avulsa?",
+      message: `A venda de "${v.nome}" será removida.`,
+      confirmLabel: "Excluir",
+      danger: true,
+    });
+    if (!ok) return;
+    removeVenda(v.id);
+    toast.success("Venda excluída");
   };
 
   return (
@@ -142,7 +157,7 @@ export function VendasAvulsas() {
                       </div>
                       <div className="flex items-center gap-4">
                         <span className={`font-mono text-sm tabular-nums ${lucro >= 0 ? "text-green" : "text-danger"}`}>{money(lucro)}</span>
-                        <button onClick={() => removeVenda(v.id)} className="text-txtDim transition-colors hover:text-danger" title="Excluir">
+                        <button onClick={() => excluirVenda(v)} className="text-txtDim transition-colors hover:text-danger" title="Excluir">
                           <Trash2 size={15} />
                         </button>
                       </div>

@@ -7,6 +7,9 @@ import { MetricTile } from "../components/MetricTile";
 import { Screen } from "../components/Screen";
 import { datetime, money } from "../i18n/format";
 import { useStore } from "../store/useStore";
+import { confirmAction } from "../store/useConfirm";
+import { toast } from "../store/useToast";
+import { PAISES, paisFlag, paisNome } from "../data/countries";
 
 const STATUS: Record<VendaStatus, { label: string; cls: string }> = {
   pendente: { label: "Pendente", cls: "text-amber border-amber/40 bg-amber/10" },
@@ -38,6 +41,7 @@ type Draft = {
   cidade: string;
   uf: string;
   cep: string;
+  pais: string;
   frete: number;
   observacao: string;
 };
@@ -58,6 +62,7 @@ const emptyDraft = (): Draft => ({
   cidade: "",
   uf: "",
   cep: "",
+  pais: "BR",
   frete: 0,
   observacao: "",
 });
@@ -156,6 +161,7 @@ export function Vendas() {
       numeroPedido: d.numeroPedido || undefined,
       cliente: d.cliente || undefined,
       enderecoEntrega: d.enderecoEntrega || undefined,
+      pais: d.pais || undefined,
       cidade: d.cidade || undefined,
       uf: d.uf || undefined,
       cep: d.cep || undefined,
@@ -163,8 +169,21 @@ export function Vendas() {
       observacao: d.observacao || undefined,
     };
     addVenda(v);
+    toast.success("Venda registrada");
     setD(emptyDraft());
     setShowForm(false);
+  };
+
+  const excluirVenda = async (v: Venda) => {
+    const ok = await confirmAction({
+      title: "Excluir venda?",
+      message: `A venda de "${v.produtoNome}"${v.numeroPedido ? ` (pedido ${v.numeroPedido})` : ""} será removida do histórico.`,
+      confirmLabel: "Excluir",
+      danger: true,
+    });
+    if (!ok) return;
+    removeVenda(v.id);
+    toast.success("Venda excluída");
   };
 
   return (
@@ -258,6 +277,15 @@ export function Vendas() {
             </Field>
             <Field label="CEP">
               <TextInput value={d.cep} onChange={(e) => set("cep", e.target.value)} />
+            </Field>
+            <Field label="País" hint="Para o mapa de alcance">
+              <select value={d.pais} onChange={(e) => set("pais", e.target.value)} className={inputClass}>
+                {PAISES.map((p) => (
+                  <option key={p.code} value={p.code}>
+                    {p.flag} {p.nome}
+                  </option>
+                ))}
+              </select>
             </Field>
             <div className="col-span-2 lg:col-span-4">
               <Field label="Observação">
@@ -353,7 +381,7 @@ export function Vendas() {
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="border-b border-line">
-                {["Data", "Pedido", "Produto", "Código", "Qtd", "Total", "Canal", "Status", "Cliente", "Entrega", ""].map((h) => (
+                {["Data", "Pedido", "Produto", "Código", "Qtd", "Total", "Canal", "Status", "Cliente", "País", "Entrega", ""].map((h) => (
                   <th key={h} className="whitespace-nowrap px-4 py-3 font-mono text-[10px] uppercase tracking-[0.12em] text-txtFaint">
                     {h}
                   </th>
@@ -363,7 +391,7 @@ export function Vendas() {
             <tbody>
               {linhas.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-10 text-center text-sm text-txtDim">
+                  <td colSpan={12} className="px-4 py-10 text-center text-sm text-txtDim">
                     Nenhuma venda encontrada.
                   </td>
                 </tr>
@@ -386,11 +414,21 @@ export function Vendas() {
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-sm text-txtDim">{v.cliente ?? "—"}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-sm text-txtDim">
+                      {v.pais ? (
+                        <span>
+                          <span className="mr-1.5">{paisFlag(v.pais)}</span>
+                          {paisNome(v.pais)}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-sm text-txtDim" title={[v.enderecoEntrega, v.cidade && `${v.cidade}/${v.uf ?? ""}`, v.cep].filter(Boolean).join(" · ")}>
                       {v.cidade ? `${v.cidade}${v.uf ? "/" + v.uf : ""}` : v.enderecoEntrega ? "ver endereço" : "—"}
                     </td>
                     <td className="px-4 py-3">
-                      <button onClick={() => removeVenda(v.id)} className="text-txtDim transition-colors hover:text-danger" title="Excluir venda">
+                      <button onClick={() => excluirVenda(v)} className="text-txtDim transition-colors hover:text-danger" title="Excluir venda">
                         <Trash2 size={15} />
                       </button>
                     </td>

@@ -11,6 +11,8 @@ import { StatusDot } from "../components/StatusDot";
 import { money, percent } from "../i18n/format";
 import { STATUS_COLOR } from "../theme/tokens";
 import { useStore } from "../store/useStore";
+import { confirmAction } from "../store/useConfirm";
+import { toast } from "../store/useToast";
 
 const novoProduto = (): Produto => ({
   id: crypto.randomUUID(),
@@ -51,11 +53,20 @@ export function ProdutoForm() {
     if (!draft.nome.trim()) return;
     if (isEdit) updateProduto(draft.id, draft);
     else addProduto(draft);
+    toast.success(isEdit ? "Produto atualizado" : "Produto adicionado");
     nav("/produtos");
   };
 
-  const excluir = () => {
+  const excluir = async () => {
+    const ok = await confirmAction({
+      title: "Excluir produto?",
+      message: `"${draft.nome || "Sem nome"}" será removido da sua base. Esta ação não pode ser desfeita.`,
+      confirmLabel: "Excluir",
+      danger: true,
+    });
+    if (!ok) return;
     removeProduto(draft.id);
+    toast.success("Produto excluído");
     nav("/produtos");
   };
 

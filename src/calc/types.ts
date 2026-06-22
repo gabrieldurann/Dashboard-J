@@ -42,6 +42,7 @@ export type Venda = {
   cidade?: string;
   uf?: string;
   cep?: string;
+  pais?: string; // ISO 3166-1 alpha-2 country code (see data/countries.ts) — for sales-per-country
   frete?: number;
   observacao?: string;
 };

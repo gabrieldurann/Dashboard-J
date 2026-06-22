@@ -74,6 +74,11 @@ export const useStore = create<State>()(
           calculosSalvos: [],
         }),
     }),
-    { name: "painel-j-v1" },
+    {
+      // Bump this version whenever the bundled seed shape/content changes, so existing
+      // browsers discard their stale persisted copy and re-hydrate from the new seed
+      // instead of masking it. (v2: added country data + expanded demo sales.)
+      name: "painel-j-v2",
+    },
   ),
 );
