@@ -77,8 +77,9 @@ export const useStore = create<State>()(
     {
       // Bump this version whenever the bundled seed shape/content changes, so existing
       // browsers discard their stale persisted copy and re-hydrate from the new seed
-      // instead of masking it. (v2: added country data + expanded demo sales.)
-      name: "painel-j-v2",
+      // instead of masking it. (v2: country data. v3: T1 historical sales. v4: calibrated
+      // product velocities so hero monthly potential ≈ recorded monthly sales.)
+      name: "painel-j-v4",
     },
   ),
 );

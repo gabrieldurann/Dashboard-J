@@ -244,3 +244,73 @@ export const vendasPorAno = (vendas: Venda[]) =>
 export function serieMensal(vendas: Venda[], canal?: string): AggPeriodo[] {
   return vendasPorMes(canal ? vendas.filter((v) => v.canal === canal) : vendas);
 }
+
+/** Fill gaps in a `YYYY-MM` series with zero months so a chart's x-axis stays continuous. */
+export function preencherMeses(serie: AggPeriodo[]): AggPeriodo[] {
+  if (serie.length === 0) return [];
+  const idx = (k: string) => {
+    const [y, m] = k.split("-").map(Number);
+    return y * 12 + (m - 1);
+  };
+  const key = (i: number) => `${Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, "0")}`;
+  const porChave = new Map(serie.map((s) => [s.chave, s]));
+  const out: AggPeriodo[] = [];
+  for (let i = idx(serie[0].chave); i <= idx(serie[serie.length - 1].chave); i++) {
+    const k = key(i);
+    out.push(porChave.get(k) ?? { chave: k, pedidos: 0, unidades: 0, valor: 0 });
+  }
+  return out;
+}
+
+export type ResumoPeriodo = {
+  atual: AggPeriodo | null;
+  anterior: AggPeriodo | null;
+  /** (atual − anterior) / anterior; null when there is no comparable previous period. */
+  variacao: number | null;
+};
+
+/** Latest period vs. the one before it (for the Daily/Monthly/Yearly cards). */
+export function resumoPeriodo(buckets: AggPeriodo[]): ResumoPeriodo {
+  const atual = buckets[buckets.length - 1] ?? null;
+  const anterior = buckets[buckets.length - 2] ?? null;
+  const variacao =
+    atual && anterior && anterior.valor !== 0 ? (atual.valor - anterior.valor) / anterior.valor : null;
+  return { atual, anterior, variacao };
+}
+
+export type ResultadoVendas = {
+  bruto: number; // faturamento bruto (Σ valorTotal)
+  custo: number; // custo do fornecedor
+  imposto: number; // imposto sobre a receita
+  comissao: number; // comissão do canal
+  frete: number; // frete absorvido
+  lucro: number; // líquido — o que sobra no bolso
+};
+
+/**
+ * Realized financials for a set of sales, joined to their catalog products (cancelled excluded).
+ * Per sale: imposto & comissão are % of revenue (the product's rates), custo = custoUnit × qtd,
+ * frete from the sale (or the product's freight rule), and lucro = bruto − all deductions.
+ * Sales with no matching product contribute gross only (no cost breakdown available).
+ */
+export function resultadoVendas(vendas: Venda[], produtos: Produto[]): ResultadoVendas {
+  const porId = new Map(produtos.map((p) => [p.id, p]));
+  const r: ResultadoVendas = { bruto: 0, custo: 0, imposto: 0, comissao: 0, frete: 0, lucro: 0 };
+  for (const v of vendas) {
+    if (v.status === "cancelado") continue;
+    r.bruto += v.valorTotal;
+    const p = v.produtoId ? porId.get(v.produtoId) : undefined;
+    if (!p) continue; // avulsa / sem produto → conta só no bruto
+    const imposto = v.valorTotal * (p.imposto ?? IMPOSTO_PADRAO);
+    const comissao = v.valorTotal * (p.comissao ?? COMISSAO_PADRAO);
+    const custo = p.custoUnit * v.quantidade;
+    const frete = v.frete ?? freteUnitario(p.precoVenda) * v.quantidade;
+    const embalagem = (p.custoEmbalagem ?? 0) * v.quantidade;
+    r.imposto += imposto;
+    r.comissao += comissao;
+    r.custo += custo;
+    r.frete += frete;
+    r.lucro += v.valorTotal - imposto - comissao - custo - frete - embalagem;
+  }
+  return r;
+}

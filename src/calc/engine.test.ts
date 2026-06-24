@@ -3,7 +3,10 @@ import {
   calcularMetricas,
   capitalParaEstoque,
   freteUnitario,
+  preencherMeses,
   precoParaMargem,
+  resultadoVendas,
+  resumoPeriodo,
   serieMensal,
   statusCor,
   totaisPortfolio,
@@ -172,5 +175,71 @@ describe("serieMensal (channel-filtered time-series)", () => {
     const s = serieMensal(vendas, "Amazon");
     expect(s.map((m) => m.chave)).toEqual(["2026-05", "2026-06"]);
     expect(s.map((m) => m.valor)).toEqual([100, 200]);
+  });
+});
+
+describe("preencherMeses (continuous x-axis for charts)", () => {
+  it("inserts zero-value months across gaps, including a year boundary", () => {
+    const serie = serieMensal([
+      venda({ data: "2025-12-01T10:00", valorTotal: 100 }),
+      venda({ data: "2026-02-01T10:00", valorTotal: 300 }),
+    ]);
+    const cheia = preencherMeses(serie);
+    expect(cheia.map((m) => m.chave)).toEqual(["2025-12", "2026-01", "2026-02"]);
+    expect(cheia[1].valor).toBe(0); // filled gap
+  });
+  it("returns [] for empty input", () => {
+    expect(preencherMeses([])).toEqual([]);
+  });
+});
+
+describe("resultadoVendas (realized financials, joined to products)", () => {
+  const prod: Produto = {
+    id: "p1",
+    nome: "P",
+    precoVenda: 100,
+    vendasMes: 10,
+    custoUnit: 40,
+    qtdCaixa: 10,
+    imposto: 0.04,
+    comissao: 0.15,
+  };
+  it("breaks gross into custo / imposto / comissão / lucro", () => {
+    const r = resultadoVendas([venda({ produtoId: "p1", quantidade: 2, valorTotal: 200, frete: 0 })], [prod]);
+    expect(r.bruto).toBe(200);
+    expect(r.custo).toBe(80); // 40 × 2
+    expect(r.imposto).toBeCloseTo(8, 6); // 200 × 0.04
+    expect(r.comissao).toBeCloseTo(30, 6); // 200 × 0.15
+    expect(r.lucro).toBeCloseTo(82, 6); // 200 − 8 − 30 − 80
+  });
+  it("excludes cancelled and counts gross-only for unmatched products", () => {
+    const r = resultadoVendas(
+      [
+        venda({ produtoId: "p1", quantidade: 1, valorTotal: 100, frete: 0 }),
+        venda({ produtoId: "p1", quantidade: 1, valorTotal: 100, status: "cancelado" }),
+        venda({ produtoId: "zzz", quantidade: 1, valorTotal: 50 }), // no product
+      ],
+      [prod],
+    );
+    expect(r.bruto).toBe(150); // 100 + 50 (cancelled excluded)
+    expect(r.custo).toBe(40); // only the matched, non-cancelled sale
+  });
+});
+
+describe("resumoPeriodo (latest vs previous period)", () => {
+  const buckets = vendasPorMes([
+    venda({ data: "2026-05-01T10:00", valorTotal: 100 }),
+    venda({ data: "2026-06-01T10:00", valorTotal: 150 }),
+  ]);
+  it("compares the last two buckets", () => {
+    const r = resumoPeriodo(buckets);
+    expect(r.atual?.chave).toBe("2026-06");
+    expect(r.anterior?.chave).toBe("2026-05");
+    expect(r.variacao).toBeCloseTo(0.5, 6); // +50%
+  });
+  it("has no variação when there is only one period", () => {
+    const r = resumoPeriodo(vendasPorMes([venda({ data: "2026-06-01T10:00", valorTotal: 150 })]));
+    expect(r.anterior).toBeNull();
+    expect(r.variacao).toBeNull();
   });
 });
