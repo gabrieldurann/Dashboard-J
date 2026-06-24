@@ -4,6 +4,9 @@ import {
   capitalParaEstoque,
   custosPorCategoria,
   freteUnitario,
+  gruposDuplicados,
+  mesmoNome,
+  normalizaNome,
   totalOperacional,
   preencherMeses,
   precoParaMargem,
@@ -225,6 +228,23 @@ describe("resultadoVendas (realized financials, joined to products)", () => {
     );
     expect(r.bruto).toBe(150); // 100 + 50 (cancelled excluded)
     expect(r.custo).toBe(40); // only the matched, non-cancelled sale
+  });
+});
+
+describe("duplicate detection (ideas #9/#10)", () => {
+  it("normalizes names (trim, lowercase, collapse spaces)", () => {
+    expect(normalizaNome("  Mini   Projetor ")).toBe("mini projetor");
+  });
+  it("finds existing items with the same name, case/space-insensitive", () => {
+    const itens = [{ nome: "Mini Projetor" }, { nome: "Garrafa" }];
+    expect(mesmoNome(itens, "  mini   projetor")).toHaveLength(1);
+    expect(mesmoNome(itens, "Outro")).toHaveLength(0);
+  });
+  it("groups duplicates with the newest last, ignoring uniques", () => {
+    const itens = [{ id: "a", nome: "X" }, { id: "b", nome: "y" }, { id: "c", nome: " x " }];
+    const g = gruposDuplicados(itens);
+    expect(g).toHaveLength(1);
+    expect(g[0].map((i) => i.id)).toEqual(["a", "c"]); // insertion order → c is newest
   });
 });
 

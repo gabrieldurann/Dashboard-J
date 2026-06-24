@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { HashRouter, Route, Routes, useLocation } from "react-router-dom";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { DuplicatePrompt } from "./components/DuplicatePrompt";
 import { Sidebar } from "./components/Sidebar";
 import { Toaster } from "./components/Toaster";
 import { EASE } from "./theme/tokens";
@@ -56,6 +57,7 @@ export default function App() {
       </div>
       <Toaster />
       <ConfirmDialog />
+      <DuplicatePrompt />
     </HashRouter>
   );
 }

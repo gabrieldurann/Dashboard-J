@@ -1,4 +1,4 @@
-import { Coins, Package, Plus, Receipt, Search, Trash2, X } from "lucide-react";
+import { Coins, Package, Pencil, Plus, Receipt, Save, Search, Trash2, X } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
 import type { Venda, VendaStatus } from "../calc/types";
 import { Field, inputClass, NumberInput, TextInput } from "../components/Field";
@@ -71,9 +71,11 @@ export function Vendas() {
   const vendas = useStore((s) => s.vendas);
   const produtos = useStore((s) => s.produtos);
   const addVenda = useStore((s) => s.addVenda);
+  const updateVenda = useStore((s) => s.updateVenda);
   const removeVenda = useStore((s) => s.removeVenda);
 
   const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [d, setD] = useState<Draft>(emptyDraft);
 
   const [busca, setBusca] = useState("");
@@ -147,8 +149,7 @@ export function Vendas() {
   const valido = d.produtoNome.trim() !== "" && d.valorTotal > 0;
   const registrar = () => {
     if (!valido) return;
-    const v: Venda = {
-      id: crypto.randomUUID(),
+    const payload: Omit<Venda, "id"> = {
       data: d.data || nowLocal(),
       produtoId: d.produtoId || undefined,
       produtoNome: d.produtoNome.trim(),
@@ -168,10 +169,48 @@ export function Vendas() {
       frete: d.frete || undefined,
       observacao: d.observacao || undefined,
     };
-    addVenda(v);
-    toast.success("Venda registrada");
+    if (editId) {
+      updateVenda(editId, payload);
+      toast.success("Venda atualizada");
+    } else {
+      addVenda({ id: crypto.randomUUID(), ...payload });
+      toast.success("Venda registrada");
+    }
     setD(emptyDraft());
+    setEditId(null);
     setShowForm(false);
+  };
+
+  const novaVenda = () => {
+    setEditId(null);
+    setD(emptyDraft());
+    setShowForm(true);
+  };
+
+  const editar = (v: Venda) => {
+    setEditId(v.id);
+    setD({
+      produtoId: v.produtoId ?? "",
+      produtoNome: v.produtoNome,
+      codigoProduto: v.codigoProduto ?? "",
+      quantidade: v.quantidade,
+      valorUnitario: v.valorUnitario,
+      valorTotal: v.valorTotal,
+      canal: v.canal ?? "",
+      status: v.status,
+      numeroPedido: v.numeroPedido ?? "",
+      data: v.data,
+      cliente: v.cliente ?? "",
+      enderecoEntrega: v.enderecoEntrega ?? "",
+      cidade: v.cidade ?? "",
+      uf: v.uf ?? "",
+      cep: v.cep ?? "",
+      pais: v.pais ?? "BR",
+      frete: v.frete ?? 0,
+      observacao: v.observacao ?? "",
+    });
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const excluirVenda = async (v: Venda) => {
@@ -193,7 +232,7 @@ export function Vendas() {
       subtitle="Histórico de todas as vendas individuais — produto, valor, entrega e status, com filtros."
       actions={
         <button
-          onClick={() => setShowForm((s) => !s)}
+          onClick={() => (showForm ? setShowForm(false) : novaVenda())}
           className="flex items-center gap-2 rounded-chip border border-lineStrong bg-greenSoft px-4 py-2.5 font-mono text-sm text-txt transition-opacity hover:opacity-90"
         >
           {showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? "Fechar" : "Registrar venda"}
@@ -202,7 +241,9 @@ export function Vendas() {
     >
       {showForm && (
         <GlowCard accent="green" className="mb-4">
-          <span className="mb-4 block font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">Nova venda</span>
+          <span className="mb-4 block font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">
+            {editId ? "Editar venda" : "Nova venda"}
+          </span>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <div className="col-span-2">
               <Field label="Produto" hint="Selecione do catálogo ou deixe em Avulsa">
@@ -298,7 +339,7 @@ export function Vendas() {
             disabled={!valido}
             className="mt-5 flex items-center gap-2 rounded-chip border border-lineStrong bg-greenSoft px-4 py-2.5 font-mono text-sm text-txt transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <Plus size={15} /> Registrar venda
+            {editId ? <Save size={15} /> : <Plus size={15} />} {editId ? "Salvar alterações" : "Registrar venda"}
           </button>
         </GlowCard>
       )}
@@ -428,9 +469,14 @@ export function Vendas() {
                       {v.cidade ? `${v.cidade}${v.uf ? "/" + v.uf : ""}` : v.enderecoEntrega ? "ver endereço" : "—"}
                     </td>
                     <td className="px-4 py-3">
-                      <button onClick={() => excluirVenda(v)} className="text-txtDim transition-colors hover:text-danger" title="Excluir venda">
-                        <Trash2 size={15} />
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => editar(v)} className="text-txtDim transition-colors hover:text-green" title="Editar venda">
+                          <Pencil size={15} />
+                        </button>
+                        <button onClick={() => excluirVenda(v)} className="text-txtDim transition-colors hover:text-danger" title="Excluir venda">
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

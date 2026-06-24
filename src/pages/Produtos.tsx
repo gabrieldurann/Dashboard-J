@@ -1,13 +1,16 @@
-import { ExternalLink, PackageOpen, Plus, Search, SearchX } from "lucide-react";
+import { ExternalLink, PackageOpen, Pencil, Plus, Search, SearchX, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { calcularMetricas } from "../calc/engine";
+import { calcularMetricas, gruposDuplicados } from "../calc/engine";
 import type { StatusCor } from "../calc/constants";
+import { DuplicateBanner } from "../components/DuplicateBanner";
 import { GlowCard } from "../components/GlowCard";
 import { Screen } from "../components/Screen";
 import { StatusDot } from "../components/StatusDot";
 import { money, number, percent } from "../i18n/format";
 import { useStore } from "../store/useStore";
+import { confirmAction } from "../store/useConfirm";
+import { toast } from "../store/useToast";
 
 type Filtro = "todos" | StatusCor;
 
@@ -20,10 +23,39 @@ const FILTROS: { key: Filtro; label: string }[] = [
 
 export function Produtos() {
   const produtos = useStore((s) => s.produtos);
+  const removeProduto = useStore((s) => s.removeProduto);
   const nav = useNavigate();
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const filtrosAtivos = busca.trim() !== "" || filtro !== "todos";
+
+  // duplicate cleanup (idea #10) — catches dupes from the calculator, manual adds, anywhere
+  const dupGrupos = useMemo(() => gruposDuplicados(produtos), [produtos]);
+  const limparDuplicados = async () => {
+    const aRemover = dupGrupos.reduce((s, g) => s + (g.length - 1), 0);
+    const ok = await confirmAction({
+      title: "Remover duplicados?",
+      message: `Manter apenas o produto mais recente de cada nome repetido. ${aRemover} ${aRemover > 1 ? "itens serão removidos" : "item será removido"}.`,
+      confirmLabel: "Remover",
+      danger: true,
+    });
+    if (!ok) return;
+    dupGrupos.forEach((g) => g.slice(0, -1).forEach((p) => removeProduto(p.id)));
+    toast.success("Duplicados removidos");
+  };
+
+  const excluirProduto = async (e: React.MouseEvent, id: string, nome: string) => {
+    e.stopPropagation();
+    const ok = await confirmAction({
+      title: "Excluir produto?",
+      message: `"${nome}" será removido da sua base.`,
+      confirmLabel: "Excluir",
+      danger: true,
+    });
+    if (!ok) return;
+    removeProduto(id);
+    toast.success("Produto excluído");
+  };
 
   const linhas = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -55,6 +87,8 @@ export function Produtos() {
         </button>
       }
     >
+      <DuplicateBanner grupos={dupGrupos} onLimpar={limparDuplicados} />
+
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-2 rounded-chip border border-line bg-panel px-3 py-2">
           <Search size={15} className="text-txtFaint" />
@@ -88,10 +122,10 @@ export function Produtos() {
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="border-b border-line">
-                {["", "Código", "Produto", "Fornecedor", "Custo/un", "Preço", "Margem", "Lucro/un", "Lucro/caixa", "Lucro/mês", "Estoque", "Link"].map(
-                  (h) => (
+                {["", "Código", "Produto", "Fornecedor", "Custo/un", "Preço", "Margem", "Lucro/un", "Lucro/caixa", "Lucro/mês", "Estoque", "Link", "Ações"].map(
+                  (h, i) => (
                     <th
-                      key={h}
+                      key={i}
                       className="px-4 py-3 font-mono text-[10px] uppercase tracking-[0.12em] text-txtFaint"
                     >
                       {h}
@@ -103,7 +137,7 @@ export function Produtos() {
             <tbody>
               {linhas.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="px-4 py-16">
+                  <td colSpan={13} className="px-4 py-16">
                     <div className="flex flex-col items-center gap-3 text-center">
                       {filtrosAtivos ? (
                         <>
@@ -184,6 +218,27 @@ export function Produtos() {
                     ) : (
                       <span className="text-txtFaint">—</span>
                     )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          nav(`/produtos/${p.id}`);
+                        }}
+                        className="text-txtDim transition-colors hover:text-green"
+                        title="Editar"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        onClick={(e) => excluirProduto(e, p.id, p.nome)}
+                        className="text-txtDim transition-colors hover:text-danger"
+                        title="Excluir"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

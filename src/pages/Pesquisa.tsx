@@ -1,8 +1,9 @@
-import { ExternalLink, Image as ImageIcon, ImagePlus, Plus, Search, Trash2, X } from "lucide-react";
+import { ExternalLink, Image as ImageIcon, ImagePlus, Pencil, Plus, Save, Search, Trash2, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { COMISSAO_PADRAO, IMPOSTO_PADRAO } from "../calc/constants";
-import { calcularMetricas } from "../calc/engine";
+import { calcularMetricas, gruposDuplicados } from "../calc/engine";
 import type { Pesquisa as PesquisaT } from "../calc/types";
+import { DuplicateBanner } from "../components/DuplicateBanner";
 import { Field, inputClass, NumberInput, TextInput } from "../components/Field";
 import { GlowCard } from "../components/GlowCard";
 import { Screen } from "../components/Screen";
@@ -45,13 +46,16 @@ const emptyDraft = (): Draft => ({
 });
 
 const aprovToOverride = (a: Aprov): boolean | null => (a === "auto" ? null : a === "sim");
+const overrideToAprov = (a?: boolean | null): Aprov => (a == null ? "auto" : a ? "sim" : "nao");
 
 export function Pesquisa() {
   const pesquisas = useStore((s) => s.pesquisas);
   const addPesquisa = useStore((s) => s.addPesquisa);
+  const updatePesquisa = useStore((s) => s.updatePesquisa);
   const removePesquisa = useStore((s) => s.removePesquisa);
 
   const [showForm, setShowForm] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
   const [d, setD] = useState<Draft>(emptyDraft);
   const [busca, setBusca] = useState("");
 
@@ -93,8 +97,7 @@ export function Pesquisa() {
   const valido = d.nome.trim() !== "" && d.precoVenda > 0;
   const salvar = () => {
     if (!valido) return;
-    const nova: PesquisaT = {
-      id: crypto.randomUUID(),
+    const payload: Omit<PesquisaT, "id"> = {
       link: d.link || undefined,
       nome: d.nome.trim(),
       imagem: d.imagem || undefined,
@@ -109,10 +112,43 @@ export function Pesquisa() {
       aprovadoManual: aprovToOverride(d.aprovacao),
       observacao: d.observacao || undefined,
     };
-    addPesquisa(nova);
-    toast.success("Pesquisa salva");
+    if (editId) {
+      updatePesquisa(editId, payload);
+      toast.success("Pesquisa atualizada");
+    } else {
+      addPesquisa({ id: crypto.randomUUID(), ...payload });
+      toast.success("Pesquisa salva");
+    }
     setD(emptyDraft());
+    setEditId(null);
     setShowForm(false);
+  };
+
+  const novaPesquisa = () => {
+    setEditId(null);
+    setD(emptyDraft());
+    setShowForm(true);
+  };
+
+  const editar = (p: PesquisaT) => {
+    setEditId(p.id);
+    setD({
+      link: p.link ?? "",
+      nome: p.nome,
+      imagem: p.imagem ?? "",
+      dataPesquisa: p.dataPesquisa ?? new Date().toISOString().slice(0, 10),
+      precoVenda: p.precoVenda,
+      vendasMes: p.vendasMes,
+      custoUnit: p.custoUnit,
+      fornecedor: p.fornecedor ?? "",
+      qtdCaixa: p.qtdCaixa,
+      imposto: p.imposto,
+      comissao: p.comissao,
+      aprovacao: overrideToAprov(p.aprovadoManual),
+      observacao: p.observacao ?? "",
+    });
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const excluirPesquisa = async (p: PesquisaT) => {
@@ -127,6 +163,21 @@ export function Pesquisa() {
     toast.success("Pesquisa excluída");
   };
 
+  // duplicate cleanup (idea #10)
+  const dupGrupos = useMemo(() => gruposDuplicados(pesquisas), [pesquisas]);
+  const limparDuplicados = async () => {
+    const aRemover = dupGrupos.reduce((s, g) => s + (g.length - 1), 0);
+    const ok = await confirmAction({
+      title: "Remover duplicados?",
+      message: `Manter apenas a pesquisa mais recente de cada nome repetido. ${aRemover} ${aRemover > 1 ? "itens serão removidos" : "item será removido"}.`,
+      confirmLabel: "Remover",
+      danger: true,
+    });
+    if (!ok) return;
+    dupGrupos.forEach((g) => g.slice(0, -1).forEach((p) => removePesquisa(p.id)));
+    toast.success("Duplicados removidos");
+  };
+
   return (
     <Screen
       eyebrow="Sourcing"
@@ -134,16 +185,20 @@ export function Pesquisa() {
       subtitle="Registro das pesquisas de produtos (TabPesquisa) — com cálculo de taxas e veredito automático."
       actions={
         <button
-          onClick={() => setShowForm((s) => !s)}
+          onClick={() => (showForm ? setShowForm(false) : novaPesquisa())}
           className="flex items-center gap-2 rounded-chip border border-lineStrong bg-greenSoft px-4 py-2.5 font-mono text-sm text-txt transition-opacity hover:opacity-90"
         >
           {showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? "Fechar" : "Adicionar pesquisa"}
         </button>
       }
     >
+      <DuplicateBanner grupos={dupGrupos} onLimpar={limparDuplicados} />
+
       {showForm && (
         <GlowCard accent="green" className="mb-4">
-          <span className="mb-4 block font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">Nova pesquisa</span>
+          <span className="mb-4 block font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">
+            {editId ? "Editar pesquisa" : "Nova pesquisa"}
+          </span>
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <div className="col-span-2 lg:col-span-4">
               <Field label="Link do anúncio referência">
@@ -242,7 +297,7 @@ export function Pesquisa() {
             disabled={!valido}
             className="mt-5 flex items-center gap-2 rounded-chip border border-lineStrong bg-greenSoft px-4 py-2.5 font-mono text-sm text-txt transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <Plus size={15} /> Salvar pesquisa
+            {editId ? <Save size={15} /> : <Plus size={15} />} {editId ? "Salvar alterações" : "Salvar pesquisa"}
           </button>
         </GlowCard>
       )}
@@ -316,9 +371,14 @@ export function Pesquisa() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <button onClick={() => excluirPesquisa(p)} className="text-txtDim transition-colors hover:text-danger" title="Excluir pesquisa">
-                        <Trash2 size={15} />
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => editar(p)} className="text-txtDim transition-colors hover:text-green" title="Editar pesquisa">
+                          <Pencil size={15} />
+                        </button>
+                        <button onClick={() => excluirPesquisa(p)} className="text-txtDim transition-colors hover:text-danger" title="Excluir pesquisa">
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))

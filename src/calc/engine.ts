@@ -315,6 +315,30 @@ export function resultadoVendas(vendas: Venda[], produtos: Produto[]): Resultado
   return r;
 }
 
+// ─── Duplicate detection (ideas #9/#10) ──────────────────────────────────────
+
+/** Normalize a name for comparison: trimmed, lowercased, inner whitespace collapsed. */
+export const normalizaNome = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+
+/** Existing items whose name matches `nome` (case/space-insensitive). */
+export function mesmoNome<T extends { nome: string }>(itens: T[], nome: string): T[] {
+  const k = normalizaNome(nome);
+  return itens.filter((it) => normalizaNome(it.nome) === k);
+}
+
+/** Groups of items sharing a normalized name (only groups with >1). Insertion order is kept
+ *  within each group, so the LAST element is the most recently added (the "newest"). */
+export function gruposDuplicados<T extends { nome: string }>(itens: T[]): T[][] {
+  const map = new Map<string, T[]>();
+  for (const it of itens) {
+    const k = normalizaNome(it.nome);
+    const g = map.get(k);
+    if (g) g.push(it);
+    else map.set(k, [it]);
+  }
+  return [...map.values()].filter((g) => g.length > 1);
+}
+
 // ─── Operating costs (idea #13) ──────────────────────────────────────────────
 
 /** Total recurring monthly operating cost. */
