@@ -11,7 +11,7 @@ import {
   MARGEM_BANDAS,
   type StatusCor,
 } from "./constants";
-import type { MetricasProduto, Produto, Venda } from "./types";
+import type { CategoriaCusto, CustoOperacional, MetricasProduto, Produto, Venda } from "./types";
 
 /** Freight per unit: free above the threshold (sheet O1), else the flat fee (sheet L2:N2). */
 export function freteUnitario(
@@ -313,4 +313,23 @@ export function resultadoVendas(vendas: Venda[], produtos: Produto[]): Resultado
     r.lucro += v.valorTotal - imposto - comissao - custo - frete - embalagem;
   }
   return r;
+}
+
+// ─── Operating costs (idea #13) ──────────────────────────────────────────────
+
+/** Total recurring monthly operating cost. */
+export function totalOperacional(custos: CustoOperacional[]): number {
+  return custos.reduce((s, c) => s + c.valorMensal, 0);
+}
+
+export type AggCategoria = { categoria: CategoriaCusto; valor: number; share: number };
+
+/** Operating costs grouped by category, biggest first, with each category's share of the total. */
+export function custosPorCategoria(custos: CustoOperacional[]): AggCategoria[] {
+  const map = new Map<CategoriaCusto, number>();
+  for (const c of custos) map.set(c.categoria, (map.get(c.categoria) ?? 0) + c.valorMensal);
+  const total = [...map.values()].reduce((s, v) => s + v, 0);
+  return [...map.entries()]
+    .map(([categoria, valor]) => ({ categoria, valor, share: total > 0 ? valor / total : 0 }))
+    .sort((a, b) => b.valor - a.valor);
 }

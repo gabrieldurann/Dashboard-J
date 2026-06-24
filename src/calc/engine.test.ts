@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   calcularMetricas,
   capitalParaEstoque,
+  custosPorCategoria,
   freteUnitario,
+  totalOperacional,
   preencherMeses,
   precoParaMargem,
   resultadoVendas,
@@ -15,7 +17,7 @@ import {
   vendasPorMes,
   vendasPorPais,
 } from "./engine";
-import type { Produto, Venda } from "./types";
+import type { CustoOperacional, Produto, Venda } from "./types";
 
 const base: Produto = {
   id: "1",
@@ -224,6 +226,24 @@ describe("resultadoVendas (realized financials, joined to products)", () => {
     expect(r.bruto).toBe(150); // 100 + 50 (cancelled excluded)
     expect(r.custo).toBe(40); // only the matched, non-cancelled sale
   });
+});
+
+describe("custos operacionais (idea #13)", () => {
+  const custos: CustoOperacional[] = [
+    { id: "1", nome: "Aluguel", categoria: "aluguel", valorMensal: 100 },
+    { id: "2", nome: "Internet", categoria: "internet", valorMensal: 60 },
+    { id: "3", nome: "Energia", categoria: "energia", valorMensal: 40 },
+  ];
+  it("totals the monthly overhead", () => {
+    expect(totalOperacional(custos)).toBe(200);
+  });
+  it("groups by category, biggest first, with shares summing to 1", () => {
+    const agg = custosPorCategoria([...custos, { id: "4", nome: "Luz extra", categoria: "energia", valorMensal: 20 }]);
+    expect(agg[0].categoria).toBe("aluguel"); // 100 is largest
+    expect(agg.find((a) => a.categoria === "energia")!.valor).toBe(60); // 40 + 20 merged
+    expect(agg.reduce((s, a) => s + a.share, 0)).toBeCloseTo(1, 6);
+  });
+  it("totalOperacional of nothing is 0", () => expect(totalOperacional([])).toBe(0));
 });
 
 describe("resumoPeriodo (latest vs previous period)", () => {

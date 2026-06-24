@@ -1,5 +1,5 @@
 import { COMISSAO_PADRAO, IMPOSTO_PADRAO } from "../calc/constants";
-import type { Pesquisa, Produto, Venda } from "../calc/types";
+import type { CustoOperacional, Pesquisa, Produto, Venda } from "../calc/types";
 
 // ⚠️ SAMPLE DATA ONLY — safe to be public.
 // This file ships in the repo so the build/demo isn't empty for reviewers. It intentionally
@@ -21,7 +21,7 @@ export const PRODUTOS_SEED: Produto[] = [
     fornecedor: "Fornecedor Exemplo A",
     dataPesquisa: "2026-05-02",
     precoVenda: 119.9,
-    vendasMes: 4,
+    vendasMes: 48,
     custoUnit: 40,
     qtdCaixa: 30,
     imposto: d,
@@ -36,7 +36,7 @@ export const PRODUTOS_SEED: Produto[] = [
     fornecedor: "Fornecedor Exemplo B",
     dataPesquisa: "2026-05-06",
     precoVenda: 49.9,
-    vendasMes: 9,
+    vendasMes: 108,
     custoUnit: 22,
     qtdCaixa: 80,
     imposto: d,
@@ -52,7 +52,7 @@ export const PRODUTOS_SEED: Produto[] = [
     fornecedor: "Fornecedor Exemplo B",
     dataPesquisa: "2026-05-09",
     precoVenda: 39.9,
-    vendasMes: 7,
+    vendasMes: 84,
     custoUnit: 21.5,
     qtdCaixa: 100,
     imposto: d,
@@ -67,7 +67,7 @@ export const PRODUTOS_SEED: Produto[] = [
     fornecedor: "Fornecedor Exemplo C",
     dataPesquisa: "2026-05-11",
     precoVenda: 29.9,
-    vendasMes: 14,
+    vendasMes: 168,
     custoUnit: 16,
     qtdCaixa: 150,
     imposto: d,
@@ -79,7 +79,8 @@ export const PRODUTOS_SEED: Produto[] = [
 
 // Sample sales — demo only, fake customers/addresses. Real sales stay local (never committed).
 // Spread across countries (`pais`), channels and months so the globe + sales-over-time read well.
-export const VENDAS_SEED: Venda[] = [
+// Scaled by ESCALA_DEMO (below) so the demo shows healthy figures with room for real overhead.
+const VENDAS_BASE: Venda[] = [
   // ── Brasil ──
   {
     id: "v-1001",
@@ -564,6 +565,16 @@ export const VENDAS_SEED: Venda[] = [
   },
 ];
 
+// Demo scale: lift the base ledger to healthy magnitudes. Quantities, totals and freight scale
+// together, so every derived figure (gross, lucro, margem, breakdown) stays internally consistent.
+const ESCALA_DEMO = 12;
+export const VENDAS_SEED: Venda[] = VENDAS_BASE.map((v) => ({
+  ...v,
+  quantidade: v.quantidade * ESCALA_DEMO,
+  valorTotal: +(v.valorTotal * ESCALA_DEMO).toFixed(2),
+  frete: v.frete != null ? +(v.frete * ESCALA_DEMO).toFixed(2) : v.frete,
+}));
+
 // Sample research entries (demo only). Mirrors the TabPesquisa sheet columns.
 export const PESQUISAS_SEED: Pesquisa[] = [
   {
@@ -607,4 +618,15 @@ export const PESQUISAS_SEED: Pesquisa[] = [
     comissao: 0.13,
     aprovadoManual: null,
   },
+];
+
+// Sample operating costs (demo only) — realistic overhead that still leaves a healthy net against
+// the scaled sales. Real overhead is entered in the app (stays local).
+export const CUSTOS_OPERACIONAIS_SEED: CustoOperacional[] = [
+  { id: "op-1", nome: "Aluguel (galpão/escritório)", categoria: "aluguel", valorMensal: 1200 },
+  { id: "op-2", nome: "Energia elétrica", categoria: "energia", valorMensal: 320 },
+  { id: "op-3", nome: "Contabilidade", categoria: "contabilidade", valorMensal: 250 },
+  { id: "op-4", nome: "Software & ferramentas", categoria: "software", valorMensal: 190 },
+  { id: "op-5", nome: "Internet", categoria: "internet", valorMensal: 150 },
+  { id: "op-6", nome: "Água", categoria: "agua", valorMensal: 90 },
 ];

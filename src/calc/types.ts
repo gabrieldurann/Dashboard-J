@@ -73,6 +73,27 @@ export type CalculoSalvo = {
   criadoEm: string; // ISO datetime
 };
 
+/** A recurring company operating cost (idea #13) — overhead that doesn't belong to any product:
+ *  rent, internet, electricity, water, software, etc. Used for the true "money in pocket" profit. */
+export type CategoriaCusto =
+  | "aluguel"
+  | "energia"
+  | "agua"
+  | "internet"
+  | "telefone"
+  | "software"
+  | "salarios"
+  | "contabilidade"
+  | "outros";
+
+export type CustoOperacional = {
+  id: string;
+  nome: string;
+  categoria: CategoriaCusto;
+  valorMensal: number; // recurring monthly amount (R$)
+  observacao?: string;
+};
+
 /** A product research entry — the "TabPesquisa" log. Mirrors the sheet's columns. */
 export type Pesquisa = {
   id: string;
