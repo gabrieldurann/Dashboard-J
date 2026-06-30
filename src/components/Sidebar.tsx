@@ -1,4 +1,4 @@
-import { Building2, Calculator, ClipboardList, FileText, LayoutDashboard, Package, Pencil, Plug, Receipt } from "lucide-react";
+import { Building2, Calculator, ClipboardList, FileText, LayoutDashboard, Package, Pencil, Plug, Receipt, SlidersHorizontal } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const NAV = [
@@ -8,6 +8,7 @@ const NAV = [
   { to: "/vendas", label: "Vendas", icon: Receipt, end: false },
   { to: "/vendas-avulsas", label: "Vendas avulsas", icon: Pencil, end: false },
   { to: "/calculadora", label: "Calculadora", icon: Calculator, end: false },
+  { to: "/simulacoes", label: "Simulações", icon: SlidersHorizontal, end: false },
   { to: "/custos-operacionais", label: "Custos op.", icon: Building2, end: false },
   { to: "/relatorios", label: "Relatórios", icon: FileText, end: false },
 ];

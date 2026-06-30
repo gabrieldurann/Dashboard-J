@@ -151,6 +151,79 @@ export function capitalParaEstoque(
   return custoUnit * qtdCaixa * nCaixas;
 }
 
+// ─── Scenario simulation (idea #11) ──────────────────────────────────────────
+// "What-if" projection: vary price / cost / monthly volume and read out the whole
+// monthly P&L. Never touches stored products — the page feeds it slider values.
+
+export type CenarioInput = {
+  precoVenda: number;
+  custoUnit: number;
+  vendasMes: number;
+  qtdCaixa: number;
+  imposto: number;
+  comissao: number;
+  custoEmbalagem?: number;
+};
+
+export type CenarioResultado = {
+  // por unidade
+  margem: number;
+  statusCor: StatusCor;
+  valorLiquido: number;
+  freteUnit: number;
+  lucroUnit: number;
+  lucroCaixa: number;
+  // mensal (por unidade × vendasMes)
+  faturamentoMes: number;
+  custoMes: number;
+  impostoMes: number;
+  comissaoMes: number;
+  freteMes: number;
+  embalagemMes: number;
+  lucroMes: number;
+  // capital
+  capitalCaixa: number;
+  paybackMeses: number | null;
+};
+
+/**
+ * Project a scenario's full monthly result. Reuses `calcularMetricas` for the per-unit
+ * figures, then scales the deductions by volume. By construction the monthly numbers
+ * reconcile: faturamento − custo − imposto − comissão − frete − embalagem = lucroMes.
+ */
+export function simularCenario(c: CenarioInput): CenarioResultado {
+  const m = calcularMetricas({
+    id: "sim",
+    nome: "",
+    precoVenda: c.precoVenda,
+    vendasMes: c.vendasMes,
+    custoUnit: c.custoUnit,
+    qtdCaixa: c.qtdCaixa,
+    imposto: c.imposto,
+    comissao: c.comissao,
+    custoEmbalagem: c.custoEmbalagem,
+    aprovadoManual: null,
+  });
+  const v = c.vendasMes;
+  return {
+    margem: m.margem,
+    statusCor: m.statusCor,
+    valorLiquido: m.valorLiquido,
+    freteUnit: m.freteUnit,
+    lucroUnit: m.lucroUnit,
+    lucroCaixa: m.lucroCaixa,
+    faturamentoMes: c.precoVenda * v,
+    custoMes: c.custoUnit * v,
+    impostoMes: c.precoVenda * c.imposto * v,
+    comissaoMes: c.precoVenda * c.comissao * v,
+    freteMes: m.freteUnit * v,
+    embalagemMes: (c.custoEmbalagem ?? 0) * v,
+    lucroMes: m.lucroMensal,
+    capitalCaixa: m.capitalEstoque,
+    paybackMeses: m.paybackMeses,
+  };
+}
+
 /** Aggregate totals across a portfolio for the Painel Principal (idea #17). */
 export function totaisPortfolio(produtos: Produto[]) {
   let receitaMensal = 0;

@@ -13,6 +13,7 @@ import {
   resultadoVendas,
   resumoPeriodo,
   serieMensal,
+  simularCenario,
   statusCor,
   totaisPortfolio,
   vendasPorAno,
@@ -80,6 +81,39 @@ describe("calcularMetricas (faithful to sheet, cleaned)", () => {
   });
   it("payback = capital / lucroMensal", () => {
     expect(m.paybackMeses).toBeCloseTo(2000 / 445.5, 5);
+  });
+});
+
+describe("simularCenario (what-if projection, idea #11)", () => {
+  const c = simularCenario({
+    precoVenda: 50,
+    custoUnit: 20,
+    vendasMes: 30,
+    qtdCaixa: 100,
+    imposto: 0.04,
+    comissao: 0.15,
+  });
+  it("matches calcularMetricas on the per-unit figures", () => {
+    expect(c.margem).toBeCloseTo(0.297, 4);
+    expect(c.lucroUnit).toBeCloseTo(14.85, 5);
+    expect(c.statusCor).toBe("verde");
+  });
+  it("scales the monthly breakdown by volume", () => {
+    expect(c.faturamentoMes).toBe(1500); // 50 × 30
+    expect(c.custoMes).toBe(600); // 20 × 30
+    expect(c.impostoMes).toBeCloseTo(60, 6); // 50 × 0.04 × 30
+    expect(c.comissaoMes).toBeCloseTo(225, 6); // 50 × 0.15 × 30
+    expect(c.lucroMes).toBeCloseTo(445.5, 4);
+  });
+  it("reconciles: faturamento − todas deduções = lucroMes", () => {
+    const soma = c.faturamentoMes - c.custoMes - c.impostoMes - c.comissaoMes - c.freteMes - c.embalagemMes;
+    expect(soma).toBeCloseTo(c.lucroMes, 6);
+  });
+  it("zero volume yields zero monthly figures and null payback", () => {
+    const z = simularCenario({ precoVenda: 50, custoUnit: 20, vendasMes: 0, qtdCaixa: 100, imposto: 0.04, comissao: 0.15 });
+    expect(z.lucroMes).toBe(0);
+    expect(z.faturamentoMes).toBe(0);
+    expect(z.paybackMeses).toBeNull();
   });
 });
 
