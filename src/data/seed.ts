@@ -1,5 +1,5 @@
 import { COMISSAO_PADRAO, IMPOSTO_PADRAO } from "../calc/constants";
-import type { CustoOperacional, Pesquisa, Produto, Venda } from "../calc/types";
+import type { CustoOperacional, Devolucao, Pesquisa, Produto, Venda } from "../calc/types";
 
 // ⚠️ SAMPLE DATA ONLY — safe to be public.
 // This file ships in the repo so the build/demo isn't empty for reviewers. It intentionally
@@ -617,6 +617,114 @@ export const PESQUISAS_SEED: Pesquisa[] = [
     imposto: IMPOSTO_PADRAO,
     comissao: 0.13,
     aprovadoManual: null,
+  },
+];
+
+// Sample returns (demo only) — each references one of the sample sales above so the ledger link
+// reads well. Refunds are sized to a believable ~5–10% return rate against the scaled sales, and
+// most (but not all) units are restocked. Real returns are entered in the app (stay local).
+export const DEVOLUCOES_SEED: Devolucao[] = [
+  // ── Junho 2026 (mês corrente → entra no "líquido após devoluções" do Painel) ──
+  {
+    id: "dev-1",
+    vendaId: "v-1001",
+    produtoId: "demo-1",
+    produtoNome: "Mini Projetor Portátil",
+    codigoProduto: "DEMO-001",
+    data: "2026-06-20T10:15",
+    quantidade: 5,
+    motivo: "defeito",
+    status: "concluida",
+    valorReembolsado: 599.5, // 5 × 119,90
+    reestocado: false, // descartado — não volta ao estoque
+    canal: "Amazon",
+    cliente: "Cliente Exemplo 1",
+    numeroPedido: "PED-1001",
+    observacao: "Lâmpada não acende — enviado para descarte.",
+  },
+  {
+    id: "dev-2",
+    vendaId: "v-1002",
+    produtoId: "demo-2",
+    produtoNome: "Garrafa Térmica Inox 1L",
+    codigoProduto: "DEMO-002",
+    data: "2026-06-21T16:40",
+    quantidade: 6,
+    motivo: "danificado",
+    status: "em_analise", // recebida, ainda em inspeção
+    valorReembolsado: 299.4, // 6 × 49,90
+    reestocado: false,
+    canal: "Mercado Livre",
+    cliente: "Cliente Exemplo 2",
+    numeroPedido: "PED-1002",
+  },
+  {
+    id: "dev-3",
+    vendaId: "v-1009",
+    produtoId: "demo-4",
+    produtoNome: "Suporte de Copo Veicular",
+    codigoProduto: "DEMO-004",
+    data: "2026-06-22T09:05",
+    quantidade: 8,
+    motivo: "errado",
+    status: "concluida",
+    valorReembolsado: 239.2, // 8 × 29,90
+    reestocado: true,
+    dataReestoque: "2026-06-24", // voltou ao estoque 2 dias depois
+    canal: "Amazon",
+    cliente: "Mike Brown",
+    numeroPedido: "PED-1009",
+  },
+  {
+    id: "dev-4",
+    vendaId: "v-1008",
+    produtoId: "demo-2",
+    produtoNome: "Garrafa Térmica Inox 1L",
+    codigoProduto: "DEMO-002",
+    data: "2026-06-24T14:20",
+    quantidade: 4,
+    motivo: "arrependimento",
+    status: "solicitada", // aberta há pouco — ainda não recebida/tratada
+    valorReembolsado: 199.6, // 4 × 49,90
+    reestocado: false,
+    canal: "Amazon",
+    cliente: "Jane Smith",
+    numeroPedido: "PED-1008",
+  },
+  // ── Histórico (maio / março) — dá profundidade à taxa de devolução no tempo ──
+  {
+    id: "dev-5",
+    vendaId: "v-1006",
+    produtoId: "demo-1",
+    produtoNome: "Mini Projetor Portátil",
+    codigoProduto: "DEMO-001",
+    data: "2026-05-12T11:30",
+    quantidade: 3,
+    motivo: "atraso",
+    status: "concluida",
+    valorReembolsado: 359.7, // 3 × 119,90
+    reestocado: true,
+    dataReestoque: "2026-05-15",
+    canal: "Amazon",
+    cliente: "Cliente Exemplo 6",
+    numeroPedido: "PED-1006",
+  },
+  {
+    id: "dev-6",
+    vendaId: "v-1027",
+    produtoId: "demo-4",
+    produtoNome: "Suporte de Copo Veicular",
+    codigoProduto: "DEMO-004",
+    data: "2026-03-30T18:00",
+    quantidade: 5,
+    motivo: "arrependimento",
+    status: "concluida",
+    valorReembolsado: 149.5, // 5 × 29,90
+    reestocado: true,
+    dataReestoque: "2026-04-02",
+    canal: "Amazon",
+    cliente: "Louis Moreau",
+    numeroPedido: "PED-1027",
   },
 ];
 

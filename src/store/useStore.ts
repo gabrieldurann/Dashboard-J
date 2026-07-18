@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { CalculoSalvo, CustoOperacional, Pesquisa, Produto, Venda, VendaAvulsa } from "../calc/types";
-import { CUSTOS_OPERACIONAIS_SEED, PESQUISAS_SEED, PRODUTOS_SEED, VENDAS_SEED } from "../data/seed";
+import type { CalculoSalvo, CustoOperacional, Devolucao, Pesquisa, Produto, Venda, VendaAvulsa } from "../calc/types";
+import { CUSTOS_OPERACIONAIS_SEED, DEVOLUCOES_SEED, PESQUISAS_SEED, PRODUTOS_SEED, VENDAS_SEED } from "../data/seed";
 
 // Local-first store (PLAN.md §6): hydrates from the bundled seed, then persists the user's edits
 // to localStorage. The deployed link shows the seed to the partner; the user's test edits live
@@ -14,6 +14,7 @@ type State = {
   vendasAvulsas: VendaAvulsa[];
   calculosSalvos: CalculoSalvo[];
   custosOperacionais: CustoOperacional[];
+  devolucoes: Devolucao[];
   addProduto: (p: Produto) => void;
   updateProduto: (id: string, patch: Partial<Produto>) => void;
   removeProduto: (id: string) => void;
@@ -30,6 +31,9 @@ type State = {
   addCustoOperacional: (c: CustoOperacional) => void;
   updateCustoOperacional: (id: string, patch: Partial<CustoOperacional>) => void;
   removeCustoOperacional: (id: string) => void;
+  addDevolucao: (d: Devolucao) => void;
+  updateDevolucao: (id: string, patch: Partial<Devolucao>) => void;
+  removeDevolucao: (id: string) => void;
   /** restore the bundled seed (discard local edits) */
   resetSeed: () => void;
 };
@@ -43,6 +47,7 @@ export const useStore = create<State>()(
       vendasAvulsas: [],
       calculosSalvos: [],
       custosOperacionais: CUSTOS_OPERACIONAIS_SEED,
+      devolucoes: DEVOLUCOES_SEED,
       addProduto: (p) => set((s) => ({ produtos: [...s.produtos, p] })),
       updateProduto: (id, patch) =>
         set((s) => ({
@@ -77,6 +82,13 @@ export const useStore = create<State>()(
         })),
       removeCustoOperacional: (id) =>
         set((s) => ({ custosOperacionais: s.custosOperacionais.filter((c) => c.id !== id) })),
+      addDevolucao: (d) => set((s) => ({ devolucoes: [d, ...s.devolucoes] })),
+      updateDevolucao: (id, patch) =>
+        set((s) => ({
+          devolucoes: s.devolucoes.map((d) => (d.id === id ? { ...d, ...patch } : d)),
+        })),
+      removeDevolucao: (id) =>
+        set((s) => ({ devolucoes: s.devolucoes.filter((d) => d.id !== id) })),
       resetSeed: () =>
         set({
           produtos: PRODUTOS_SEED,
@@ -85,14 +97,16 @@ export const useStore = create<State>()(
           vendasAvulsas: [],
           calculosSalvos: [],
           custosOperacionais: CUSTOS_OPERACIONAIS_SEED,
+          devolucoes: DEVOLUCOES_SEED,
         }),
     }),
     {
       // Bump this version whenever the bundled seed shape/content changes, so existing
       // browsers discard their stale persisted copy and re-hydrate from the new seed
       // instead of masking it. (v2: country data. v3: T1 historical sales. v4: calibrated
-      // velocities. v5: demo scaled up ×12 + realistic operating costs.)
-      name: "painel-j-v5",
+      // velocities. v5: demo scaled up ×12 + realistic operating costs. v6: returns ledger.
+      // v7: returns gained status + restock date.)
+      name: "painel-j-v7",
     },
   ),
 );

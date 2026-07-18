@@ -37,22 +37,22 @@ export function PeriodCard({
       {hint && <p className="mt-0.5 font-mono text-[10px] text-txtFaint">{hint}</p>}
 
       <div className="mt-3 flex items-end justify-between gap-2">
-        <div className="flex items-center gap-1.5">
+        <div className="flex min-w-0 items-center gap-1.5">
           {v != null &&
             (up ? (
-              <ArrowUpRight size={20} className="text-green" strokeWidth={2.4} />
+              <ArrowUpRight size={20} className="shrink-0 text-green" strokeWidth={2.4} />
             ) : (
-              <ArrowDownRight size={20} className="text-danger" strokeWidth={2.4} />
+              <ArrowDownRight size={20} className="shrink-0 text-danger" strokeWidth={2.4} />
             ))}
-          <BigStat value={valor} format={money} className="text-2xl lg:text-3xl" />
+          <BigStat value={valor} format={money} className="text-2xl 2xl:text-3xl" />
         </div>
         {v != null ? (
-          <span className={`font-mono text-sm tabular-nums ${up ? "text-green" : "text-danger"}`}>
+          <span className={`shrink-0 font-mono text-sm tabular-nums ${up ? "text-green" : "text-danger"}`}>
             {up ? "+" : "−"}
             {percent(Math.abs(v))}
           </span>
         ) : (
-          <span className="font-mono text-[11px] text-txtFaint">1º período</span>
+          <span className="shrink-0 font-mono text-[11px] text-txtFaint">1º período</span>
         )}
       </div>
 

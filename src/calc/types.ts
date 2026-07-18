@@ -4,6 +4,8 @@
 export type Produto = {
   id: string;
   codigoProduto?: string;
+  asin?: string; // Amazon Standard Identification Number — key for selling/linking on Amazon
+  ean?: string; // EAN/GTIN barcode — used for Amazon "match" listing & catalog lookup
   nome: string;
   link?: string; // link do anúncio referência (idea #5)
   imagem?: string; // data URL or remote URL (idea #6)
@@ -44,6 +46,45 @@ export type Venda = {
   cep?: string;
   pais?: string; // ISO 3166-1 alpha-2 country code (see data/countries.ts) — for sales-per-country
   frete?: number;
+  observacao?: string;
+};
+
+/** Why a customer returned the order (idea #1). Drives the "por motivo" breakdown. */
+export type MotivoDevolucao =
+  | "defeito" // chegou com defeito / não funciona
+  | "danificado" // danificado no transporte
+  | "errado" // produto errado / não corresponde ao anúncio
+  | "arrependimento" // desistência / não queria mais
+  | "atraso" // demorou demais para chegar
+  | "outros";
+
+/** Lifecycle of a return (idea #1). Lets us tell in-progress returns from finished ones. */
+export type DevolucaoStatus =
+  | "solicitada" // cliente pediu a devolução; ainda não recebida
+  | "em_analise" // recebida, em processamento / inspeção
+  | "aprovada" // aprovada — reembolso/reestoque pendente
+  | "concluida" // finalizada (reembolsada e tratada)
+  | "recusada"; // devolução recusada
+
+/** A return / refund event (idea #1). Mirrors the Vendas ledger: each return can reference the
+ *  originating sale (`vendaId`) and/or a catalog product (`produtoId`), so we can compute return
+ *  rate per product, reason analysis, and the financial hit that eats into realized profit. */
+export type Devolucao = {
+  id: string;
+  vendaId?: string; // link to the originating sale (optional)
+  produtoId?: string; // link to a catalog product (optional → avulsa)
+  produtoNome: string; // snapshot of the product name
+  codigoProduto?: string; // snapshot of the product code
+  data: string; // ISO datetime the return was opened/registered
+  quantidade: number; // units returned
+  motivo: MotivoDevolucao;
+  status: DevolucaoStatus; // where the return is in its lifecycle
+  valorReembolsado: number; // refund paid back to the customer (R$)
+  reestocado: boolean; // did the returned unit(s) go back into sellable stock?
+  dataReestoque?: string; // ISO date the unit(s) went back into stock (only when reestocado)
+  canal?: string; // snapshot of the sales channel (Amazon, Mercado Livre…)
+  cliente?: string; // snapshot
+  numeroPedido?: string; // snapshot
   observacao?: string;
 };
 

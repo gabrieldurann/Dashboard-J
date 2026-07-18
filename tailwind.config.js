@@ -15,6 +15,8 @@ export default {
         goldSoft: "rgba(232,184,75,0.14)",
         danger: "#ff5f6b",
         amber: "#f5a623",
+        sky: "#4ea1f0",
+        skySoft: "rgba(78,161,240,0.16)",
         txt: "#e8eef5",
         txtDim: "#8b97a8",
         txtFaint: "#5a6678",

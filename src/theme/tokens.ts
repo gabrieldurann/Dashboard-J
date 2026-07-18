@@ -8,6 +8,7 @@ export const COLORS = {
   gold: "#e8b84b",
   danger: "#ff5f6b",
   amber: "#f5a623",
+  sky: "#4ea1f0",
   txt: "#e8eef5",
   txtDim: "#8b97a8",
   txtFaint: "#5a6678",

@@ -11,7 +11,15 @@ import {
   MARGEM_BANDAS,
   type StatusCor,
 } from "./constants";
-import type { CategoriaCusto, CustoOperacional, MetricasProduto, Produto, Venda } from "./types";
+import type {
+  CategoriaCusto,
+  CustoOperacional,
+  Devolucao,
+  MetricasProduto,
+  MotivoDevolucao,
+  Produto,
+  Venda,
+} from "./types";
 
 /** Freight per unit: free above the threshold (sheet O1), else the flat fee (sheet L2:N2). */
 export function freteUnitario(
@@ -386,6 +394,63 @@ export function resultadoVendas(vendas: Venda[], produtos: Produto[]): Resultado
     r.lucro += v.valorTotal - imposto - comissao - custo - frete - embalagem;
   }
   return r;
+}
+
+// ─── Returns / refunds (idea #1) ─────────────────────────────────────────────
+// Pure rollups over the Devoluções ledger. Refunds are money going back out, so they
+// reduce realized profit (see the Painel's "líquido após devoluções" line).
+
+export type ResumoDevolucoes = {
+  registros: number; // number of return records
+  unidades: number; // total units returned
+  reembolso: number; // total R$ refunded
+  reestocadas: number; // units that went back into sellable stock
+};
+
+/** Totals across a set of returns (units, refund value, restocked units). */
+export function resumoDevolucoes(devolucoes: Devolucao[]): ResumoDevolucoes {
+  const r: ResumoDevolucoes = { registros: 0, unidades: 0, reembolso: 0, reestocadas: 0 };
+  for (const d of devolucoes) {
+    r.registros += 1;
+    r.unidades += d.quantidade;
+    r.reembolso += d.valorReembolsado;
+    if (d.reestocado) r.reestocadas += d.quantidade;
+  }
+  return r;
+}
+
+export type AggMotivo = {
+  motivo: MotivoDevolucao;
+  registros: number;
+  unidades: number;
+  reembolso: number;
+  share: number; // fraction of total refund value
+};
+
+/** Returns grouped by reason, costliest refund first, with each reason's share of total refund. */
+export function devolucoesPorMotivo(devolucoes: Devolucao[]): AggMotivo[] {
+  const map = new Map<MotivoDevolucao, { registros: number; unidades: number; reembolso: number }>();
+  for (const d of devolucoes) {
+    const g = map.get(d.motivo) ?? { registros: 0, unidades: 0, reembolso: 0 };
+    g.registros += 1;
+    g.unidades += d.quantidade;
+    g.reembolso += d.valorReembolsado;
+    map.set(d.motivo, g);
+  }
+  const total = [...map.values()].reduce((s, g) => s + g.reembolso, 0);
+  return [...map.entries()]
+    .map(([motivo, g]) => ({ motivo, ...g, share: total > 0 ? g.reembolso / total : 0 }))
+    .sort((a, b) => b.reembolso - a.reembolso);
+}
+
+/**
+ * Return rate = units returned ÷ units sold (realized). Cancelled sales are excluded from the
+ * denominator since they were never really sold. Returns 0 when there are no realized units.
+ */
+export function taxaDevolucao(devolucoes: Devolucao[], vendas: Venda[]): number {
+  const unidadesDevolvidas = devolucoes.reduce((s, d) => s + d.quantidade, 0);
+  const unidadesVendidas = vendasRealizadas(vendas).reduce((s, v) => s + v.quantidade, 0);
+  return unidadesVendidas > 0 ? unidadesDevolvidas / unidadesVendidas : 0;
 }
 
 // ─── Duplicate detection (ideas #9/#10) ──────────────────────────────────────

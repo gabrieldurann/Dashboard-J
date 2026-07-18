@@ -3,10 +3,13 @@ import {
   calcularMetricas,
   capitalParaEstoque,
   custosPorCategoria,
+  devolucoesPorMotivo,
   freteUnitario,
   gruposDuplicados,
   mesmoNome,
   normalizaNome,
+  resumoDevolucoes,
+  taxaDevolucao,
   totalOperacional,
   preencherMeses,
   precoParaMargem,
@@ -21,7 +24,7 @@ import {
   vendasPorMes,
   vendasPorPais,
 } from "./engine";
-import type { CustoOperacional, Produto, Venda } from "./types";
+import type { CustoOperacional, Devolucao, Produto, Venda } from "./types";
 
 const base: Produto = {
   id: "1",
@@ -298,6 +301,61 @@ describe("custos operacionais (idea #13)", () => {
     expect(agg.reduce((s, a) => s + a.share, 0)).toBeCloseTo(1, 6);
   });
   it("totalOperacional of nothing is 0", () => expect(totalOperacional([])).toBe(0));
+});
+
+const devolucao = (over: Partial<Devolucao>): Devolucao => ({
+  id: crypto.randomUUID(),
+  produtoNome: "Produto",
+  data: "2026-06-01T10:00",
+  quantidade: 1,
+  motivo: "defeito",
+  status: "concluida",
+  valorReembolsado: 100,
+  reestocado: false,
+  ...over,
+});
+
+describe("returns / devoluções (idea #1)", () => {
+  const devs: Devolucao[] = [
+    devolucao({ quantidade: 5, valorReembolsado: 500, reestocado: false, motivo: "defeito" }),
+    devolucao({ quantidade: 2, valorReembolsado: 200, reestocado: true, motivo: "arrependimento" }),
+    devolucao({ quantidade: 3, valorReembolsado: 300, reestocado: true, motivo: "defeito" }),
+  ];
+
+  it("resumoDevolucoes totals units, refund and restocked units", () => {
+    const r = resumoDevolucoes(devs);
+    expect(r.registros).toBe(3);
+    expect(r.unidades).toBe(10);
+    expect(r.reembolso).toBe(1000);
+    expect(r.reestocadas).toBe(5); // 2 + 3, the restocked ones
+  });
+
+  it("devolucoesPorMotivo groups by reason, costliest first, shares summing to 1", () => {
+    const agg = devolucoesPorMotivo(devs);
+    expect(agg[0].motivo).toBe("defeito"); // 500 + 300 = 800 is largest
+    expect(agg.find((a) => a.motivo === "defeito")!.reembolso).toBe(800);
+    expect(agg.find((a) => a.motivo === "defeito")!.unidades).toBe(8);
+    expect(agg.reduce((s, a) => s + a.share, 0)).toBeCloseTo(1, 6);
+  });
+
+  it("taxaDevolucao = returned units ÷ realized sold units (cancelled excluded)", () => {
+    const vendas: Venda[] = [
+      venda({ quantidade: 60 }),
+      venda({ quantidade: 40 }),
+      venda({ quantidade: 999, status: "cancelado" }), // excluded from denominator
+    ];
+    expect(taxaDevolucao(devs, vendas)).toBeCloseTo(10 / 100, 6); // 10 returned / 100 sold
+  });
+
+  it("taxaDevolucao is 0 when there are no realized sales", () => {
+    expect(taxaDevolucao(devs, [])).toBe(0);
+  });
+
+  it("empty ledger yields zeroed totals", () => {
+    const r = resumoDevolucoes([]);
+    expect(r).toEqual({ registros: 0, unidades: 0, reembolso: 0, reestocadas: 0 });
+    expect(devolucoesPorMotivo([])).toEqual([]);
+  });
 });
 
 describe("resumoPeriodo (latest vs previous period)", () => {

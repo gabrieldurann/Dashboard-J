@@ -1,4 +1,4 @@
-import { Building2, Calculator, ClipboardList, FileText, LayoutDashboard, Package, Pencil, Plug, Receipt, SlidersHorizontal } from "lucide-react";
+import { Building2, Calculator, ClipboardList, FileText, LayoutDashboard, Package, Pencil, Plug, Receipt, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const NAV = [
@@ -7,6 +7,7 @@ const NAV = [
   { to: "/produtos", label: "Produtos", icon: Package, end: false },
   { to: "/vendas", label: "Vendas", icon: Receipt, end: false },
   { to: "/vendas-avulsas", label: "Vendas avulsas", icon: Pencil, end: false },
+  { to: "/devolucoes", label: "Devoluções", icon: RotateCcw, end: false },
   { to: "/calculadora", label: "Calculadora", icon: Calculator, end: false },
   { to: "/simulacoes", label: "Simulações", icon: SlidersHorizontal, end: false },
   { to: "/custos-operacionais", label: "Custos op.", icon: Building2, end: false },
@@ -15,7 +16,7 @@ const NAV = [
 
 export function Sidebar() {
   return (
-    <aside className="flex w-[230px] shrink-0 flex-col border-r border-line bg-bgRaise/60 px-4 py-6">
+    <aside className="sticky top-0 flex h-screen w-[230px] shrink-0 flex-col overflow-y-auto border-r border-line bg-bgRaise/60 px-4 py-6">
       <div className="mb-9 flex items-center gap-2.5 px-2">
         <span className="relative flex h-8 w-8 items-center justify-center rounded-chip bg-greenSoft">
           <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-green shadow-glowGreen" />

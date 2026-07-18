@@ -8,6 +8,7 @@ import { EASE } from "./theme/tokens";
 import { Calculadora } from "./pages/Calculadora";
 import { Conexoes } from "./pages/Conexoes";
 import { CustosOperacionais } from "./pages/CustosOperacionais";
+import { Devolucoes } from "./pages/Devolucoes";
 import { Painel } from "./pages/Painel";
 import { Pesquisa } from "./pages/Pesquisa";
 import { ProdutoForm } from "./pages/ProdutoForm";
@@ -37,6 +38,7 @@ function AnimatedRoutes() {
           <Route path="/produtos/:id" element={<ProdutoForm />} />
           <Route path="/vendas" element={<Vendas />} />
           <Route path="/vendas-avulsas" element={<VendasAvulsas />} />
+          <Route path="/devolucoes" element={<Devolucoes />} />
           <Route path="/calculadora" element={<Calculadora />} />
           <Route path="/simulacoes" element={<Simulacoes />} />
           <Route path="/custos-operacionais" element={<CustosOperacionais />} />

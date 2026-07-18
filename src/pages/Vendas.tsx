@@ -13,7 +13,7 @@ import { PAISES, paisFlag, paisNome } from "../data/countries";
 
 const STATUS: Record<VendaStatus, { label: string; cls: string }> = {
   pendente: { label: "Pendente", cls: "text-amber border-amber/40 bg-amber/10" },
-  enviado: { label: "Enviado", cls: "text-gold border-gold/40 bg-goldSoft" },
+  enviado: { label: "Enviado", cls: "text-sky border-sky/40 bg-skySoft" },
   entregue: { label: "Entregue", cls: "text-green border-green/40 bg-greenSoft" },
   cancelado: { label: "Cancelado", cls: "text-txtFaint border-line" },
 };

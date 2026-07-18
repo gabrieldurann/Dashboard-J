@@ -1,17 +1,21 @@
-import { Coins, Globe as GlobeIcon, Landmark, LineChart, MapPin, Package, Percent, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
-import { useMemo } from "react";
+import { Building2, ChevronDown, Coins, Globe as GlobeIcon, Landmark, LineChart, MapPin, Package, Percent, RotateCcw, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useMemo, useState } from "react";
 import {
   calcularMetricas,
   preencherMeses,
   resultadoVendas,
+  resumoDevolucoes,
   resumoPeriodo,
   serieMensal,
   totaisPortfolio,
+  totalOperacional,
   vendasPorAno,
   vendasPorDia,
   vendasPorMes,
   vendasPorPais,
 } from "../calc/engine";
+import { EASE } from "../theme/tokens";
 import { AreaChart } from "../components/AreaChart";
 import { BigStat } from "../components/BigStat";
 import { Globe, type GlobeMarker } from "../components/Globe";
@@ -37,7 +41,12 @@ const labelDia = (chave: string) => {
 export function Painel() {
   const produtos = useStore((s) => s.produtos);
   const vendas = useStore((s) => s.vendas);
+  const devolucoes = useStore((s) => s.devolucoes);
+  const custosOperacionais = useStore((s) => s.custosOperacionais);
   const t = useMemo(() => totaisPortfolio(produtos), [produtos]);
+
+  // reveal/hide the secondary metric cards (idea: keep the headline clean, expand for detail)
+  const [detalhes, setDetalhes] = useState(false);
 
   // sales-per-country (globe markers + table)
   const porPais = useMemo(() => vendasPorPais(vendas), [vendas]);
@@ -74,6 +83,18 @@ export function Painel() {
     [vendas, produtos, mesChave],
   );
 
+  // returns in the current month reduce realized profit (refunds are money going back out)
+  const reembolsoMes = useMemo(
+    () => resumoDevolucoes(mesChave ? devolucoes.filter((r) => r.data.slice(0, 7) === mesChave) : []).reembolso,
+    [devolucoes, mesChave],
+  );
+  // company overhead (rent, internet, …) — a monthly figure, independent of the month's sales
+  const totalOp = useMemo(() => totalOperacional(custosOperacionais), [custosOperacionais]);
+  // two headline figures: profit before company overhead (all sale costs + returns), and the
+  // true net "money in pocket" after overhead too.
+  const lucroSemOperacional = resMes.lucro - reembolsoMes;
+  const lucroLiquidoTotal = lucroSemOperacional - totalOp;
+
   // company-wide realized margin (blended profit ÷ gross over ALL sales) — not a per-product average
   const resTotal = useMemo(() => resultadoVendas(vendas, produtos), [vendas, produtos]);
   const margemRealizada = resTotal.bruto > 0 ? resTotal.lucro / resTotal.bruto : 0;
@@ -99,10 +120,10 @@ export function Painel() {
     >
       <div className="grid grid-cols-12 gap-4">
         {/* hero: gauge + health counts */}
-        <GlowCard accent="green" grid className="col-span-12 lg:col-span-5" delay={0}>
-          <div className="flex items-center gap-6">
+        <GlowCard accent="green" grid className="col-span-12 lg:col-span-6 xl:col-span-5" delay={0}>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
             <RadialGauge value={gaugeValue} display={percent(margemRealizada)} label="Margem realizada" size={190} />
-            <div className="flex flex-1 flex-col gap-3">
+            <div className="flex min-w-[140px] flex-1 flex-col gap-3">
               <Health label="Ótimo" count={t.cores.verde} cor="verde" />
               <Health label="Pode melhorar" count={t.cores.amarelo} cor="amarelo" />
               <Health label="Re-avaliar" count={t.cores.vermelho} cor="vermelho" />
@@ -110,13 +131,77 @@ export function Painel() {
           </div>
         </GlowCard>
 
-        {/* real results for the current month (from the sales ledger) */}
-        <div className="col-span-12 grid grid-cols-2 gap-4 lg:col-span-7">
-          <MetricTile label="Lucro / mês" value={resMes.lucro} format={money} icon={Coins} accent="gold" footnote="Líquido — o que sobra no bolso após custos, impostos e comissão" delay={0.05} />
-          <MetricTile label="Custo / mês" value={resMes.custo} format={money} icon={Package} footnote="Custo do fornecedor nas vendas do mês" delay={0.1} />
-          <MetricTile label="Imposto / mês" value={resMes.imposto} format={money} icon={Landmark} footnote="Imposto sobre as vendas do mês" delay={0.15} />
-          <MetricTile label="Comissão / mês" value={resMes.comissao} format={money} icon={Percent} footnote="Comissão dos canais nas vendas do mês" delay={0.2} />
+        {/* profit headline: true net (after EVERYTHING incl. overhead) + profit before overhead */}
+        <div className="col-span-12 flex flex-col gap-4 lg:col-span-6 xl:col-span-7">
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {/* box 1 — the "money in the pocket" number, after operational costs too */}
+            <GlowCard accent={lucroLiquidoTotal >= 0 ? "gold" : "none"} delay={0.05}>
+              <div className="flex items-center gap-2">
+                <span className="flex h-[26px] w-[26px] items-center justify-center rounded-chip bg-goldSoft">
+                  <Wallet size={15} className="text-gold" strokeWidth={2} />
+                </span>
+                <span className="font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">Lucro líquido / mês</span>
+              </div>
+              <div className="mt-3">
+                <BigStat value={lucroLiquidoTotal} format={money} accent={lucroLiquidoTotal >= 0 ? "text-gold" : "text-danger"} className="text-3xl" />
+              </div>
+              <p className="mt-1.5 font-mono text-xs text-txtFaint">O que sobra no bolso — após custos, impostos, comissão, devoluções e custos operacionais.</p>
+            </GlowCard>
+
+            {/* box 2 — profit before company overhead (the previous headline) */}
+            <MetricTile
+              label="Lucro s/ operacional"
+              value={lucroSemOperacional}
+              format={money}
+              icon={Coins}
+              accent="green"
+              footnote="Após custos, impostos, comissão e devoluções — antes do overhead da empresa"
+              delay={0.1}
+            />
+          </div>
+
+          {/* deduction cascade + reveal toggle */}
+          <GlowCard delay={0.15}>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs tabular-nums">
+              <span className="text-txtDim">Realizado {money(resMes.lucro)}</span>
+              <span className="text-txtFaint">−</span>
+              <span className="text-danger">Devoluções {money(reembolsoMes)}</span>
+              <span className="text-txtFaint">−</span>
+              <span className="text-danger">Operacional {money(totalOp)}</span>
+              <span className="text-txtFaint">=</span>
+              <span className={lucroLiquidoTotal >= 0 ? "text-gold" : "text-danger"}>{money(lucroLiquidoTotal)}</span>
+            </div>
+            <button
+              onClick={() => setDetalhes((v) => !v)}
+              className="mt-3 flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.1em] text-txtDim transition-colors hover:text-txt"
+            >
+              {detalhes ? "Menos" : "Mais"} métricas
+              <ChevronDown size={13} className={`transition-transform ${detalhes ? "rotate-180" : ""}`} />
+            </button>
+          </GlowCard>
         </div>
+
+        {/* collapsible cost breakdown — expanding pushes the page down to reveal more cards */}
+        <AnimatePresence initial={false}>
+          {detalhes && (
+            <motion.div
+              key="detalhe"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3, ease: EASE }}
+              className="col-span-12 overflow-hidden"
+            >
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+                <MetricTile dense label="Custo / mês" value={resMes.custo} format={money} icon={Package} accent="red" footnote="Custo do fornecedor" />
+                <MetricTile dense label="Imposto / mês" value={resMes.imposto} format={money} icon={Landmark} accent="red" footnote="Imposto sobre vendas" />
+                <MetricTile dense label="Comissão / mês" value={resMes.comissao} format={money} icon={Percent} accent="red" footnote="Comissão dos canais" />
+                <MetricTile dense label="Devoluções / mês" value={reembolsoMes} format={money} icon={RotateCcw} accent="red" footnote="Reembolsos do mês" />
+                <MetricTile dense label="Custos operac. / mês" value={totalOp} format={money} icon={Building2} accent="red" footnote="Overhead fixo da empresa" />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* daily / monthly / yearly GROSS sales from the ledger (no cost deductions) */}
         <div className="col-span-12 lg:col-span-4">

@@ -66,8 +66,8 @@ export function Relatorios() {
       <div className="grid grid-cols-12 gap-4">
         <MetricTile label="Receita / mês" value={t.receitaMensal} format={money} icon={TrendingUp} accent="gold" delay={0} className="col-span-6 lg:col-span-3" />
         <MetricTile label="Lucro / mês" value={t.lucroMensal} format={money} icon={Coins} accent="green" delay={0.05} className="col-span-6 lg:col-span-3" />
-        <MetricTile label="Custo / mês" value={t.custoMensal} format={money} icon={Package} delay={0.1} className="col-span-6 lg:col-span-3" />
-        <MetricTile label="Imposto / mês" value={t.impostoMensal} format={money} icon={Landmark} delay={0.15} className="col-span-6 lg:col-span-3" />
+        <MetricTile label="Custo / mês" value={t.custoMensal} format={money} icon={Package} accent="red" delay={0.1} className="col-span-6 lg:col-span-3" />
+        <MetricTile label="Imposto / mês" value={t.impostoMensal} format={money} icon={Landmark} accent="red" delay={0.15} className="col-span-6 lg:col-span-3" />
         <MetricTile label="Capital em estoque" value={t.capitalEstoque} format={money} icon={Wallet} accent="gold" delay={0.2} className="col-span-6 lg:col-span-3" />
         <MetricTile label="Margem média" value={t.margemMedia} format={percent} icon={TrendingUp} accent="green" delay={0.25} className="col-span-6 lg:col-span-3" />
 

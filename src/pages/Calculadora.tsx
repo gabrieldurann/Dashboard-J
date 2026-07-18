@@ -1,4 +1,5 @@
 import { Calculator, ClipboardList, FolderOpen, Package, Save, Trash2, TriangleAlert } from "lucide-react";
+import { Tooltip } from "../components/Tooltip";
 import { useMemo, useState } from "react";
 import { COMISSAO_PADRAO, IMPOSTO_PADRAO } from "../calc/constants";
 import { calcularMetricas, capitalParaEstoque, mesmoNome, precoParaMargem } from "../calc/engine";
@@ -432,34 +433,42 @@ export function Calculadora() {
                     </div>
                     <div className="flex items-center gap-3.5">
                       <span className="font-mono text-sm tabular-nums text-gold">{money(c.precoSugerido)}</span>
-                      <button
-                        onClick={() => salvarEm("produtos", dadosDoCalc(c))}
-                        className="text-txtDim transition-colors hover:text-green"
-                        title="Salvar em Produtos"
-                      >
-                        <Package size={15} />
-                      </button>
-                      <button
-                        onClick={() => salvarEm("pesquisas", dadosDoCalc(c))}
-                        className="text-txtDim transition-colors hover:text-gold"
-                        title="Salvar em Pesquisas"
-                      >
-                        <ClipboardList size={15} />
-                      </button>
-                      <button
-                        onClick={() => carregar(c)}
-                        className="text-txtDim transition-colors hover:text-green"
-                        title="Carregar no formulário"
-                      >
-                        <FolderOpen size={15} />
-                      </button>
-                      <button
-                        onClick={() => excluirCalculo(c)}
-                        className="text-txtDim transition-colors hover:text-danger"
-                        title="Excluir"
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      <Tooltip label="Salvar em Produtos">
+                        <button
+                          onClick={() => salvarEm("produtos", dadosDoCalc(c))}
+                          className="text-txtDim transition-colors hover:text-green"
+                          aria-label="Salvar em Produtos"
+                        >
+                          <Package size={15} />
+                        </button>
+                      </Tooltip>
+                      <Tooltip label="Salvar em Pesquisas">
+                        <button
+                          onClick={() => salvarEm("pesquisas", dadosDoCalc(c))}
+                          className="text-txtDim transition-colors hover:text-gold"
+                          aria-label="Salvar em Pesquisas"
+                        >
+                          <ClipboardList size={15} />
+                        </button>
+                      </Tooltip>
+                      <Tooltip label="Abrir cálculo">
+                        <button
+                          onClick={() => carregar(c)}
+                          className="text-txtDim transition-colors hover:text-green"
+                          aria-label="Abrir cálculo"
+                        >
+                          <FolderOpen size={15} />
+                        </button>
+                      </Tooltip>
+                      <Tooltip label="Excluir">
+                        <button
+                          onClick={() => excluirCalculo(c)}
+                          className="text-txtDim transition-colors hover:text-danger"
+                          aria-label="Excluir"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </Tooltip>
                     </div>
                   </li>
                 ))}

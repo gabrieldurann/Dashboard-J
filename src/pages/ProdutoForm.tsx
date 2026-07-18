@@ -111,6 +111,20 @@ export function ProdutoForm() {
                   onChange={(e) => set("fornecedor", e.target.value || undefined)}
                 />
               </Field>
+              <Field label="ASIN" hint="Identificador Amazon (p/ venda/vínculo)">
+                <TextInput
+                  value={draft.asin ?? ""}
+                  onChange={(e) => set("asin", e.target.value.trim().toUpperCase() || undefined)}
+                  placeholder="B0C7LT71K9"
+                />
+              </Field>
+              <Field label="EAN / código de barras" hint="GTIN — p/ listar por 'match' na Amazon">
+                <TextInput
+                  value={draft.ean ?? ""}
+                  onChange={(e) => set("ean", e.target.value.replace(/\D/g, "") || undefined)}
+                  placeholder="7891234567895"
+                />
+              </Field>
               <div className="col-span-2">
                 <Field label="Link do anúncio de referência" hint="Clique para abrir depois — não perca o achado.">
                   <TextInput
