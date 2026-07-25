@@ -8,20 +8,12 @@ import { GlowCard } from "../components/GlowCard";
 import { MetricTile } from "../components/MetricTile";
 import { Screen } from "../components/Screen";
 import { date as fmtDate, datetime, money, percent } from "../i18n/format";
+import { MOTIVO_LABEL, MOTIVOS } from "../i18n/labels";
 import { EASE } from "../theme/tokens";
 import { confirmAction } from "../store/useConfirm";
 import { toast } from "../store/useToast";
 import { useStore } from "../store/useStore";
 
-const MOTIVO_LABEL: Record<MotivoDevolucao, string> = {
-  defeito: "Defeito",
-  danificado: "Danificado no transporte",
-  errado: "Produto errado",
-  arrependimento: "Arrependimento",
-  atraso: "Atraso na entrega",
-  outros: "Outros",
-};
-const MOTIVOS = Object.keys(MOTIVO_LABEL) as MotivoDevolucao[];
 
 const STATUS: Record<DevolucaoStatus, { label: string; cls: string }> = {
   solicitada: { label: "Solicitada", cls: "text-amber border-amber/40 bg-amber/10" },

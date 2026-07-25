@@ -457,6 +457,23 @@ export function faixasDesempenho(linhas: DesempenhoProduto[]): Record<StatusCor,
   };
 }
 
+export type AggCanal = Bucket & { canal: string; share: number };
+
+/** Revenue grouped by sales channel, biggest first (cancelled excluded). */
+export function vendasPorCanal(vendas: Venda[]): AggCanal[] {
+  const map = new Map<string, Bucket>();
+  for (const v of vendasRealizadas(vendas)) {
+    const canal = v.canal ?? "Sem canal";
+    const b = map.get(canal) ?? novoBucket();
+    acumular(b, v);
+    map.set(canal, b);
+  }
+  const total = [...map.values()].reduce((s, b) => s + b.valor, 0);
+  return [...map.entries()]
+    .map(([canal, b]) => ({ canal, ...b, share: total > 0 ? b.valor / total : 0 }))
+    .sort((a, b) => b.valor - a.valor);
+}
+
 export type SerieFinanceira = { chave: string; bruto: number; custo: number; lucro: number };
 
 /** Monthly gross / cost / profit series for the multi-line finance chart (chronological). */

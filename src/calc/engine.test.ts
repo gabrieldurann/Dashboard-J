@@ -8,6 +8,7 @@ import {
   faixasDesempenho,
   freteUnitario,
   serieFinanceiraMensal,
+  vendasPorCanal,
   gruposDuplicados,
   mesmoNome,
   normalizaNome,
@@ -320,6 +321,19 @@ describe("desempenhoProdutos / faixas / série financeira (Gráficos, ideas #6/#
   it("returns nothing when there are no attributable sales", () => {
     expect(desempenhoProdutos([], prods)).toEqual([]);
     expect(serieFinanceiraMensal([], prods)).toEqual([]);
+  });
+
+  it("vendasPorCanal groups by channel, biggest first, shares summing to 1", () => {
+    const agg = vendasPorCanal([
+      venda({ canal: "Amazon", valorTotal: 300 }),
+      venda({ canal: "Shopee", valorTotal: 100 }),
+      venda({ canal: "Amazon", valorTotal: 200 }),
+      venda({ valorTotal: 50 }), // no channel → "Sem canal"
+      venda({ canal: "Amazon", valorTotal: 999, status: "cancelado" }), // excluded
+    ]);
+    expect(agg.map((a) => a.canal)).toEqual(["Amazon", "Shopee", "Sem canal"]);
+    expect(agg[0].valor).toBe(500);
+    expect(agg.reduce((s, a) => s + a.share, 0)).toBeCloseTo(1, 6);
   });
 });
 
