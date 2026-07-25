@@ -1,5 +1,6 @@
 import createGlobe from "cobe";
 import { useCallback, useEffect, useRef } from "react";
+import { useStore } from "../store/useStore";
 
 export interface GlobeMarker {
   id: string;
@@ -7,10 +8,14 @@ export interface GlobeMarker {
   label: string;
 }
 
-// HUD palette (cobe uses 0–1 RGB). Module-level for stable identity (avoids re-init each render).
+// cobe wants 0–1 RGB and can't read CSS variables, so each theme gets its own triples.
+// Module-level for stable identity (avoids re-initialising the globe every render).
 const HUD_MARKER: [number, number, number] = [0.2, 0.89, 0.63]; // #34e3a0 green
 const HUD_BASE: [number, number, number] = [0.24, 0.31, 0.33]; // muted land dots
 const HUD_GLOW: [number, number, number] = [0.05, 0.13, 0.11]; // subtle atmosphere
+const CLARO_MARKER: [number, number, number] = [0.06, 0.62, 0.42]; // #0f9d6b
+const CLARO_BASE: [number, number, number] = [0.78, 0.83, 0.89]; // light land dots
+const CLARO_GLOW: [number, number, number] = [0.91, 0.93, 0.96]; // pale atmosphere
 
 interface GlobeProps {
   markers?: GlobeMarker[];
@@ -35,10 +40,10 @@ interface GlobeProps {
 export function Globe({
   markers = [],
   className = "",
-  markerColor = HUD_MARKER,
-  baseColor = HUD_BASE,
-  glowColor = HUD_GLOW,
-  dark = 1,
+  markerColor,
+  baseColor,
+  glowColor,
+  dark,
   mapBrightness = 6,
   markerSize = 0.04,
   markerElevation = 0.012,
@@ -47,6 +52,12 @@ export function Globe({
   diffuse = 1.2,
   mapSamples = 16000,
 }: GlobeProps) {
+  // resolve the theme palette here so a caller can still override any single colour
+  const claro = useStore((s) => s.tema) === "claro";
+  const cMarker = markerColor ?? (claro ? CLARO_MARKER : HUD_MARKER);
+  const cBase = baseColor ?? (claro ? CLARO_BASE : HUD_BASE);
+  const cGlow = glowColor ?? (claro ? CLARO_GLOW : HUD_GLOW);
+  const cDark = dark ?? (claro ? 0 : 1);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pointerInteracting = useRef<{ x: number; y: number } | null>(null);
   const lastPointer = useRef<{ x: number; y: number; t: number } | null>(null);
@@ -117,13 +128,13 @@ export function Globe({
         height: width,
         phi: 0,
         theta,
-        dark,
+        dark: cDark,
         diffuse,
         mapSamples,
         mapBrightness,
-        baseColor,
-        markerColor,
-        glowColor,
+        baseColor: cBase,
+        markerColor: cMarker,
+        glowColor: cGlow,
         markerElevation,
         markers: markers.map((m) => ({ location: m.location, size: markerSize, id: m.id })),
         opacity: 0.9,
@@ -146,10 +157,10 @@ export function Globe({
         globe!.update({
           phi: phi + phiOffsetRef.current + dragOffset.current.phi,
           theta: theta + thetaOffsetRef.current + dragOffset.current.theta,
-          dark,
+          dark: cDark,
           mapBrightness,
-          markerColor,
-          baseColor,
+          markerColor: cMarker,
+          baseColor: cBase,
           markerElevation,
           markers: markers.map((m) => ({ location: m.location, size: markerSize, id: m.id })),
         });
@@ -177,7 +188,7 @@ export function Globe({
       if (animationId) cancelAnimationFrame(animationId);
       if (globe) globe.destroy();
     };
-  }, [markers, markerColor, baseColor, glowColor, dark, mapBrightness, markerSize, markerElevation, speed, theta, diffuse, mapSamples]);
+  }, [markers, cMarker, cBase, cGlow, cDark, mapBrightness, markerSize, markerElevation, speed, theta, diffuse, mapSamples]);
 
   return (
     <div className={`relative aspect-square select-none ${className}`}>
@@ -205,9 +216,9 @@ export function Globe({
             translate: "-50% 0",
             marginBottom: 8,
             padding: "2px 7px",
-            background: "#0a0e14",
-            color: "#e8eef5",
-            border: "1px solid rgba(52,227,160,0.45)",
+            background: "var(--c-bg-raise)",
+            color: "var(--c-txt)",
+            border: "1px solid var(--c-green)",
             borderRadius: 6,
             fontFamily: "'Inter', sans-serif",
             fontSize: "0.6rem",

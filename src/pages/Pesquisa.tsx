@@ -12,6 +12,7 @@ import { useStore } from "../store/useStore";
 import { confirmAction } from "../store/useConfirm";
 import { toast } from "../store/useToast";
 import { useConfig } from "../store/useConfig";
+import { useCores } from "../theme/useCores";
 
 type Aprov = "auto" | "sim" | "nao";
 type Draft = {
@@ -50,6 +51,7 @@ const aprovToOverride = (a: Aprov): boolean | null => (a === "auto" ? null : a =
 const overrideToAprov = (a?: boolean | null): Aprov => (a == null ? "auto" : a ? "sim" : "nao");
 
 export function Pesquisa() {
+  const cores = useCores();
   const cfg = useConfig();
   const pesquisas = useStore((s) => s.pesquisas);
   const addPesquisa = useStore((s) => s.addPesquisa);
@@ -289,7 +291,7 @@ export function Pesquisa() {
               Total taxas + comissão: <span className="text-txt">{money(previa.totalTaxasComissao)}</span>
             </span>
             <span className="text-txtDim">
-              Margem: <span style={{ color: previa.aprovado ? "#34e3a0" : "#ff5f6b" }}>{percent(previa.margem)}</span>
+              Margem: <span style={{ color: previa.aprovado ? cores.green : cores.danger }}>{percent(previa.margem)}</span>
             </span>
             <span className={`rounded-full border px-2.5 py-1 text-[11px] ${previa.aprovado ? "border-green/40 bg-greenSoft text-green" : "border-danger/40 bg-danger/10 text-danger"}`}>
               {previa.aprovado ? "Aprovado" : "Reprovado"}

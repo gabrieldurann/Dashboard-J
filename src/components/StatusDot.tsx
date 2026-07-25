@@ -1,5 +1,6 @@
 import type { StatusCor } from "../calc/constants";
-import { STATUS_COLOR } from "../theme/tokens";
+import { useStatusCores } from "../theme/useCores";
+
 
 const LABEL: Record<StatusCor, string> = {
   vermelho: "Re-avaliar",
@@ -9,7 +10,7 @@ const LABEL: Record<StatusCor, string> = {
 
 /** Colored health dot for margin bands (idea #2). */
 export function StatusDot({ cor, label = false }: { cor: StatusCor; label?: boolean }) {
-  const c = STATUS_COLOR[cor];
+  const c = useStatusCores()[cor];
   return (
     <span className="inline-flex items-center gap-2">
       <span

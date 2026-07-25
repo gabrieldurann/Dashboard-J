@@ -7,6 +7,58 @@
   /* Locked typography: Inter for display + plain Inter numerals (no font switching). */
   --font-display: "Inter";
   --font-mono: "Inter";
+
+  /* ── Dark HUD (default) ── */
+  --c-bg: #06080c;
+  --c-bg-raise: #0a0e14;
+  --c-panel: rgba(13, 18, 26, 0.82);
+  --c-line: rgba(140, 170, 200, 0.14);
+  --c-line-strong: rgba(140, 170, 200, 0.28);
+  --c-green: #34e3a0;
+  --c-green-soft: rgba(52, 227, 160, 0.16);
+  --c-gold: #e8b84b;
+  --c-gold-soft: rgba(232, 184, 75, 0.14);
+  --c-danger: #ff5f6b;
+  --c-amber: #f5a623;
+  --c-sky: #4ea1f0;
+  --c-sky-soft: rgba(78, 161, 240, 0.16);
+  --c-txt: #e8eef5;
+  --c-txt-dim: #8b97a8;
+  --c-txt-faint: #5a6678;
+  /* page atmosphere + surfaces that aren't plain colours */
+  --c-vinheta-1: rgba(52, 227, 160, 0.06);
+  --c-vinheta-2: rgba(232, 184, 75, 0.05);
+  --c-grid: rgba(60, 200, 140, 0.06);
+  --c-scroll: rgba(140, 170, 200, 0.18);
+  --c-globo-base: #12202c;
+  --c-globo-glow: #0a1a16;
+}
+
+/* ── Light: same hues, re-tuned for a bright surface (darker accents so they stay legible) ── */
+:root[data-theme="claro"] {
+  color-scheme: light;
+  --c-bg: #f4f6fa;
+  --c-bg-raise: #ffffff;
+  --c-panel: rgba(255, 255, 255, 0.9);
+  --c-line: rgba(24, 40, 60, 0.12);
+  --c-line-strong: rgba(24, 40, 60, 0.24);
+  --c-green: #0f9d6b;
+  --c-green-soft: rgba(15, 157, 107, 0.12);
+  --c-gold: #a97b12;
+  --c-gold-soft: rgba(169, 123, 18, 0.12);
+  --c-danger: #d23c47;
+  --c-amber: #b5841a;
+  --c-sky: #1c78cf;
+  --c-sky-soft: rgba(28, 120, 207, 0.12);
+  --c-txt: #14181f;
+  --c-txt-dim: #55617a;
+  --c-txt-faint: #7d879b;
+  --c-vinheta-1: rgba(15, 157, 107, 0.07);
+  --c-vinheta-2: rgba(169, 123, 18, 0.06);
+  --c-grid: rgba(15, 157, 107, 0.07);
+  --c-scroll: rgba(24, 40, 60, 0.22);
+  --c-globo-base: #c8d4e2;
+  --c-globo-glow: #e8eef5;
 }
 
 html,
@@ -17,14 +69,15 @@ body,
 
 body {
   margin: 0;
-  background: #06080c;
-  color: #e8eef5;
+  background: var(--c-bg);
+  color: var(--c-txt);
   font-family: var(--font-display), system-ui, sans-serif;
   /* radial vignette + faint green grid (DESIGN.md §4) */
   background-image:
-    radial-gradient(1200px 700px at 78% -10%, rgba(52, 227, 160, 0.06), transparent 60%),
-    radial-gradient(900px 600px at 0% 110%, rgba(232, 184, 75, 0.05), transparent 55%);
+    radial-gradient(1200px 700px at 78% -10%, var(--c-vinheta-1), transparent 60%),
+    radial-gradient(900px 600px at 0% 110%, var(--c-vinheta-2), transparent 55%);
   background-attachment: fixed;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 /* Numerals: plain Inter with a clean-mono rhythm — airier tracking, tabular figures. */
@@ -43,8 +96,8 @@ body {
 /* faint grid overlay for hero cards */
 .hud-grid {
   background-image:
-    linear-gradient(rgba(60, 200, 140, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(60, 200, 140, 0.06) 1px, transparent 1px);
+    linear-gradient(var(--c-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--c-grid) 1px, transparent 1px);
   background-size: 28px 28px;
 }
 
@@ -53,7 +106,7 @@ body {
   font-size: 11px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: #5a6678;
+  color: var(--c-txt-faint);
 }
 
 ::-webkit-scrollbar {
@@ -61,7 +114,7 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(140, 170, 200, 0.18);
+  background: var(--c-scroll);
   border-radius: 999px;
 }
 

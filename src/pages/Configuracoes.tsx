@@ -1,4 +1,4 @@
-import { Landmark, LayoutGrid, RotateCcw, Truck, TriangleAlert } from "lucide-react";
+import { Landmark, LayoutGrid, Moon, RotateCcw, Sun, Truck, TriangleAlert } from "lucide-react";
 import { useMemo } from "react";
 import { CONFIG_PADRAO, type Configuracoes as Cfg } from "../calc/constants";
 import { calcularMetricas } from "../calc/engine";
@@ -67,6 +67,8 @@ export function Configuracoes() {
   const cfg = useConfig();
   const setCfg = useStore((s) => s.setConfiguracoes);
   const resetCfg = useStore((s) => s.resetConfiguracoes);
+  const tema = useStore((s) => s.tema);
+  const setTema = useStore((s) => s.setTema);
   const cardsOcultos = useStore((s) => s.cardsOcultos);
   const mostrarCards = useStore((s) => s.mostrarCards);
   const produtos = useStore((s) => s.produtos);
@@ -143,6 +145,46 @@ export function Configuracoes() {
             </p>
           </GlowCard>
         )}
+
+        {/* appearance */}
+        <Secao
+          icone={tema === "claro" ? Sun : Moon}
+          titulo="Aparência"
+          descricao="O tema fica salvo neste navegador — cada pessoa escolhe o seu."
+          className="col-span-12"
+        >
+          <div className="flex flex-wrap gap-3">
+            {(
+              [
+                { id: "escuro", label: "Escuro", desc: "O HUD original, para uso prolongado", Icone: Moon },
+                { id: "claro", label: "Claro", desc: "Melhor sob luz forte ou para projetar", Icone: Sun },
+              ] as const
+            ).map(({ id, label, desc, Icone }) => {
+              const ativo = tema === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setTema(id)}
+                  className={`flex min-w-[210px] flex-1 items-center gap-3 rounded-card border px-4 py-3 text-left transition-colors ${
+                    ativo ? "border-lineStrong bg-greenSoft" : "border-line hover:border-lineStrong"
+                  }`}
+                >
+                  <span
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-chip ${
+                      ativo ? "bg-greenSoft text-green" : "bg-bgRaise text-txtDim"
+                    }`}
+                  >
+                    <Icone size={17} strokeWidth={2} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className={`block text-sm ${ativo ? "text-txt" : "text-txtDim"}`}>{label}</span>
+                    <span className="block font-mono text-[10.5px] text-txtFaint">{desc}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </Secao>
 
         {/* taxes & commission */}
         <Secao

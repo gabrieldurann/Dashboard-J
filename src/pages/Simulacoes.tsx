@@ -7,7 +7,8 @@ import { GlowCard } from "../components/GlowCard";
 import { Screen } from "../components/Screen";
 import { StatusDot } from "../components/StatusDot";
 import { money, number, percent } from "../i18n/format";
-import { COLORS, STATUS_COLOR } from "../theme/tokens";
+import { COLORS } from "../theme/tokens";
+import { useCores, useStatusCores } from "../theme/useCores";
 import { useStore } from "../store/useStore";
 import { useConfig } from "../store/useConfig";
 
@@ -27,6 +28,8 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function Simulacoes() {
+  const cores = useCores();
+  const statusCores = useStatusCores();
   const cfg = useConfig();
   const produtos = useStore((s) => s.produtos);
   const nav = useNavigate();
@@ -143,7 +146,7 @@ export function Simulacoes() {
                 {...rng.custo}
                 onChange={(v) => set("custo", v)}
                 fmt={money}
-                accent={COLORS.gold}
+                accent={cores.gold}
               />
               <Slider
                 label="Vendas no mês (unidades)"
@@ -184,7 +187,7 @@ export function Simulacoes() {
             {/* margin */}
             <div className="border-b border-line pb-4">
               <div className="flex items-center gap-2.5">
-                <span className="font-mono text-5xl font-semibold tabular-nums" style={{ color: STATUS_COLOR[s.statusCor] }}>
+                <span className="font-mono text-5xl font-semibold tabular-nums" style={{ color: statusCores[s.statusCor] }}>
                   {percent(s.margem)}
                 </span>
                 <StatusDot cor={s.statusCor} />
@@ -200,7 +203,7 @@ export function Simulacoes() {
               <div className="mt-0.5 flex items-baseline gap-2">
                 <span
                   className="font-mono text-3xl font-semibold tabular-nums"
-                  style={{ color: s.lucroMes >= 0 ? COLORS.green : COLORS.danger }}
+                  style={{ color: s.lucroMes >= 0 ? cores.green : cores.danger }}
                 >
                   {money(s.lucroMes)}
                 </span>

@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { useId, useMemo, useRef, useState } from "react";
 import { EASE } from "../theme/tokens";
 import { PAD_BOTTOM, PAD_TOP, smoothPath, type ChartPoint } from "./chartUtils";
+import { useCores } from "../theme/useCores";
 
 export type { ChartPoint };
 
@@ -13,14 +14,17 @@ export type { ChartPoint };
 export function AreaChart({
   points,
   format,
-  accent = "#34e3a0",
+  accent,
   height = 200,
 }: {
   points: ChartPoint[];
   format: (v: number) => string;
+  /** defaults to the theme's green */
   accent?: string;
   height?: number;
 }) {
+  const cores = useCores();
+  const cor = accent ?? cores.green;
   const gid = useId().replace(/:/g, "");
   const wrapRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -64,8 +68,8 @@ export function AreaChart({
         <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
           <defs>
             <linearGradient id={`fill-${gid}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={accent} stopOpacity={0.34} />
-              <stop offset="100%" stopColor={accent} stopOpacity={0} />
+              <stop offset="0%" stopColor={cor} stopOpacity={0.34} />
+              <stop offset="100%" stopColor={cor} stopOpacity={0} />
             </linearGradient>
           </defs>
           {area && (
@@ -82,7 +86,7 @@ export function AreaChart({
           <motion.path
             d={line}
             fill="none"
-            stroke={accent}
+            stroke={cor}
             strokeWidth={2}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -101,7 +105,7 @@ export function AreaChart({
           />
         )}
 
-        {/* permanent glowing dots on the peaks (filled with the accent so they never
+        {/* permanent glowing dots on the peaks (filled with the cor so they never
             punch a hole in the line); they brighten when hovered */}
         {[...peaks].map((i) => (
           <span
@@ -113,8 +117,8 @@ export function AreaChart({
               width: hover === i ? 12 : 9,
               height: hover === i ? 12 : 9,
               transform: "translate(-50%,-50%)",
-              background: accent,
-              boxShadow: `0 0 ${hover === i ? 16 : 11}px ${hover === i ? 4 : 2}px ${accent}`,
+              background: cor,
+              boxShadow: `0 0 ${hover === i ? 16 : 11}px ${hover === i ? 4 : 2}px ${cor}`,
               transition: "width 0.15s, height 0.15s, box-shadow 0.15s",
             }}
           />
@@ -130,9 +134,9 @@ export function AreaChart({
               width: 11,
               height: 11,
               transform: "translate(-50%,-50%)",
-              background: "#06080c",
-              borderColor: accent,
-              boxShadow: `0 0 10px ${accent}`,
+              background: cores.bg,
+              borderColor: cor,
+              boxShadow: `0 0 10px ${cor}`,
             }}
           />
         )}

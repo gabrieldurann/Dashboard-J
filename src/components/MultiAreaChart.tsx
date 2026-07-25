@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { useId, useRef, useState } from "react";
 import { EASE } from "../theme/tokens";
 import { PAD_BOTTOM, PAD_TOP, smoothPath } from "./chartUtils";
+import { useCores } from "../theme/useCores";
 
 // Several series on one shared axis (Gráficos page, idea #6). Same drawing approach as
 // <AreaChart>: SVG in a 0–100 box stretched to fit, HTML overlays for the hover guide and
@@ -24,6 +25,7 @@ export function MultiAreaChart({
   format: (v: number) => string;
   height?: number;
 }) {
+  const cores = useCores();
   const gid = useId().replace(/:/g, "");
   const wrapRef = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -133,7 +135,7 @@ export function MultiAreaChart({
                   width: 10,
                   height: 10,
                   transform: "translate(-50%,-50%)",
-                  background: "#06080c",
+                  background: cores.bg,
                   borderColor: s.cor,
                   boxShadow: `0 0 9px ${s.cor}`,
                 }}

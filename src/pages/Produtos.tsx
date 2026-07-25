@@ -12,6 +12,7 @@ import { useStore } from "../store/useStore";
 import { confirmAction } from "../store/useConfirm";
 import { toast } from "../store/useToast";
 import { useConfig } from "../store/useConfig";
+import { useStatusCores } from "../theme/useCores";
 
 type Filtro = "todos" | StatusCor;
 
@@ -23,6 +24,7 @@ const FILTROS: { key: Filtro; label: string }[] = [
 ];
 
 export function Produtos() {
+  const statusCores = useStatusCores();
   const cfg = useConfig();
   const produtos = useStore((s) => s.produtos);
   const removeProduto = useStore((s) => s.removeProduto);
@@ -185,7 +187,7 @@ export function Produtos() {
                   <td className="px-4 py-3 text-sm text-txtDim">{p.fornecedor ?? "—"}</td>
                   <td className="px-4 py-3 font-mono text-sm tabular-nums text-txtDim">{money(p.custoUnit)}</td>
                   <td className="px-4 py-3 font-mono text-sm tabular-nums text-txt">{money(p.precoVenda)}</td>
-                  <td className="px-4 py-3 font-mono text-sm tabular-nums" style={{ color: marginColor(m.statusCor) }}>
+                  <td className="px-4 py-3 font-mono text-sm tabular-nums" style={{ color: statusCores[m.statusCor] }}>
                     {percent(m.margem)}
                   </td>
                   <td className="px-4 py-3 font-mono text-sm tabular-nums text-txtDim">{money(m.lucroUnit)}</td>
@@ -252,6 +254,3 @@ export function Produtos() {
   );
 }
 
-function marginColor(cor: StatusCor) {
-  return cor === "vermelho" ? "#ff5f6b" : cor === "amarelo" ? "#f5a623" : "#34e3a0";
-}

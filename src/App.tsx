@@ -5,6 +5,7 @@ import { DuplicatePrompt } from "./components/DuplicatePrompt";
 import { Sidebar } from "./components/Sidebar";
 import { Toaster } from "./components/Toaster";
 import { EASE } from "./theme/tokens";
+import { useAplicarTema } from "./theme/useCores";
 import { Calculadora } from "./pages/Calculadora";
 import { Conexoes } from "./pages/Conexoes";
 import { Configuracoes } from "./pages/Configuracoes";
@@ -55,6 +56,7 @@ function AnimatedRoutes() {
 }
 
 export default function App() {
+  useAplicarTema();
   return (
     <HashRouter>
       <div className="flex min-h-screen">

@@ -5,6 +5,7 @@ import { money, percent } from "../i18n/format";
 import { EASE } from "../theme/tokens";
 import { BigStat } from "./BigStat";
 import { GlowCard } from "./GlowCard";
+import { useCores } from "../theme/useCores";
 
 // Daily / Monthly / Yearly sales card (PLAN.md §9 Phase 3 #10): current-period value +
 // ▲/▼ vs the previous period + a momentum bar (current's share of current+previous).
@@ -22,6 +23,7 @@ export function PeriodCard({
   hint?: string;
   delay?: number;
 }) {
+  const cores = useCores();
   const valor = periodo.atual?.valor ?? 0;
   const ant = periodo.anterior?.valor ?? 0;
   const v = periodo.variacao;
@@ -62,7 +64,7 @@ export function PeriodCard({
           animate={{ width: `${Math.round(fill * 100)}%` }}
           transition={{ duration: 0.7, ease: EASE, delay: delay + 0.1 }}
           className="h-full rounded-full"
-          style={{ background: "linear-gradient(90deg, #2bb3ff, #34e3a0)" }}
+          style={{ background: `linear-gradient(90deg, ${cores.sky}, ${cores.green})` }}
         />
       </div>
 

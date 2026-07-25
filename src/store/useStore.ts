@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { CONFIG_PADRAO, type Configuracoes } from "../calc/constants";
+import type { Tema } from "../theme/tokens";
 import type { CalculoSalvo, CustoOperacional, Devolucao, Pesquisa, Produto, Venda, VendaAvulsa } from "../calc/types";
 import { CUSTOS_OPERACIONAIS_SEED, DEVOLUCOES_SEED, PESQUISAS_SEED, PRODUTOS_SEED, VENDAS_SEED } from "../data/seed";
 
@@ -32,6 +33,9 @@ type State = {
   addCustoOperacional: (c: CustoOperacional) => void;
   updateCustoOperacional: (id: string, patch: Partial<CustoOperacional>) => void;
   removeCustoOperacional: (id: string) => void;
+  /** dark (default) or light appearance — the only look-and-feel setting we kept */
+  tema: Tema;
+  setTema: (t: Tema) => void;
   /** tunable business rates (Configurações) — the engine receives these, never reads them itself */
   configuracoes: Configuracoes;
   setConfiguracoes: (patch: Partial<Configuracoes>) => void;
@@ -94,6 +98,8 @@ export const useStore = create<State>()(
         })),
       removeCustoOperacional: (id) =>
         set((s) => ({ custosOperacionais: s.custosOperacionais.filter((c) => c.id !== id) })),
+      tema: "escuro",
+      setTema: (t) => set({ tema: t }),
       configuracoes: CONFIG_PADRAO,
       setConfiguracoes: (patch) =>
         set((s) => ({ configuracoes: { ...s.configuracoes, ...patch } })),

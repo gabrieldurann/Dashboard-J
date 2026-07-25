@@ -8,12 +8,13 @@ import { Field, NumberInput, TextInput } from "../components/Field";
 import { GlowCard } from "../components/GlowCard";
 import { Screen } from "../components/Screen";
 import { date, money, percent } from "../i18n/format";
-import { STATUS_COLOR } from "../theme/tokens";
+
 import { useStore } from "../store/useStore";
 import { confirmAction } from "../store/useConfirm";
 import { askDuplicate } from "../store/useDuplicatePrompt";
 import { toast } from "../store/useToast";
 import { useConfig } from "../store/useConfig";
+import { useStatusCores } from "../theme/useCores";
 
 /** Common shape extracted from the calculator (current form or a saved calc) to seed a Produto/Pesquisa. */
 type DadosCalc = {
@@ -56,6 +57,7 @@ const inicial = (cfg: Configuracoes): Form => ({
 type Modo = "precoDaMargem" | "margemDoPreco";
 
 export function Calculadora() {
+  const statusCores = useStatusCores();
   const cfg = useConfig();
   const [f, setF] = useState<Form>(() => inicial(cfg));
   const [modo, setModo] = useState<Modo>("precoDaMargem");
@@ -374,7 +376,7 @@ export function Calculadora() {
                 ) : (
                   <>
                     <div className="border-b border-line pb-4">
-                      <span className="font-mono text-5xl font-semibold tabular-nums" style={{ color: STATUS_COLOR[m.statusCor] }}>
+                      <span className="font-mono text-5xl font-semibold tabular-nums" style={{ color: statusCores[m.statusCor] }}>
                         {percent(m.margem)}
                       </span>
                       <p className="mt-2 font-mono text-xs text-txtDim">

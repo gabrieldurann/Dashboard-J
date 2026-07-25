@@ -9,11 +9,12 @@ import { GlowCard } from "../components/GlowCard";
 import { Screen } from "../components/Screen";
 import { StatusDot } from "../components/StatusDot";
 import { money, percent } from "../i18n/format";
-import { STATUS_COLOR } from "../theme/tokens";
+
 import { useStore } from "../store/useStore";
 import { confirmAction } from "../store/useConfirm";
 import { toast } from "../store/useToast";
 import { useConfig } from "../store/useConfig";
+import { useStatusCores } from "../theme/useCores";
 
 const novoProduto = (cfg: Configuracoes): Produto => ({
   id: crypto.randomUUID(),
@@ -28,6 +29,7 @@ const novoProduto = (cfg: Configuracoes): Produto => ({
 });
 
 export function ProdutoForm() {
+  const statusCores = useStatusCores();
   const cfg = useConfig();
   const { id } = useParams();
   const nav = useNavigate();
@@ -267,7 +269,7 @@ export function ProdutoForm() {
             <div className="mb-5 flex items-end justify-between border-b border-line pb-4">
               <div>
                 <div className="eyebrow mb-1">Margem</div>
-                <span className="font-mono text-4xl font-semibold tabular-nums" style={{ color: STATUS_COLOR[m.statusCor] }}>
+                <span className="font-mono text-4xl font-semibold tabular-nums" style={{ color: statusCores[m.statusCor] }}>
                   {percent(m.margem)}
                 </span>
               </div>

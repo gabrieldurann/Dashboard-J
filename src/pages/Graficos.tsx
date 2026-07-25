@@ -18,7 +18,8 @@ import { RadialGauge } from "../components/RadialGauge";
 import { Screen } from "../components/Screen";
 import { money, percent } from "../i18n/format";
 import { MOTIVO_LABEL } from "../i18n/labels";
-import { COLORS, EASE, STATUS_COLOR } from "../theme/tokens";
+import { EASE, type Paleta } from "../theme/tokens";
+import { useCores, useStatusCores } from "../theme/useCores";
 import { useStore } from "../store/useStore";
 import { useConfig } from "../store/useConfig";
 
@@ -29,8 +30,7 @@ const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "o
 const mesCurto = (chave: string) => MESES[Number(chave.split("-")[1]) - 1] ?? chave;
 
 /** Rotating palette for per-item charts (products, channels). */
-const PALETA = [COLORS.green, COLORS.gold, COLORS.sky, COLORS.amber, "#b57ef0", "#4ad4d4", COLORS.danger];
-const cicla = (i: number) => PALETA[i % PALETA.length];
+const paletaItens = (c: Paleta) => [c.green, c.gold, c.sky, c.amber, c.roxo, c.ciano, c.danger];
 
 const FAIXAS: { cor: StatusCor; titulo: string }[] = [
   { cor: "verde", titulo: "Indo bem" },
@@ -63,6 +63,9 @@ function Grafico({
 
 export function Graficos() {
   const cfg = useConfig();
+  const cores = useCores();
+  const statusCores = useStatusCores();
+  const cicla = (i: number) => paletaItens(cores)[i % 7];
   const vendas = useStore((s) => s.vendas);
   const produtos = useStore((s) => s.produtos);
   const devolucoes = useStore((s) => s.devolucoes);
@@ -85,18 +88,18 @@ export function Graficos() {
   const serie = useMemo(() => serieFinanceiraMensal(filtradas, produtos, cfg), [filtradas, produtos, cfg]);
   const labels = serie.map((s) => mesCurto(s.chave));
   const series = [
-    { nome: "Faturamento", cor: COLORS.gold, valores: serie.map((s) => s.bruto) },
-    { nome: "Custo", cor: COLORS.danger, valores: serie.map((s) => s.custo) },
-    { nome: "Lucro", cor: COLORS.green, valores: serie.map((s) => s.lucro) },
+    { nome: "Faturamento", cor: cores.gold, valores: serie.map((s) => s.bruto) },
+    { nome: "Custo", cor: cores.danger, valores: serie.map((s) => s.custo) },
+    { nome: "Lucro", cor: cores.green, valores: serie.map((s) => s.lucro) },
   ];
 
   // ── where each R$ of revenue ends up ──
   const composicao = [
-    { nome: "Custo do produto", valor: res.custo, cor: COLORS.danger },
-    { nome: "Comissão", valor: res.comissao, cor: COLORS.gold },
-    { nome: "Imposto", valor: res.imposto, cor: COLORS.amber },
-    { nome: "Frete", valor: res.frete, cor: COLORS.sky },
-    { nome: "Lucro", valor: Math.max(0, res.lucro), cor: COLORS.green },
+    { nome: "Custo do produto", valor: res.custo, cor: cores.danger },
+    { nome: "Comissão", valor: res.comissao, cor: cores.gold },
+    { nome: "Imposto", valor: res.imposto, cor: cores.amber },
+    { nome: "Frete", valor: res.frete, cor: cores.sky },
+    { nome: "Lucro", valor: Math.max(0, res.lucro), cor: cores.green },
   ];
 
   // ── per-product performance ──
@@ -106,7 +109,7 @@ export function Graficos() {
   const lucroPorProduto = desempenho.map((d) => ({
     nome: d.nome,
     valor: d.lucro,
-    cor: STATUS_COLOR[d.statusCor],
+    cor: statusCores[d.statusCor],
     nota: percent(d.margem),
   }));
 
@@ -215,7 +218,7 @@ export function Graficos() {
                     initial={{ width: 0 }}
                     animate={{ width: `${f.share * 100}%` }}
                     transition={{ duration: 0.65, ease: EASE, delay: 0.08 * i }}
-                    style={{ background: STATUS_COLOR[f.cor] }}
+                    style={{ background: statusCores[f.cor] }}
                     title={`${f.titulo}: ${percent(f.share)}`}
                   />
                 ))}
@@ -224,13 +227,13 @@ export function Graficos() {
                 {distFaixas.map((f) => (
                   <li key={f.cor} className="flex items-baseline justify-between gap-3">
                     <span className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full" style={{ background: STATUS_COLOR[f.cor] }} />
+                      <span className="h-2 w-2 rounded-full" style={{ background: statusCores[f.cor] }} />
                       <span className="text-sm text-txt">{f.titulo}</span>
                       <span className="font-mono text-[11px] text-txtFaint">
                         {f.qtd} {f.qtd === 1 ? "produto" : "produtos"}
                       </span>
                     </span>
-                    <span className="font-mono text-sm tabular-nums" style={{ color: STATUS_COLOR[f.cor] }}>
+                    <span className="font-mono text-sm tabular-nums" style={{ color: statusCores[f.cor] }}>
                       {percent(f.share)}
                     </span>
                   </li>

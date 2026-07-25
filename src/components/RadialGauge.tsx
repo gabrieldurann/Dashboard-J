@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
-import { COLORS, EASE } from "../theme/tokens";
+import { EASE } from "../theme/tokens";
+import { useCores } from "../theme/useCores";
 
 /** Hero radial gauge — green→gold fill ring with center value/label (DESIGN.md §6). */
 export function RadialGauge({
@@ -14,6 +15,7 @@ export function RadialGauge({
   label: string;
   size?: number;
 }) {
+  const cores = useCores();
   const stroke = 14;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
@@ -25,11 +27,11 @@ export function RadialGauge({
       <svg width={size} height={size} className="-rotate-90">
         <defs>
           <linearGradient id="gaugeFill" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor={COLORS.green} />
-            <stop offset="100%" stopColor={COLORS.gold} />
+            <stop offset="0%" stopColor={cores.green} />
+            <stop offset="100%" stopColor={cores.gold} />
           </linearGradient>
         </defs>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={COLORS.line} strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={cores.line} strokeWidth={stroke} />
         {/* blurred underlay for glow */}
         <motion.circle
           cx={size / 2}
@@ -62,7 +64,7 @@ export function RadialGauge({
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="font-mono text-4xl font-semibold tabular-nums text-txt">{display}</span>
-        <span className="eyebrow mt-1" style={{ color: COLORS.gold }}>
+        <span className="eyebrow mt-1" style={{ color: cores.gold }}>
           {label}
         </span>
       </div>
