@@ -1,4 +1,4 @@
-import { Building2, Calculator, ClipboardList, FileText, LayoutDashboard, Package, Pencil, Plug, Receipt, RotateCcw, SlidersHorizontal } from "lucide-react";
+import { BarChart3, Building2, Calculator, ClipboardList, FileText, LayoutDashboard, Package, Pencil, Plug, Receipt, RotateCcw, SlidersHorizontal } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const NAV = [
@@ -10,6 +10,7 @@ const NAV = [
   { to: "/devolucoes", label: "Devoluções", icon: RotateCcw, end: false },
   { to: "/calculadora", label: "Calculadora", icon: Calculator, end: false },
   { to: "/simulacoes", label: "Simulações", icon: SlidersHorizontal, end: false },
+  { to: "/graficos", label: "Gráficos", icon: BarChart3, end: false },
   { to: "/custos-operacionais", label: "Custos op.", icon: Building2, end: false },
   { to: "/relatorios", label: "Relatórios", icon: FileText, end: false },
 ];

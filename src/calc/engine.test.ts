@@ -3,8 +3,11 @@ import {
   calcularMetricas,
   capitalParaEstoque,
   custosPorCategoria,
+  desempenhoProdutos,
   devolucoesPorMotivo,
+  faixasDesempenho,
   freteUnitario,
+  serieFinanceiraMensal,
   gruposDuplicados,
   mesmoNome,
   normalizaNome,
@@ -265,6 +268,58 @@ describe("resultadoVendas (realized financials, joined to products)", () => {
     );
     expect(r.bruto).toBe(150); // 100 + 50 (cancelled excluded)
     expect(r.custo).toBe(40); // only the matched, non-cancelled sale
+  });
+});
+
+describe("desempenhoProdutos / faixas / série financeira (Gráficos, ideas #6/#3)", () => {
+  // p1 healthy (green), p2 thin margin (red) — so the band split has something in each
+  const p1: Produto = { id: "p1", nome: "Verde", precoVenda: 100, vendasMes: 0, custoUnit: 40, qtdCaixa: 10, imposto: 0.04, comissao: 0.15 };
+  const p2: Produto = { id: "p2", nome: "Vermelho", precoVenda: 100, vendasMes: 0, custoUnit: 78, qtdCaixa: 10, imposto: 0.04, comissao: 0.15 };
+  const prods = [p1, p2];
+  const vendas: Venda[] = [
+    venda({ produtoId: "p1", quantidade: 2, valorTotal: 200, frete: 0, data: "2026-05-10T10:00" }),
+    venda({ produtoId: "p1", quantidade: 1, valorTotal: 100, frete: 0, data: "2026-06-10T10:00" }),
+    venda({ produtoId: "p2", quantidade: 1, valorTotal: 100, frete: 0, data: "2026-06-11T10:00" }),
+    venda({ produtoId: "p1", quantidade: 9, valorTotal: 900, status: "cancelado" }), // excluded
+    venda({ produtoId: undefined, quantidade: 1, valorTotal: 50 }), // avulsa — not attributable
+  ];
+
+  it("rolls up realized figures per product, best-selling first", () => {
+    const d = desempenhoProdutos(vendas, prods);
+    expect(d.map((x) => x.produtoId)).toEqual(["p1", "p2"]); // 300 > 100
+    const verde = d[0];
+    expect(verde.unidades).toBe(3); // cancelled sale excluded
+    expect(verde.bruto).toBe(300);
+    expect(verde.custo).toBe(120); // 40 × 3
+    expect(verde.margem).toBeCloseTo(verde.lucro / verde.bruto, 6);
+  });
+
+  it("shares sum to 1 and skip avulsa sales", () => {
+    const d = desempenhoProdutos(vendas, prods);
+    expect(d.reduce((s, x) => s + x.share, 0)).toBeCloseTo(1, 6);
+    expect(d.some((x) => x.nome === "Produto")).toBe(false); // the avulsa row isn't attributed
+  });
+
+  it("splits products into bom / médio / ruim bands", () => {
+    const f = faixasDesempenho(desempenhoProdutos(vendas, prods));
+    expect(f.verde.map((x) => x.produtoId)).toEqual(["p1"]);
+    expect(f.vermelho.map((x) => x.produtoId)).toEqual(["p2"]);
+    expect(f.amarelo).toEqual([]);
+  });
+
+  it("builds a chronological monthly gross/cost/profit series", () => {
+    const s = serieFinanceiraMensal(vendas, prods);
+    expect(s.map((x) => x.chave)).toEqual(["2026-05", "2026-06"]);
+    expect(s[0].bruto).toBe(200);
+    // June = 100 (p1) + 100 (p2) + the 50 avulsa. Unlike the per-product breakdown, the finance
+    // series counts avulsa revenue in the gross (it's real money) — it just has no cost split.
+    expect(s[1].bruto).toBe(250);
+    s.forEach((m) => expect(m.lucro).toBeLessThan(m.bruto));
+  });
+
+  it("returns nothing when there are no attributable sales", () => {
+    expect(desempenhoProdutos([], prods)).toEqual([]);
+    expect(serieFinanceiraMensal([], prods)).toEqual([]);
   });
 });
 

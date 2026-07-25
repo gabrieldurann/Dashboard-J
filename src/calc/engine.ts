@@ -396,6 +396,78 @@ export function resultadoVendas(vendas: Venda[], produtos: Produto[]): Resultado
   return r;
 }
 
+// ─── Per-product performance & finance series (ideas #6 Gráficos / #3 bom-médio-ruim) ───
+// Realized figures straight from the ledger (not the projected vendasMes), so the Gráficos
+// page shows what actually happened. Both helpers delegate the money math to
+// `resultadoVendas` so there is exactly one definition of "lucro" in the app.
+
+export type DesempenhoProduto = {
+  produtoId: string;
+  nome: string;
+  unidades: number;
+  bruto: number;
+  custo: number;
+  lucro: number;
+  margem: number; // lucro ÷ bruto — the realized margin for this product
+  statusCor: StatusCor; // health band (idea #3: bom / médio / ruim)
+  share: number; // this product's share of total gross ("representatividade")
+};
+
+/**
+ * Realized performance per catalog product, best-selling first. Cancelled sales are excluded
+ * and avulsa sales (no `produtoId`) are skipped — they can't be attributed to a product.
+ */
+export function desempenhoProdutos(vendas: Venda[], produtos: Produto[]): DesempenhoProduto[] {
+  const porProduto = new Map<string, Venda[]>();
+  for (const v of vendas) {
+    if (v.status === "cancelado" || !v.produtoId) continue;
+    const g = porProduto.get(v.produtoId);
+    if (g) g.push(v);
+    else porProduto.set(v.produtoId, [v]);
+  }
+
+  const linhas = [...porProduto.entries()].map(([id, doProduto]) => {
+    const r = resultadoVendas(doProduto, produtos);
+    const margem = r.bruto > 0 ? r.lucro / r.bruto : 0;
+    return {
+      produtoId: id,
+      nome: produtos.find((p) => p.id === id)?.nome ?? doProduto[0].produtoNome,
+      unidades: doProduto.reduce((s, v) => s + v.quantidade, 0),
+      bruto: r.bruto,
+      custo: r.custo,
+      lucro: r.lucro,
+      margem,
+      statusCor: statusCor(margem),
+      share: 0,
+    };
+  });
+
+  const total = linhas.reduce((s, l) => s + l.bruto, 0);
+  return linhas
+    .map((l) => ({ ...l, share: total > 0 ? l.bruto / total : 0 }))
+    .sort((a, b) => b.bruto - a.bruto);
+}
+
+/** Products split into the three health bands (idea #3), each list keeping its incoming order. */
+export function faixasDesempenho(linhas: DesempenhoProduto[]): Record<StatusCor, DesempenhoProduto[]> {
+  return {
+    verde: linhas.filter((l) => l.statusCor === "verde"),
+    amarelo: linhas.filter((l) => l.statusCor === "amarelo"),
+    vermelho: linhas.filter((l) => l.statusCor === "vermelho"),
+  };
+}
+
+export type SerieFinanceira = { chave: string; bruto: number; custo: number; lucro: number };
+
+/** Monthly gross / cost / profit series for the multi-line finance chart (chronological). */
+export function serieFinanceiraMensal(vendas: Venda[], produtos: Produto[]): SerieFinanceira[] {
+  return vendasPorMes(vendas).map((m) => {
+    const doMes = vendas.filter((v) => ymd(new Date(v.data)).slice(0, 7) === m.chave);
+    const r = resultadoVendas(doMes, produtos);
+    return { chave: m.chave, bruto: r.bruto, custo: r.custo, lucro: r.lucro };
+  });
+}
+
 // ─── Returns / refunds (idea #1) ─────────────────────────────────────────────
 // Pure rollups over the Devoluções ledger. Refunds are money going back out, so they
 // reduce realized profit (see the Painel's "líquido após devoluções" line).

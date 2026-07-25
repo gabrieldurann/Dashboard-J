@@ -9,6 +9,7 @@ import { Calculadora } from "./pages/Calculadora";
 import { Conexoes } from "./pages/Conexoes";
 import { CustosOperacionais } from "./pages/CustosOperacionais";
 import { Devolucoes } from "./pages/Devolucoes";
+import { Graficos } from "./pages/Graficos";
 import { Painel } from "./pages/Painel";
 import { Pesquisa } from "./pages/Pesquisa";
 import { ProdutoForm } from "./pages/ProdutoForm";
@@ -41,6 +42,7 @@ function AnimatedRoutes() {
           <Route path="/devolucoes" element={<Devolucoes />} />
           <Route path="/calculadora" element={<Calculadora />} />
           <Route path="/simulacoes" element={<Simulacoes />} />
+          <Route path="/graficos" element={<Graficos />} />
           <Route path="/custos-operacionais" element={<CustosOperacionais />} />
           <Route path="/relatorios" element={<Relatorios />} />
           <Route path="/conexoes" element={<Conexoes />} />
