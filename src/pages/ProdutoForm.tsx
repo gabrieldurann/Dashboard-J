@@ -1,7 +1,7 @@
 import { ArrowLeft, ImagePlus, Save, Trash2, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { COMISSAO_PADRAO, IMPOSTO_PADRAO } from "../calc/constants";
+import type { Configuracoes } from "../calc/constants";
 import { calcularMetricas } from "../calc/engine";
 import type { Produto } from "../calc/types";
 import { Field, NumberInput, TextInput } from "../components/Field";
@@ -13,20 +13,22 @@ import { STATUS_COLOR } from "../theme/tokens";
 import { useStore } from "../store/useStore";
 import { confirmAction } from "../store/useConfirm";
 import { toast } from "../store/useToast";
+import { useConfig } from "../store/useConfig";
 
-const novoProduto = (): Produto => ({
+const novoProduto = (cfg: Configuracoes): Produto => ({
   id: crypto.randomUUID(),
   nome: "",
   precoVenda: 0,
   vendasMes: 0,
   custoUnit: 0,
   qtdCaixa: 0,
-  imposto: IMPOSTO_PADRAO,
-  comissao: COMISSAO_PADRAO,
+  imposto: cfg.imposto,
+  comissao: cfg.comissao,
   aprovadoManual: null,
 });
 
 export function ProdutoForm() {
+  const cfg = useConfig();
   const { id } = useParams();
   const nav = useNavigate();
   const produtos = useStore((s) => s.produtos);
@@ -36,10 +38,10 @@ export function ProdutoForm() {
 
   const existente = id ? produtos.find((p) => p.id === id) : undefined;
   const isEdit = !!existente;
-  const [draft, setDraft] = useState<Produto>(() => existente ?? novoProduto());
+  const [draft, setDraft] = useState<Produto>(() => existente ?? novoProduto(cfg));
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const m = useMemo(() => calcularMetricas(draft), [draft]);
+  const m = useMemo(() => calcularMetricas(draft, cfg), [draft, cfg]);
   const set = <K extends keyof Produto>(k: K, v: Produto[K]) => setDraft((d) => ({ ...d, [k]: v }));
 
   const onImage = (file?: File) => {

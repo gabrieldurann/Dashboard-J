@@ -7,6 +7,7 @@ import { Toaster } from "./components/Toaster";
 import { EASE } from "./theme/tokens";
 import { Calculadora } from "./pages/Calculadora";
 import { Conexoes } from "./pages/Conexoes";
+import { Configuracoes } from "./pages/Configuracoes";
 import { CustosOperacionais } from "./pages/CustosOperacionais";
 import { Devolucoes } from "./pages/Devolucoes";
 import { Graficos } from "./pages/Graficos";
@@ -45,6 +46,7 @@ function AnimatedRoutes() {
           <Route path="/graficos" element={<Graficos />} />
           <Route path="/custos-operacionais" element={<CustosOperacionais />} />
           <Route path="/relatorios" element={<Relatorios />} />
+          <Route path="/configuracoes" element={<Configuracoes />} />
           <Route path="/conexoes" element={<Conexoes />} />
         </Routes>
       </motion.div>

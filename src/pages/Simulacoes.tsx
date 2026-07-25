@@ -9,6 +9,7 @@ import { StatusDot } from "../components/StatusDot";
 import { money, number, percent } from "../i18n/format";
 import { COLORS, STATUS_COLOR } from "../theme/tokens";
 import { useStore } from "../store/useStore";
+import { useConfig } from "../store/useConfig";
 
 /** The three live dials. Everything else (imposto, comissão, qtd/caixa) comes from the base product. */
 type Cenario = { preco: number; custo: number; vendas: number };
@@ -26,6 +27,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function Simulacoes() {
+  const cfg = useConfig();
   const produtos = useStore((s) => s.produtos);
   const nav = useNavigate();
 
@@ -85,8 +87,8 @@ export function Simulacoes() {
     () => ({ precoVenda: cen.preco, custoUnit: cen.custo, vendasMes: cen.vendas, ...fixos }),
     [cen, base],
   );
-  const a = useMemo(() => simularCenario(atual), [atual]);
-  const s = useMemo(() => simularCenario(cenario), [cenario]);
+  const a = useMemo(() => simularCenario(atual, cfg), [atual, cfg]);
+  const s = useMemo(() => simularCenario(cenario, cfg), [cenario, cfg]);
 
   const mudou = cen.preco !== base.precoVenda || cen.custo !== base.custoUnit || cen.vendas !== base.vendasMes;
 

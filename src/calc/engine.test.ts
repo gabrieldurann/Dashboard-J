@@ -28,6 +28,7 @@ import {
   vendasPorMes,
   vendasPorPais,
 } from "./engine";
+import { CONFIG_PADRAO } from "./constants";
 import type { CustoOperacional, Devolucao, Produto, Venda } from "./types";
 
 const base: Produto = {
@@ -334,6 +335,49 @@ describe("desempenhoProdutos / faixas / série financeira (Gráficos, ideas #6/#
     expect(agg.map((a) => a.canal)).toEqual(["Amazon", "Shopee", "Sem canal"]);
     expect(agg[0].valor).toBe(500);
     expect(agg.reduce((s, a) => s + a.share, 0)).toBeCloseTo(1, 6);
+  });
+});
+
+describe("configurable rates (Configurações, idea #9)", () => {
+  it("statusCor follows the configured bands", () => {
+    const largo = { ...CONFIG_PADRAO, margemVermelho: 0.3, margemAmarelo: 0.5 };
+    expect(statusCor(0.2, largo)).toBe("vermelho"); // green under the defaults
+    expect(statusCor(0.4, largo)).toBe("amarelo");
+    expect(statusCor(0.6, largo)).toBe("verde");
+  });
+
+  it("a different tax rate changes profit and margin", () => {
+    const semImposto = { ...CONFIG_PADRAO, imposto: 0 };
+    const p: Produto = { ...base, imposto: undefined as unknown as number };
+    const padrao = calcularMetricas(p);
+    const isento = calcularMetricas(p, semImposto);
+    expect(isento.lucroUnit).toBeGreaterThan(padrao.lucroUnit);
+    expect(isento.lucroUnit - padrao.lucroUnit).toBeCloseTo(50 * 0.04, 6); // the 4% back
+  });
+
+  it("freight rules are honoured (price threshold and unit cost)", () => {
+    const caro = { ...CONFIG_PADRAO, freteUnit: 10, freteGratisAcima: 40 };
+    expect(calcularMetricas(base, caro).freteUnit).toBe(0); // 50 > 40 → free
+    expect(calcularMetricas({ ...base, precoVenda: 30 }, caro).freteUnit).toBe(10);
+  });
+
+  it("the approval floor moves the auto verdict", () => {
+    const exigente = { ...CONFIG_PADRAO, margemAprovacao: 0.9 };
+    expect(calcularMetricas(base).aprovado).toBe(true); // 29.7% clears the default 15%
+    expect(calcularMetricas(base, exigente).aprovado).toBe(false);
+  });
+
+  it("rates flow through the ledger rollups too", () => {
+    const prod: Produto = { id: "p1", nome: "P", precoVenda: 100, vendasMes: 1, custoUnit: 40, qtdCaixa: 1, imposto: 0.04, comissao: 0.15 };
+    const v = [venda({ produtoId: "p1", quantidade: 1, valorTotal: 100, frete: 0 })];
+    const bandaLarga = { ...CONFIG_PADRAO, margemVermelho: 0.5, margemAmarelo: 0.8 };
+    expect(desempenhoProdutos(v, [prod])[0].statusCor).toBe("verde");
+    expect(desempenhoProdutos(v, [prod], bandaLarga)[0].statusCor).toBe("vermelho");
+  });
+
+  it("omitting the config keeps the sheet defaults (no behaviour change)", () => {
+    expect(calcularMetricas(base)).toEqual(calcularMetricas(base, CONFIG_PADRAO));
+    expect(statusCor(0.12)).toBe(statusCor(0.12, CONFIG_PADRAO));
   });
 });
 

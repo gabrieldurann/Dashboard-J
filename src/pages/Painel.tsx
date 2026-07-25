@@ -32,6 +32,7 @@ import { StatusDot } from "../components/StatusDot";
 import { paisByCode } from "../data/countries";
 import { money, percent } from "../i18n/format";
 import { useStore } from "../store/useStore";
+import { useConfig } from "../store/useConfig";
 
 // Cards the user can hide (idea: keep the Painel readable for whoever is looking at it).
 // `essencial` ones survive the "Só o essencial" preset.
@@ -61,11 +62,12 @@ const labelDia = (chave: string) => {
 };
 
 export function Painel() {
+  const cfg = useConfig();
   const produtos = useStore((s) => s.produtos);
   const vendas = useStore((s) => s.vendas);
   const devolucoes = useStore((s) => s.devolucoes);
   const custosOperacionais = useStore((s) => s.custosOperacionais);
-  const t = useMemo(() => totaisPortfolio(produtos), [produtos]);
+  const t = useMemo(() => totaisPortfolio(produtos, cfg), [produtos, cfg]);
 
   // reveal/hide the secondary metric cards (idea: keep the headline clean, expand for detail)
   const [detalhes, setDetalhes] = useState(false);
@@ -136,8 +138,8 @@ export function Painel() {
   // realized financials for the latest month (joins ledger → products): real lucro/custo/imposto/comissão
   const mesChave = mensal.atual?.chave;
   const resMes = useMemo(
-    () => resultadoVendas(mesChave ? vendas.filter((v) => v.data.slice(0, 7) === mesChave) : [], produtos),
-    [vendas, produtos, mesChave],
+    () => resultadoVendas(mesChave ? vendas.filter((v) => v.data.slice(0, 7) === mesChave) : [], produtos, cfg),
+    [vendas, produtos, mesChave, cfg],
   );
 
   // returns in the current month reduce realized profit (refunds are money going back out)
@@ -153,17 +155,17 @@ export function Painel() {
   const lucroLiquidoTotal = lucroSemOperacional - totalOp;
 
   // company-wide realized margin (blended profit ÷ gross over ALL sales) — not a per-product average
-  const resTotal = useMemo(() => resultadoVendas(vendas, produtos), [vendas, produtos]);
+  const resTotal = useMemo(() => resultadoVendas(vendas, produtos, cfg), [vendas, produtos, cfg]);
   const margemRealizada = resTotal.bruto > 0 ? resTotal.lucro / resTotal.bruto : 0;
 
   // products to re-evaluate (red band), worst margin first
   const reavaliar = useMemo(
     () =>
       produtos
-        .map((p) => ({ p, m: calcularMetricas(p) }))
+        .map((p) => ({ p, m: calcularMetricas(p, cfg) }))
         .filter((x) => x.m.statusCor === "vermelho")
         .sort((a, b) => a.m.margem - b.m.margem),
-    [produtos],
+    [produtos, cfg],
   );
 
   // gauge: company realized margin scaled so 40% reads as a "full" healthy ring

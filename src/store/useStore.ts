@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { CONFIG_PADRAO, type Configuracoes } from "../calc/constants";
 import type { CalculoSalvo, CustoOperacional, Devolucao, Pesquisa, Produto, Venda, VendaAvulsa } from "../calc/types";
 import { CUSTOS_OPERACIONAIS_SEED, DEVOLUCOES_SEED, PESQUISAS_SEED, PRODUTOS_SEED, VENDAS_SEED } from "../data/seed";
 
@@ -31,6 +32,12 @@ type State = {
   addCustoOperacional: (c: CustoOperacional) => void;
   updateCustoOperacional: (id: string, patch: Partial<CustoOperacional>) => void;
   removeCustoOperacional: (id: string) => void;
+  /** tunable business rates (Configurações) — the engine receives these, never reads them itself */
+  configuracoes: Configuracoes;
+  setConfiguracoes: (patch: Partial<Configuracoes>) => void;
+  resetConfiguracoes: () => void;
+  /** overwrite every product's & pesquisa's own tax/commission with the current defaults */
+  aplicarTaxasPadrao: () => void;
   /** ids of dashboard cards the user chose to hide (a display preference, not data) */
   cardsOcultos: string[];
   toggleCardOculto: (id: string) => void;
@@ -87,6 +94,18 @@ export const useStore = create<State>()(
         })),
       removeCustoOperacional: (id) =>
         set((s) => ({ custosOperacionais: s.custosOperacionais.filter((c) => c.id !== id) })),
+      configuracoes: CONFIG_PADRAO,
+      setConfiguracoes: (patch) =>
+        set((s) => ({ configuracoes: { ...s.configuracoes, ...patch } })),
+      resetConfiguracoes: () => set({ configuracoes: CONFIG_PADRAO }),
+      aplicarTaxasPadrao: () =>
+        set((s) => {
+          const { imposto, comissao } = s.configuracoes;
+          return {
+            produtos: s.produtos.map((p) => ({ ...p, imposto, comissao })),
+            pesquisas: s.pesquisas.map((p) => ({ ...p, imposto, comissao })),
+          };
+        }),
       cardsOcultos: [],
       toggleCardOculto: (id) =>
         set((s) => ({

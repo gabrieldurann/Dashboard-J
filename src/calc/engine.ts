@@ -3,12 +3,10 @@
 // Pure functions only — fully unit-tested in engine.test.ts.
 
 import {
-  COMISSAO_PADRAO,
+  CONFIG_PADRAO,
   FRETE_GRATIS_ACIMA,
   FRETE_UNIT,
-  IMPOSTO_PADRAO,
-  MARGEM_APROVACAO,
-  MARGEM_BANDAS,
+  type Configuracoes,
   type StatusCor,
 } from "./constants";
 import type {
@@ -30,10 +28,10 @@ export function freteUnitario(
   return precoVenda > gratisAcima ? 0 : freteUnit;
 }
 
-/** Margin health band (idea #2): red < 12% · yellow 12–15% · green > 15%. */
-export function statusCor(margem: number): StatusCor {
-  if (margem < MARGEM_BANDAS.vermelho) return "vermelho";
-  if (margem <= MARGEM_BANDAS.amarelo) return "amarelo";
+/** Margin health band (idea #2): red below `margemVermelho` · yellow up to `margemAmarelo` · green above. */
+export function statusCor(margem: number, cfg: Configuracoes = CONFIG_PADRAO): StatusCor {
+  if (margem < cfg.margemVermelho) return "vermelho";
+  if (margem <= cfg.margemAmarelo) return "amarelo";
   return "verde";
 }
 
@@ -47,16 +45,16 @@ export function statusCor(margem: number): StatusCor {
  *   lucroCaixa   = lucroUnit · qtdCaixa                   [FIX: sheet used R·H]
  *   "sem frete" block = sheet V/W/X/Y
  */
-export function calcularMetricas(p: Produto): MetricasProduto {
-  const imposto = p.imposto ?? IMPOSTO_PADRAO;
-  const comissao = p.comissao ?? COMISSAO_PADRAO;
+export function calcularMetricas(p: Produto, cfg: Configuracoes = CONFIG_PADRAO): MetricasProduto {
+  const imposto = p.imposto ?? cfg.imposto;
+  const comissao = p.comissao ?? cfg.comissao;
   const embalagem = p.custoEmbalagem ?? 0;
   const preco = p.precoVenda || 0;
 
   const custoCaixa = p.custoUnit * p.qtdCaixa;
   const totalTaxasComissao = preco * (imposto + comissao);
   const valorLiquido = preco - totalTaxasComissao; // = preco·(1 − imposto − comissão)
-  const freteUnit = freteUnitario(preco);
+  const freteUnit = freteUnitario(preco, cfg.freteUnit, cfg.freteGratisAcima);
 
   // cenário com frete
   const lucroUnit = valorLiquido - p.custoUnit - freteUnit - embalagem;
@@ -74,7 +72,7 @@ export function calcularMetricas(p: Produto): MetricasProduto {
   const capitalEstoque = custoCaixa; // capital travado p/ manter 1 caixa (idea #16)
   const paybackMeses = lucroMensal > 0 ? capitalEstoque / lucroMensal : null;
 
-  const aprovado = p.aprovadoManual ?? margem >= MARGEM_APROVACAO;
+  const aprovado = p.aprovadoManual ?? margem >= cfg.margemAprovacao;
 
   return {
     custoCaixa,
@@ -91,7 +89,7 @@ export function calcularMetricas(p: Produto): MetricasProduto {
     lucroCaixaSemFrete,
     capitalEstoque,
     paybackMeses,
-    statusCor: statusCor(margem),
+    statusCor: statusCor(margem, cfg),
     aprovado,
   };
 }
@@ -115,16 +113,19 @@ export type PrecoAlvo = {
  * Freight depends on whether P > 79, so we solve the no-freight price first, then add freight
  * only if the result still falls in the freight-charged band.
  */
-export function precoParaMargem(opts: {
-  custoUnit: number;
-  margemDesejada: number;
-  imposto?: number;
-  comissao?: number;
-  custoEmbalagem?: number;
-  room?: number; // ± fraction, default 0.03
-}): PrecoAlvo {
-  const imposto = opts.imposto ?? IMPOSTO_PADRAO;
-  const comissao = opts.comissao ?? COMISSAO_PADRAO;
+export function precoParaMargem(
+  opts: {
+    custoUnit: number;
+    margemDesejada: number;
+    imposto?: number;
+    comissao?: number;
+    custoEmbalagem?: number;
+    room?: number; // ± fraction, default 0.03
+  },
+  cfg: Configuracoes = CONFIG_PADRAO,
+): PrecoAlvo {
+  const imposto = opts.imposto ?? cfg.imposto;
+  const comissao = opts.comissao ?? cfg.comissao;
   const emb = opts.custoEmbalagem ?? 0;
   const m = opts.margemDesejada;
   const room = opts.room ?? 0.03;
@@ -134,10 +135,10 @@ export function precoParaMargem(opts: {
     denom > 0 ? (opts.custoUnit + frete + emb) / denom : Infinity;
 
   const precoSemFrete = solve(0);
-  // does the freight-charged solution stay within the freight band (<= 79)?
-  const precoComFreteBruto = solve(FRETE_UNIT);
+  // does the freight-charged solution stay within the freight band?
+  const precoComFreteBruto = solve(cfg.freteUnit);
   const precoSugerido =
-    precoComFreteBruto <= FRETE_GRATIS_ACIMA ? precoComFreteBruto : precoSemFrete;
+    precoComFreteBruto <= cfg.freteGratisAcima ? precoComFreteBruto : precoSemFrete;
 
   const impactoFrete = precoSugerido - precoSemFrete;
 
@@ -199,19 +200,22 @@ export type CenarioResultado = {
  * figures, then scales the deductions by volume. By construction the monthly numbers
  * reconcile: faturamento − custo − imposto − comissão − frete − embalagem = lucroMes.
  */
-export function simularCenario(c: CenarioInput): CenarioResultado {
-  const m = calcularMetricas({
-    id: "sim",
-    nome: "",
-    precoVenda: c.precoVenda,
-    vendasMes: c.vendasMes,
-    custoUnit: c.custoUnit,
-    qtdCaixa: c.qtdCaixa,
-    imposto: c.imposto,
-    comissao: c.comissao,
-    custoEmbalagem: c.custoEmbalagem,
-    aprovadoManual: null,
-  });
+export function simularCenario(c: CenarioInput, cfg: Configuracoes = CONFIG_PADRAO): CenarioResultado {
+  const m = calcularMetricas(
+    {
+      id: "sim",
+      nome: "",
+      precoVenda: c.precoVenda,
+      vendasMes: c.vendasMes,
+      custoUnit: c.custoUnit,
+      qtdCaixa: c.qtdCaixa,
+      imposto: c.imposto,
+      comissao: c.comissao,
+      custoEmbalagem: c.custoEmbalagem,
+      aprovadoManual: null,
+    },
+    cfg,
+  );
   const v = c.vendasMes;
   return {
     margem: m.margem,
@@ -233,7 +237,7 @@ export function simularCenario(c: CenarioInput): CenarioResultado {
 }
 
 /** Aggregate totals across a portfolio for the Painel Principal (idea #17). */
-export function totaisPortfolio(produtos: Produto[]) {
+export function totaisPortfolio(produtos: Produto[], cfg: Configuracoes = CONFIG_PADRAO) {
   let receitaMensal = 0;
   let lucroMensal = 0;
   let custoMensal = 0;
@@ -242,7 +246,7 @@ export function totaisPortfolio(produtos: Produto[]) {
   const cores = { vermelho: 0, amarelo: 0, verde: 0 };
 
   for (const p of produtos) {
-    const m = calcularMetricas(p);
+    const m = calcularMetricas(p, cfg);
     receitaMensal += p.precoVenda * p.vendasMes;
     lucroMensal += m.lucroMensal;
     custoMensal += p.custoUnit * p.vendasMes;
@@ -374,7 +378,11 @@ export type ResultadoVendas = {
  * frete from the sale (or the product's freight rule), and lucro = bruto − all deductions.
  * Sales with no matching product contribute gross only (no cost breakdown available).
  */
-export function resultadoVendas(vendas: Venda[], produtos: Produto[]): ResultadoVendas {
+export function resultadoVendas(
+  vendas: Venda[],
+  produtos: Produto[],
+  cfg: Configuracoes = CONFIG_PADRAO,
+): ResultadoVendas {
   const porId = new Map(produtos.map((p) => [p.id, p]));
   const r: ResultadoVendas = { bruto: 0, custo: 0, imposto: 0, comissao: 0, frete: 0, lucro: 0 };
   for (const v of vendas) {
@@ -382,10 +390,10 @@ export function resultadoVendas(vendas: Venda[], produtos: Produto[]): Resultado
     r.bruto += v.valorTotal;
     const p = v.produtoId ? porId.get(v.produtoId) : undefined;
     if (!p) continue; // avulsa / sem produto → conta só no bruto
-    const imposto = v.valorTotal * (p.imposto ?? IMPOSTO_PADRAO);
-    const comissao = v.valorTotal * (p.comissao ?? COMISSAO_PADRAO);
+    const imposto = v.valorTotal * (p.imposto ?? cfg.imposto);
+    const comissao = v.valorTotal * (p.comissao ?? cfg.comissao);
     const custo = p.custoUnit * v.quantidade;
-    const frete = v.frete ?? freteUnitario(p.precoVenda) * v.quantidade;
+    const frete = v.frete ?? freteUnitario(p.precoVenda, cfg.freteUnit, cfg.freteGratisAcima) * v.quantidade;
     const embalagem = (p.custoEmbalagem ?? 0) * v.quantidade;
     r.imposto += imposto;
     r.comissao += comissao;
@@ -417,7 +425,11 @@ export type DesempenhoProduto = {
  * Realized performance per catalog product, best-selling first. Cancelled sales are excluded
  * and avulsa sales (no `produtoId`) are skipped — they can't be attributed to a product.
  */
-export function desempenhoProdutos(vendas: Venda[], produtos: Produto[]): DesempenhoProduto[] {
+export function desempenhoProdutos(
+  vendas: Venda[],
+  produtos: Produto[],
+  cfg: Configuracoes = CONFIG_PADRAO,
+): DesempenhoProduto[] {
   const porProduto = new Map<string, Venda[]>();
   for (const v of vendas) {
     if (v.status === "cancelado" || !v.produtoId) continue;
@@ -427,7 +439,7 @@ export function desempenhoProdutos(vendas: Venda[], produtos: Produto[]): Desemp
   }
 
   const linhas = [...porProduto.entries()].map(([id, doProduto]) => {
-    const r = resultadoVendas(doProduto, produtos);
+    const r = resultadoVendas(doProduto, produtos, cfg);
     const margem = r.bruto > 0 ? r.lucro / r.bruto : 0;
     return {
       produtoId: id,
@@ -437,7 +449,7 @@ export function desempenhoProdutos(vendas: Venda[], produtos: Produto[]): Desemp
       custo: r.custo,
       lucro: r.lucro,
       margem,
-      statusCor: statusCor(margem),
+      statusCor: statusCor(margem, cfg),
       share: 0,
     };
   });
@@ -477,10 +489,14 @@ export function vendasPorCanal(vendas: Venda[]): AggCanal[] {
 export type SerieFinanceira = { chave: string; bruto: number; custo: number; lucro: number };
 
 /** Monthly gross / cost / profit series for the multi-line finance chart (chronological). */
-export function serieFinanceiraMensal(vendas: Venda[], produtos: Produto[]): SerieFinanceira[] {
+export function serieFinanceiraMensal(
+  vendas: Venda[],
+  produtos: Produto[],
+  cfg: Configuracoes = CONFIG_PADRAO,
+): SerieFinanceira[] {
   return vendasPorMes(vendas).map((m) => {
     const doMes = vendas.filter((v) => ymd(new Date(v.data)).slice(0, 7) === m.chave);
-    const r = resultadoVendas(doMes, produtos);
+    const r = resultadoVendas(doMes, produtos, cfg);
     return { chave: m.chave, bruto: r.bruto, custo: r.custo, lucro: r.lucro };
   });
 }

@@ -1,6 +1,6 @@
 import { ExternalLink, Image as ImageIcon, ImagePlus, Pencil, Plus, Save, Search, Trash2, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
-import { COMISSAO_PADRAO, IMPOSTO_PADRAO } from "../calc/constants";
+import type { Configuracoes } from "../calc/constants";
 import { calcularMetricas, gruposDuplicados } from "../calc/engine";
 import type { Pesquisa as PesquisaT } from "../calc/types";
 import { DuplicateBanner } from "../components/DuplicateBanner";
@@ -11,6 +11,7 @@ import { money, percent, date } from "../i18n/format";
 import { useStore } from "../store/useStore";
 import { confirmAction } from "../store/useConfirm";
 import { toast } from "../store/useToast";
+import { useConfig } from "../store/useConfig";
 
 type Aprov = "auto" | "sim" | "nao";
 type Draft = {
@@ -29,7 +30,7 @@ type Draft = {
   observacao: string;
 };
 
-const emptyDraft = (): Draft => ({
+const emptyDraft = (cfg: Configuracoes): Draft => ({
   link: "",
   nome: "",
   imagem: "",
@@ -39,8 +40,8 @@ const emptyDraft = (): Draft => ({
   custoUnit: 0,
   fornecedor: "",
   qtdCaixa: 0,
-  imposto: IMPOSTO_PADRAO,
-  comissao: COMISSAO_PADRAO,
+  imposto: cfg.imposto,
+  comissao: cfg.comissao,
   aprovacao: "auto",
   observacao: "",
 });
@@ -49,6 +50,7 @@ const aprovToOverride = (a: Aprov): boolean | null => (a === "auto" ? null : a =
 const overrideToAprov = (a?: boolean | null): Aprov => (a == null ? "auto" : a ? "sim" : "nao");
 
 export function Pesquisa() {
+  const cfg = useConfig();
   const pesquisas = useStore((s) => s.pesquisas);
   const addPesquisa = useStore((s) => s.addPesquisa);
   const updatePesquisa = useStore((s) => s.updatePesquisa);
@@ -56,7 +58,7 @@ export function Pesquisa() {
 
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [d, setD] = useState<Draft>(emptyDraft);
+  const [d, setD] = useState<Draft>(() => emptyDraft(cfg));
   const [busca, setBusca] = useState("");
 
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((p) => ({ ...p, [k]: v }));
@@ -88,7 +90,7 @@ export function Pesquisa() {
   const linhas = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return pesquisas
-      .map((p) => ({ p, m: calcularMetricas(p) }))
+      .map((p) => ({ p, m: calcularMetricas(p, cfg) }))
       .filter(({ p }) =>
         !q ? true : [p.nome, p.fornecedor, p.link].filter(Boolean).some((s) => (s as string).toLowerCase().includes(q)),
       );
@@ -119,14 +121,14 @@ export function Pesquisa() {
       addPesquisa({ id: crypto.randomUUID(), ...payload });
       toast.success("Pesquisa salva");
     }
-    setD(emptyDraft());
+    setD(emptyDraft(cfg));
     setEditId(null);
     setShowForm(false);
   };
 
   const novaPesquisa = () => {
     setEditId(null);
-    setD(emptyDraft());
+    setD(emptyDraft(cfg));
     setShowForm(true);
   };
 

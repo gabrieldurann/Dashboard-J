@@ -1,7 +1,7 @@
 import { Calculator, ClipboardList, FolderOpen, Package, Save, Trash2, TriangleAlert } from "lucide-react";
 import { Tooltip } from "../components/Tooltip";
 import { useMemo, useState } from "react";
-import { COMISSAO_PADRAO, IMPOSTO_PADRAO } from "../calc/constants";
+import type { Configuracoes } from "../calc/constants";
 import { calcularMetricas, capitalParaEstoque, mesmoNome, precoParaMargem } from "../calc/engine";
 import type { CalculoSalvo, Pesquisa, Produto } from "../calc/types";
 import { Field, NumberInput, TextInput } from "../components/Field";
@@ -13,6 +13,7 @@ import { useStore } from "../store/useStore";
 import { confirmAction } from "../store/useConfirm";
 import { askDuplicate } from "../store/useDuplicatePrompt";
 import { toast } from "../store/useToast";
+import { useConfig } from "../store/useConfig";
 
 /** Common shape extracted from the calculator (current form or a saved calc) to seed a Produto/Pesquisa. */
 type DadosCalc = {
@@ -39,23 +40,24 @@ type Form = {
   precoVenda: number; // mode "margemDoPreco"
 };
 
-const inicial: Form = {
+const inicial = (cfg: Configuracoes): Form => ({
   nome: "",
   fornecedor: "",
   custoUnit: 0,
-  imposto: IMPOSTO_PADRAO,
-  comissao: COMISSAO_PADRAO,
+  imposto: cfg.imposto,
+  comissao: cfg.comissao,
   custoEmbalagem: 0,
   qtdCaixa: 0,
   margemDesejada: 0.15,
   room: 0.03,
   precoVenda: 0,
-};
+});
 
 type Modo = "precoDaMargem" | "margemDoPreco";
 
 export function Calculadora() {
-  const [f, setF] = useState<Form>(inicial);
+  const cfg = useConfig();
+  const [f, setF] = useState<Form>(() => inicial(cfg));
   const [modo, setModo] = useState<Modo>("precoDaMargem");
   const calculos = useStore((s) => s.calculosSalvos);
   const addCalculo = useStore((s) => s.addCalculo);
@@ -145,32 +147,38 @@ export function Calculadora() {
   // mode "precoDaMargem": solve the price for a target margin
   const r = useMemo(
     () =>
-      precoParaMargem({
-        custoUnit: f.custoUnit,
-        margemDesejada: f.margemDesejada,
-        imposto: f.imposto,
-        comissao: f.comissao,
-        custoEmbalagem: f.custoEmbalagem,
-        room: f.room,
-      }),
-    [f],
+      precoParaMargem(
+        {
+          custoUnit: f.custoUnit,
+          margemDesejada: f.margemDesejada,
+          imposto: f.imposto,
+          comissao: f.comissao,
+          custoEmbalagem: f.custoEmbalagem,
+          room: f.room,
+        },
+        cfg,
+      ),
+    [f, cfg],
   );
   // mode "margemDoPreco": given a price, what's the resulting margin? (auto-recalcs as inputs change)
   const m = useMemo(
     () =>
-      calcularMetricas({
-        id: "calc",
-        nome: f.nome,
-        precoVenda: f.precoVenda,
-        vendasMes: 0,
-        custoUnit: f.custoUnit,
-        qtdCaixa: f.qtdCaixa,
-        imposto: f.imposto,
-        comissao: f.comissao,
-        custoEmbalagem: f.custoEmbalagem,
-        aprovadoManual: null,
-      }),
-    [f],
+      calcularMetricas(
+        {
+          id: "calc",
+          nome: f.nome,
+          precoVenda: f.precoVenda,
+          vendasMes: 0,
+          custoUnit: f.custoUnit,
+          qtdCaixa: f.qtdCaixa,
+          imposto: f.imposto,
+          comissao: f.comissao,
+          custoEmbalagem: f.custoEmbalagem,
+          aprovadoManual: null,
+        },
+        cfg,
+      ),
+    [f, cfg],
   );
   const capital = capitalParaEstoque(f.custoUnit, f.qtdCaixa);
 

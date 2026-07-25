@@ -11,6 +11,7 @@ import { money, number, percent } from "../i18n/format";
 import { useStore } from "../store/useStore";
 import { confirmAction } from "../store/useConfirm";
 import { toast } from "../store/useToast";
+import { useConfig } from "../store/useConfig";
 
 type Filtro = "todos" | StatusCor;
 
@@ -22,6 +23,7 @@ const FILTROS: { key: Filtro; label: string }[] = [
 ];
 
 export function Produtos() {
+  const cfg = useConfig();
   const produtos = useStore((s) => s.produtos);
   const removeProduto = useStore((s) => s.removeProduto);
   const nav = useNavigate();
@@ -60,7 +62,7 @@ export function Produtos() {
   const linhas = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return produtos
-      .map((p) => ({ p, m: calcularMetricas(p) }))
+      .map((p) => ({ p, m: calcularMetricas(p, cfg) }))
       .filter(({ p, m }) => {
         if (filtro !== "todos" && m.statusCor !== filtro) return false;
         if (!q) return true;

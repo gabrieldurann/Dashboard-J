@@ -20,6 +20,7 @@ import { money, percent } from "../i18n/format";
 import { MOTIVO_LABEL } from "../i18n/labels";
 import { COLORS, EASE, STATUS_COLOR } from "../theme/tokens";
 import { useStore } from "../store/useStore";
+import { useConfig } from "../store/useConfig";
 
 // Gráficos = the visual read of the business, for a quick overview or to present. Numbers only
 // appear as chart labels/centres — the dense figures live on the Painel and the record pages.
@@ -61,6 +62,7 @@ function Grafico({
 }
 
 export function Graficos() {
+  const cfg = useConfig();
   const vendas = useStore((s) => s.vendas);
   const produtos = useStore((s) => s.produtos);
   const devolucoes = useStore((s) => s.devolucoes);
@@ -76,11 +78,11 @@ export function Graficos() {
     [vendas, canal],
   );
 
-  const res = useMemo(() => resultadoVendas(filtradas, produtos), [filtradas, produtos]);
+  const res = useMemo(() => resultadoVendas(filtradas, produtos, cfg), [filtradas, produtos, cfg]);
   const margemRealizada = res.bruto > 0 ? res.lucro / res.bruto : 0;
 
   // ── monthly evolution ──
-  const serie = useMemo(() => serieFinanceiraMensal(filtradas, produtos), [filtradas, produtos]);
+  const serie = useMemo(() => serieFinanceiraMensal(filtradas, produtos, cfg), [filtradas, produtos, cfg]);
   const labels = serie.map((s) => mesCurto(s.chave));
   const series = [
     { nome: "Faturamento", cor: COLORS.gold, valores: serie.map((s) => s.bruto) },
@@ -98,7 +100,7 @@ export function Graficos() {
   ];
 
   // ── per-product performance ──
-  const desempenho = useMemo(() => desempenhoProdutos(filtradas, produtos), [filtradas, produtos]);
+  const desempenho = useMemo(() => desempenhoProdutos(filtradas, produtos, cfg), [filtradas, produtos, cfg]);
   const faixas = useMemo(() => faixasDesempenho(desempenho), [desempenho]);
   const participacao = desempenho.map((d, i) => ({ nome: d.nome, valor: d.bruto, cor: cicla(i) }));
   const lucroPorProduto = desempenho.map((d) => ({

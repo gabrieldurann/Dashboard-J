@@ -1,4 +1,4 @@
-import { BarChart3, Building2, Calculator, ClipboardList, FileText, LayoutDashboard, Package, Pencil, Plug, Receipt, RotateCcw, SlidersHorizontal } from "lucide-react";
+import { BarChart3, Building2, Calculator, ClipboardList, FileText, LayoutDashboard, Package, Pencil, Plug, Receipt, RotateCcw, Settings, SlidersHorizontal } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const NAV = [
@@ -50,7 +50,20 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="mt-auto pt-6">
+      <div className="mt-auto flex flex-col gap-1 pt-6">
+        <NavLink
+          to="/configuracoes"
+          className={({ isActive }) =>
+            `flex items-center gap-3 rounded-chip px-3 py-2.5 font-mono text-[13px] tracking-wide transition-colors ${
+              isActive
+                ? "border border-lineStrong bg-greenSoft text-txt"
+                : "border border-transparent text-txtDim hover:text-txt"
+            }`
+          }
+        >
+          <Settings size={17} strokeWidth={2} />
+          Configurações
+        </NavLink>
         <NavLink
           to="/conexoes"
           className={({ isActive }) =>

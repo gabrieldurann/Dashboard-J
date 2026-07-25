@@ -19,6 +19,7 @@ import { EASE } from "../theme/tokens";
 import { confirmAction } from "../store/useConfirm";
 import { toast } from "../store/useToast";
 import { useStore } from "../store/useStore";
+import { useConfig } from "../store/useConfig";
 
 const CATEGORIA_LABEL: Record<CategoriaCusto, string> = {
   aluguel: "Aluguel",
@@ -37,6 +38,7 @@ type Draft = { nome: string; categoria: CategoriaCusto; valorMensal: number; obs
 const emptyDraft = (): Draft => ({ nome: "", categoria: "aluguel", valorMensal: 0, observacao: "" });
 
 export function CustosOperacionais() {
+  const cfg = useConfig();
   const custos = useStore((s) => s.custosOperacionais);
   const vendas = useStore((s) => s.vendas);
   const produtos = useStore((s) => s.produtos);
@@ -57,8 +59,8 @@ export function CustosOperacionais() {
   const mensal = useMemo(() => resumoPeriodo(vendasPorMes(vendas)), [vendas]);
   const mesChave = mensal.atual?.chave;
   const resMes = useMemo(
-    () => resultadoVendas(mesChave ? vendas.filter((v) => v.data.slice(0, 7) === mesChave) : [], produtos),
-    [vendas, produtos, mesChave],
+    () => resultadoVendas(mesChave ? vendas.filter((v) => v.data.slice(0, 7) === mesChave) : [], produtos, cfg),
+    [vendas, produtos, mesChave, cfg],
   );
   const lucroLiquido = resMes.lucro - total;
 

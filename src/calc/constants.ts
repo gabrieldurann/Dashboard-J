@@ -26,3 +26,36 @@ export const MARGEM_BANDAS = {
 export const MARGEM_APROVACAO = 0.15;
 
 export type StatusCor = "vermelho" | "amarelo" | "verde";
+
+/**
+ * Business rates the user can tune in Configurações (idea #9) — taxes change often, and a
+ * different marketplace or country brings different terms. The constants above stay the
+ * factory defaults; the store holds the live values and passes them into the engine, which
+ * keeps every calculation pure and testable.
+ */
+export type Configuracoes = {
+  /** default tax rate applied to new products/pesquisas */
+  imposto: number;
+  /** default channel commission for new products/pesquisas */
+  comissao: number;
+  /** freight charged per unit */
+  freteUnit: number;
+  /** orders above this price ship free */
+  freteGratisAcima: number;
+  /** margin below this is red */
+  margemVermelho: number;
+  /** margin at/below this (and >= vermelho) is yellow; above is green */
+  margemAmarelo: number;
+  /** a product is auto-approved at/above this margin */
+  margemAprovacao: number;
+};
+
+export const CONFIG_PADRAO: Configuracoes = {
+  imposto: IMPOSTO_PADRAO,
+  comissao: COMISSAO_PADRAO,
+  freteUnit: FRETE_UNIT,
+  freteGratisAcima: FRETE_GRATIS_ACIMA,
+  margemVermelho: MARGEM_BANDAS.vermelho,
+  margemAmarelo: MARGEM_BANDAS.amarelo,
+  margemAprovacao: MARGEM_APROVACAO,
+};

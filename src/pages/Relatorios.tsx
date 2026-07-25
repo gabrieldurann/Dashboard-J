@@ -9,13 +9,15 @@ import { money, percent } from "../i18n/format";
 import { gerarRelatorioHTML } from "../report/printable";
 import { Coins, Landmark, Package, TrendingUp, Wallet } from "lucide-react";
 import { useStore } from "../store/useStore";
+import { useConfig } from "../store/useConfig";
 
 export function Relatorios() {
+  const cfg = useConfig();
   const produtos = useStore((s) => s.produtos);
 
   const dados = useMemo(() => {
-    const totais = totaisPortfolio(produtos);
-    const comMetricas = produtos.map((p) => ({ p, m: calcularMetricas(p) }));
+    const totais = totaisPortfolio(produtos, cfg);
+    const comMetricas = produtos.map((p) => ({ p, m: calcularMetricas(p, cfg) }));
     const aprovados = comMetricas.filter((x) => x.m.aprovado).length;
     const toLinha = ({ p, m }: (typeof comMetricas)[number]) => ({
       nome: p.nome,
@@ -29,7 +31,7 @@ export function Relatorios() {
       .sort((a, b) => a.m.margem - b.m.margem)
       .map(toLinha);
     return { totais, aprovados, melhores, reavaliar, comMetricas };
-  }, [produtos]);
+  }, [produtos, cfg]);
 
   const gerar = () => {
     const html = gerarRelatorioHTML({
