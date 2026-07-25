@@ -31,6 +31,11 @@ type State = {
   addCustoOperacional: (c: CustoOperacional) => void;
   updateCustoOperacional: (id: string, patch: Partial<CustoOperacional>) => void;
   removeCustoOperacional: (id: string) => void;
+  /** ids of dashboard cards the user chose to hide (a display preference, not data) */
+  cardsOcultos: string[];
+  toggleCardOculto: (id: string) => void;
+  ocultarCards: (ids: string[]) => void;
+  mostrarCards: (ids: string[]) => void;
   addDevolucao: (d: Devolucao) => void;
   updateDevolucao: (id: string, patch: Partial<Devolucao>) => void;
   removeDevolucao: (id: string) => void;
@@ -82,6 +87,17 @@ export const useStore = create<State>()(
         })),
       removeCustoOperacional: (id) =>
         set((s) => ({ custosOperacionais: s.custosOperacionais.filter((c) => c.id !== id) })),
+      cardsOcultos: [],
+      toggleCardOculto: (id) =>
+        set((s) => ({
+          cardsOcultos: s.cardsOcultos.includes(id)
+            ? s.cardsOcultos.filter((c) => c !== id)
+            : [...s.cardsOcultos, id],
+        })),
+      ocultarCards: (ids) =>
+        set((s) => ({ cardsOcultos: [...new Set([...s.cardsOcultos, ...ids])] })),
+      mostrarCards: (ids) =>
+        set((s) => ({ cardsOcultos: s.cardsOcultos.filter((c) => !ids.includes(c)) })),
       addDevolucao: (d) => set((s) => ({ devolucoes: [d, ...s.devolucoes] })),
       updateDevolucao: (id, patch) =>
         set((s) => ({

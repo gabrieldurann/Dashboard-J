@@ -1,4 +1,4 @@
-import { Building2, ChevronDown, Coins, Globe as GlobeIcon, Landmark, LineChart, MapPin, Package, Percent, RotateCcw, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
+import { Building2, ChevronDown, Coins, EyeOff, Globe as GlobeIcon, Landmark, LineChart, MapPin, Package, Percent, RotateCcw, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import {
@@ -17,6 +17,8 @@ import {
 } from "../calc/engine";
 import { EASE } from "../theme/tokens";
 import { AreaChart } from "../components/AreaChart";
+import { ExibicaoMenu } from "../components/ExibicaoMenu";
+import { Ocultavel, type CardRegistrado } from "../components/Ocultavel";
 import { BigStat } from "../components/BigStat";
 import { Globe, type GlobeMarker } from "../components/Globe";
 import { GlowCard } from "../components/GlowCard";
@@ -29,6 +31,25 @@ import { StatusDot } from "../components/StatusDot";
 import { paisByCode } from "../data/countries";
 import { money, percent } from "../i18n/format";
 import { useStore } from "../store/useStore";
+
+// Cards the user can hide (idea: keep the Painel readable for whoever is looking at it).
+// `essencial` ones survive the "Só o essencial" preset.
+const CARDS: CardRegistrado[] = [
+  { id: "painel.margem", label: "Margem realizada + saúde", essencial: true },
+  { id: "painel.lucroLiquido", label: "Lucro líquido / mês", essencial: true },
+  { id: "painel.lucroSemOp", label: "Lucro s/ operacional" },
+  { id: "painel.cascata", label: "Cascata de deduções" },
+  { id: "painel.vendasDia", label: "Vendas no dia", essencial: true },
+  { id: "painel.vendasMes", label: "Vendas no mês", essencial: true },
+  { id: "painel.vendasAno", label: "Vendas no ano", essencial: true },
+  { id: "painel.amazon", label: "Vendas no tempo · Amazon" },
+  { id: "painel.contadores", label: "Produtos e países", essencial: true },
+  { id: "painel.globo", label: "Alcance global (globo)" },
+  { id: "painel.porPais", label: "Vendas por país" },
+  { id: "painel.capital", label: "Capital em estoque" },
+  { id: "painel.potencial", label: "Potencial de receita" },
+  { id: "painel.reavaliar", label: "Fila de re-avaliação" },
+];
 
 const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 const mesCurto = (chave: string) => MESES[Number(chave.split("-")[1]) - 1] ?? chave;
@@ -47,6 +68,11 @@ export function Painel() {
 
   // reveal/hide the secondary metric cards (idea: keep the headline clean, expand for detail)
   const [detalhes, setDetalhes] = useState(false);
+
+  // per-card visibility (the eye control) — a display preference, persisted per browser
+  const cardsOcultos = useStore((s) => s.cardsOcultos);
+  const mostrarCards = useStore((s) => s.mostrarCards);
+  const todosOcultos = CARDS.every((c) => cardsOcultos.includes(c.id));
 
   // sales-per-country (globe markers + table)
   const porPais = useMemo(() => vendasPorPais(vendas), [vendas]);
@@ -117,50 +143,59 @@ export function Painel() {
       eyebrow="Visão Geral"
       title="Painel Principal"
       subtitle="Totais do portfólio, desempenho de vendas no tempo e alcance global."
+      actions={<ExibicaoMenu cards={CARDS} />}
     >
       <div className="grid grid-cols-12 gap-4">
         {/* hero: gauge + health counts */}
-        <GlowCard accent="green" grid className="col-span-12 lg:col-span-6 xl:col-span-5" delay={0}>
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
-            <RadialGauge value={gaugeValue} display={percent(margemRealizada)} label="Margem realizada" size={190} />
-            <div className="flex min-w-[140px] flex-1 flex-col gap-3">
-              <Health label="Ótimo" count={t.cores.verde} cor="verde" />
-              <Health label="Pode melhorar" count={t.cores.amarelo} cor="amarelo" />
-              <Health label="Re-avaliar" count={t.cores.vermelho} cor="vermelho" />
+        <Ocultavel id="painel.margem" label="Margem realizada" className="col-span-12 lg:col-span-6 xl:col-span-5">
+          <GlowCard accent="green" grid className="h-full" delay={0}>
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+              <RadialGauge value={gaugeValue} display={percent(margemRealizada)} label="Margem realizada" size={190} />
+              <div className="flex min-w-[140px] flex-1 flex-col gap-3">
+                <Health label="Ótimo" count={t.cores.verde} cor="verde" />
+                <Health label="Pode melhorar" count={t.cores.amarelo} cor="amarelo" />
+                <Health label="Re-avaliar" count={t.cores.vermelho} cor="vermelho" />
+              </div>
             </div>
-          </div>
-        </GlowCard>
+          </GlowCard>
+        </Ocultavel>
 
         {/* profit headline: true net (after EVERYTHING incl. overhead) + profit before overhead */}
         <div className="col-span-12 flex flex-col gap-4 lg:col-span-6 xl:col-span-7">
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             {/* box 1 — the "money in the pocket" number, after operational costs too */}
-            <GlowCard accent={lucroLiquidoTotal >= 0 ? "gold" : "none"} delay={0.05}>
-              <div className="flex items-center gap-2">
-                <span className="flex h-[26px] w-[26px] items-center justify-center rounded-chip bg-goldSoft">
-                  <Wallet size={15} className="text-gold" strokeWidth={2} />
-                </span>
-                <span className="font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">Lucro líquido / mês</span>
-              </div>
-              <div className="mt-3">
-                <BigStat value={lucroLiquidoTotal} format={money} accent={lucroLiquidoTotal >= 0 ? "text-gold" : "text-danger"} className="text-3xl" />
-              </div>
-              <p className="mt-1.5 font-mono text-xs text-txtFaint">O que sobra no bolso — após custos, impostos, comissão, devoluções e custos operacionais.</p>
-            </GlowCard>
+            <Ocultavel id="painel.lucroLiquido" label="Lucro líquido / mês">
+              <GlowCard accent={lucroLiquidoTotal >= 0 ? "gold" : "none"} className="h-full" delay={0.05}>
+                <div className="flex items-center gap-2">
+                  <span className="flex h-[26px] w-[26px] items-center justify-center rounded-chip bg-goldSoft">
+                    <Wallet size={15} className="text-gold" strokeWidth={2} />
+                  </span>
+                  <span className="font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">Lucro líquido / mês</span>
+                </div>
+                <div className="mt-3">
+                  <BigStat value={lucroLiquidoTotal} format={money} accent={lucroLiquidoTotal >= 0 ? "text-gold" : "text-danger"} className="text-3xl" />
+                </div>
+                <p className="mt-1.5 font-mono text-xs text-txtFaint">O que sobra no bolso — após custos, impostos, comissão, devoluções e custos operacionais.</p>
+              </GlowCard>
+            </Ocultavel>
 
             {/* box 2 — profit before company overhead (the previous headline) */}
-            <MetricTile
-              label="Lucro s/ operacional"
-              value={lucroSemOperacional}
-              format={money}
-              icon={Coins}
-              accent="green"
-              footnote="Após custos, impostos, comissão e devoluções — antes do overhead da empresa"
-              delay={0.1}
-            />
+            <Ocultavel id="painel.lucroSemOp" label="Lucro s/ operacional">
+              <MetricTile
+                label="Lucro s/ operacional"
+                value={lucroSemOperacional}
+                format={money}
+                icon={Coins}
+                accent="green"
+                footnote="Após custos, impostos, comissão e devoluções — antes do overhead da empresa"
+                delay={0.1}
+                className="h-full"
+              />
+            </Ocultavel>
           </div>
 
           {/* deduction cascade + reveal toggle */}
+          <Ocultavel id="painel.cascata" label="Cascata de deduções">
           <GlowCard delay={0.15}>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-xs tabular-nums">
               <span className="text-txtDim">Realizado {money(resMes.lucro)}</span>
@@ -179,6 +214,7 @@ export function Painel() {
               <ChevronDown size={13} className={`transition-transform ${detalhes ? "rotate-180" : ""}`} />
             </button>
           </GlowCard>
+          </Ocultavel>
         </div>
 
         {/* collapsible cost breakdown — expanding pushes the page down to reveal more cards */}
@@ -204,18 +240,19 @@ export function Painel() {
         </AnimatePresence>
 
         {/* daily / monthly / yearly GROSS sales from the ledger (no cost deductions) */}
-        <div className="col-span-12 lg:col-span-4">
+        <Ocultavel id="painel.vendasDia" label="Vendas no dia" className="col-span-12 lg:col-span-4">
           <PeriodCard label="Vendas no dia" periodo={diario} sublabel={diario.atual ? labelDia(diario.atual.chave) : undefined} hint="Bruto — sem descontos de custos" delay={0.05} />
-        </div>
-        <div className="col-span-12 lg:col-span-4">
+        </Ocultavel>
+        <Ocultavel id="painel.vendasMes" label="Vendas no mês" className="col-span-12 lg:col-span-4">
           <PeriodCard label="Vendas no mês" periodo={mensal} sublabel={mensal.atual ? labelMes(mensal.atual.chave) : undefined} hint="Bruto — sem descontos de custos" delay={0.1} />
-        </div>
-        <div className="col-span-12 lg:col-span-4">
+        </Ocultavel>
+        <Ocultavel id="painel.vendasAno" label="Vendas no ano" className="col-span-12 lg:col-span-4">
           <PeriodCard label="Vendas no ano" periodo={anual} sublabel={anual.atual?.chave} hint="Bruto — sem descontos de custos" delay={0.15} />
-        </div>
+        </Ocultavel>
 
         {/* sales over time (Amazon) + counters */}
-        <GlowCard className="col-span-12 lg:col-span-8" delay={0.2}>
+        <Ocultavel id="painel.amazon" label="Vendas no tempo · Amazon" className="col-span-12 lg:col-span-8">
+        <GlowCard className="h-full" delay={0.2}>
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="flex h-[26px] w-[26px] items-center justify-center rounded-chip bg-greenSoft">
@@ -235,15 +272,19 @@ export function Painel() {
             <p className="py-12 text-center text-sm text-txtDim">Nenhuma venda Amazon registrada.</p>
           )}
         </GlowCard>
+        </Ocultavel>
 
-        <GlowCard className="col-span-12 flex flex-col justify-center gap-4 lg:col-span-4" delay={0.25}>
-          <Counter icon={Package} label="Total de produtos" value={produtos.length} accent="green" />
-          <div className="border-t border-line" />
-          <Counter icon={MapPin} label="Locais de venda · países" value={porPais.length} accent="gold" />
-        </GlowCard>
+        <Ocultavel id="painel.contadores" label="Produtos e países" className="col-span-12 lg:col-span-4">
+          <GlowCard className="flex h-full flex-col justify-center gap-4" delay={0.25}>
+            <Counter icon={Package} label="Total de produtos" value={produtos.length} accent="green" />
+            <div className="border-t border-line" />
+            <Counter icon={MapPin} label="Locais de venda · países" value={porPais.length} accent="gold" />
+          </GlowCard>
+        </Ocultavel>
 
         {/* global reach: globe + sales by country */}
-        <GlowCard accent="green" grid className="col-span-12 lg:col-span-6" delay={0.3}>
+        <Ocultavel id="painel.globo" label="Alcance global" className="col-span-12 lg:col-span-6">
+        <GlowCard accent="green" grid className="h-full" delay={0.3}>
           <div className="mb-1 flex items-center gap-2">
             <span className="flex h-[26px] w-[26px] items-center justify-center rounded-chip bg-greenSoft">
               <GlobeIcon size={15} className="text-green" strokeWidth={2} />
@@ -257,17 +298,23 @@ export function Painel() {
             <Globe markers={globeMarkers} />
           </div>
         </GlowCard>
+        </Ocultavel>
 
-        <div className="col-span-12 lg:col-span-6">
+        <Ocultavel id="painel.porPais" label="Vendas por país" className="col-span-12 lg:col-span-6">
           <SalesByCountry dados={porPais} delay={0.35} />
-        </div>
+        </Ocultavel>
 
         {/* capital + potencial de receita + re-avaliar */}
-        <MetricTile label="Capital em estoque" value={t.capitalEstoque} format={money} icon={Wallet} accent="gold" footnote="Capital travado p/ manter 1 caixa de cada produto" delay={0.4} className="col-span-12 lg:col-span-4" />
+        <Ocultavel id="painel.capital" label="Capital em estoque" className="col-span-12 lg:col-span-4">
+          <MetricTile label="Capital em estoque" value={t.capitalEstoque} format={money} icon={Wallet} accent="gold" footnote="Capital travado p/ manter 1 caixa de cada produto" delay={0.4} className="h-full" />
+        </Ocultavel>
 
-        <MetricTile label="Potencial de receita / mês" value={t.receitaMensal} format={money} icon={TrendingUp} accent="green" footnote="Projeção · preço × vendas/mês prevista (não é venda realizada)" delay={0.42} className="col-span-12 lg:col-span-4" />
+        <Ocultavel id="painel.potencial" label="Potencial de receita" className="col-span-12 lg:col-span-4">
+          <MetricTile label="Potencial de receita / mês" value={t.receitaMensal} format={money} icon={TrendingUp} accent="green" footnote="Projeção · preço × vendas/mês prevista (não é venda realizada)" delay={0.42} className="h-full" />
+        </Ocultavel>
 
-        <GlowCard className="col-span-12 lg:col-span-4" delay={0.45}>
+        <Ocultavel id="painel.reavaliar" label="Fila de re-avaliação" className="col-span-12 lg:col-span-4">
+        <GlowCard className="h-full" delay={0.45}>
           <div className="mb-3 flex items-center justify-between">
             <span className="font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">Fila de re-avaliação</span>
             <span className="font-mono text-xs text-txtFaint">margem abaixo de 11%</span>
@@ -290,6 +337,23 @@ export function Painel() {
             </ul>
           )}
         </GlowCard>
+        </Ocultavel>
+
+        {/* nothing left visible — never leave the user on a blank page */}
+        {todosOcultos && (
+          <GlowCard className="col-span-12">
+            <div className="flex flex-col items-center gap-3 py-10 text-center">
+              <EyeOff size={22} className="text-txtFaint" />
+              <p className="text-sm text-txtDim">Todos os cards estão ocultos.</p>
+              <button
+                onClick={() => mostrarCards(CARDS.map((c) => c.id))}
+                className="rounded-chip border border-lineStrong bg-greenSoft px-4 py-2 font-mono text-xs text-txt transition-opacity hover:opacity-90"
+              >
+                Mostrar tudo
+              </button>
+            </div>
+          </GlowCard>
+        )}
       </div>
     </Screen>
   );
