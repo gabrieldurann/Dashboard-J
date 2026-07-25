@@ -19,6 +19,7 @@ import { EASE } from "../theme/tokens";
 import { AreaChart } from "../components/AreaChart";
 import { ExibicaoMenu } from "../components/ExibicaoMenu";
 import { Ocultavel, type CardRegistrado } from "../components/Ocultavel";
+import { distribuir, spanClass } from "../components/gridSpans";
 import { BigStat } from "../components/BigStat";
 import { Globe, type GlobeMarker } from "../components/Globe";
 import { GlowCard } from "../components/GlowCard";
@@ -73,6 +74,36 @@ export function Painel() {
   const cardsOcultos = useStore((s) => s.cardsOcultos);
   const mostrarCards = useStore((s) => s.mostrarCards);
   const todosOcultos = CARDS.every((c) => cardsOcultos.includes(c.id));
+  const visivel = (id: string) => !cardsOcultos.includes(id);
+
+  // The profit column is one slot in the hero row; it disappears only when all of its
+  // cards are hidden, and the gauge then takes the whole row.
+  const blocoLucro = visivel("painel.lucroLiquido") || visivel("painel.lucroSemOp") || visivel("painel.cascata");
+
+  // Rows re-split their 12 columns over whatever is still visible, so hiding a card never
+  // leaves a hole — the neighbours grow to fill it.
+  const linhaHero = distribuir([
+    { id: "painel.margem", peso: 5, visivel: visivel("painel.margem") },
+    { id: "lucro", peso: 7, visivel: blocoLucro },
+  ]);
+  const linhaPeriodos = distribuir([
+    { id: "painel.vendasDia", peso: 4, visivel: visivel("painel.vendasDia") },
+    { id: "painel.vendasMes", peso: 4, visivel: visivel("painel.vendasMes") },
+    { id: "painel.vendasAno", peso: 4, visivel: visivel("painel.vendasAno") },
+  ]);
+  const linhaTempo = distribuir([
+    { id: "painel.amazon", peso: 8, visivel: visivel("painel.amazon") },
+    { id: "painel.contadores", peso: 4, visivel: visivel("painel.contadores") },
+  ]);
+  const linhaGlobal = distribuir([
+    { id: "painel.globo", peso: 6, visivel: visivel("painel.globo") },
+    { id: "painel.porPais", peso: 6, visivel: visivel("painel.porPais") },
+  ]);
+  const linhaFinal = distribuir([
+    { id: "painel.capital", peso: 4, visivel: visivel("painel.capital") },
+    { id: "painel.potencial", peso: 4, visivel: visivel("painel.potencial") },
+    { id: "painel.reavaliar", peso: 4, visivel: visivel("painel.reavaliar") },
+  ]);
 
   // sales-per-country (globe markers + table)
   const porPais = useMemo(() => vendasPorPais(vendas), [vendas]);
@@ -147,7 +178,7 @@ export function Painel() {
     >
       <div className="grid grid-cols-12 gap-4">
         {/* hero: gauge + health counts */}
-        <Ocultavel id="painel.margem" label="Margem realizada" className="col-span-12 lg:col-span-6 xl:col-span-5">
+        <Ocultavel id="painel.margem" label="Margem realizada" className={`col-span-12 ${spanClass(linhaHero, "painel.margem")}`}>
           <GlowCard accent="green" grid className="h-full" delay={0}>
             <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
               <RadialGauge value={gaugeValue} display={percent(margemRealizada)} label="Margem realizada" size={190} />
@@ -161,8 +192,9 @@ export function Painel() {
         </Ocultavel>
 
         {/* profit headline: true net (after EVERYTHING incl. overhead) + profit before overhead */}
-        <div className="col-span-12 flex flex-col gap-4 lg:col-span-6 xl:col-span-7">
-          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        {blocoLucro && (
+        <div className={`col-span-12 flex flex-col gap-4 ${spanClass(linhaHero, "lucro")}`}>
+          <div className={`grid gap-4 ${visivel("painel.lucroLiquido") && visivel("painel.lucroSemOp") ? "grid-cols-1 xl:grid-cols-2" : "grid-cols-1"}`}>
             {/* box 1 — the "money in the pocket" number, after operational costs too */}
             <Ocultavel id="painel.lucroLiquido" label="Lucro líquido / mês">
               <GlowCard accent={lucroLiquidoTotal >= 0 ? "gold" : "none"} className="h-full" delay={0.05}>
@@ -216,6 +248,7 @@ export function Painel() {
           </GlowCard>
           </Ocultavel>
         </div>
+        )}
 
         {/* collapsible cost breakdown — expanding pushes the page down to reveal more cards */}
         <AnimatePresence initial={false}>
@@ -240,18 +273,18 @@ export function Painel() {
         </AnimatePresence>
 
         {/* daily / monthly / yearly GROSS sales from the ledger (no cost deductions) */}
-        <Ocultavel id="painel.vendasDia" label="Vendas no dia" className="col-span-12 lg:col-span-4">
+        <Ocultavel id="painel.vendasDia" label="Vendas no dia" className={`col-span-12 ${spanClass(linhaPeriodos, "painel.vendasDia")}`}>
           <PeriodCard label="Vendas no dia" periodo={diario} sublabel={diario.atual ? labelDia(diario.atual.chave) : undefined} hint="Bruto — sem descontos de custos" delay={0.05} />
         </Ocultavel>
-        <Ocultavel id="painel.vendasMes" label="Vendas no mês" className="col-span-12 lg:col-span-4">
+        <Ocultavel id="painel.vendasMes" label="Vendas no mês" className={`col-span-12 ${spanClass(linhaPeriodos, "painel.vendasMes")}`}>
           <PeriodCard label="Vendas no mês" periodo={mensal} sublabel={mensal.atual ? labelMes(mensal.atual.chave) : undefined} hint="Bruto — sem descontos de custos" delay={0.1} />
         </Ocultavel>
-        <Ocultavel id="painel.vendasAno" label="Vendas no ano" className="col-span-12 lg:col-span-4">
+        <Ocultavel id="painel.vendasAno" label="Vendas no ano" className={`col-span-12 ${spanClass(linhaPeriodos, "painel.vendasAno")}`}>
           <PeriodCard label="Vendas no ano" periodo={anual} sublabel={anual.atual?.chave} hint="Bruto — sem descontos de custos" delay={0.15} />
         </Ocultavel>
 
         {/* sales over time (Amazon) + counters */}
-        <Ocultavel id="painel.amazon" label="Vendas no tempo · Amazon" className="col-span-12 lg:col-span-8">
+        <Ocultavel id="painel.amazon" label="Vendas no tempo · Amazon" className={`col-span-12 ${spanClass(linhaTempo, "painel.amazon")}`}>
         <GlowCard className="h-full" delay={0.2}>
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -274,7 +307,7 @@ export function Painel() {
         </GlowCard>
         </Ocultavel>
 
-        <Ocultavel id="painel.contadores" label="Produtos e países" className="col-span-12 lg:col-span-4">
+        <Ocultavel id="painel.contadores" label="Produtos e países" className={`col-span-12 ${spanClass(linhaTempo, "painel.contadores")}`}>
           <GlowCard className="flex h-full flex-col justify-center gap-4" delay={0.25}>
             <Counter icon={Package} label="Total de produtos" value={produtos.length} accent="green" />
             <div className="border-t border-line" />
@@ -283,7 +316,7 @@ export function Painel() {
         </Ocultavel>
 
         {/* global reach: globe + sales by country */}
-        <Ocultavel id="painel.globo" label="Alcance global" className="col-span-12 lg:col-span-6">
+        <Ocultavel id="painel.globo" label="Alcance global" className={`col-span-12 ${spanClass(linhaGlobal, "painel.globo")}`}>
         <GlowCard accent="green" grid className="h-full" delay={0.3}>
           <div className="mb-1 flex items-center gap-2">
             <span className="flex h-[26px] w-[26px] items-center justify-center rounded-chip bg-greenSoft">
@@ -300,20 +333,20 @@ export function Painel() {
         </GlowCard>
         </Ocultavel>
 
-        <Ocultavel id="painel.porPais" label="Vendas por país" className="col-span-12 lg:col-span-6">
+        <Ocultavel id="painel.porPais" label="Vendas por país" className={`col-span-12 ${spanClass(linhaGlobal, "painel.porPais")}`}>
           <SalesByCountry dados={porPais} delay={0.35} />
         </Ocultavel>
 
         {/* capital + potencial de receita + re-avaliar */}
-        <Ocultavel id="painel.capital" label="Capital em estoque" className="col-span-12 lg:col-span-4">
+        <Ocultavel id="painel.capital" label="Capital em estoque" className={`col-span-12 ${spanClass(linhaFinal, "painel.capital")}`}>
           <MetricTile label="Capital em estoque" value={t.capitalEstoque} format={money} icon={Wallet} accent="gold" footnote="Capital travado p/ manter 1 caixa de cada produto" delay={0.4} className="h-full" />
         </Ocultavel>
 
-        <Ocultavel id="painel.potencial" label="Potencial de receita" className="col-span-12 lg:col-span-4">
+        <Ocultavel id="painel.potencial" label="Potencial de receita" className={`col-span-12 ${spanClass(linhaFinal, "painel.potencial")}`}>
           <MetricTile label="Potencial de receita / mês" value={t.receitaMensal} format={money} icon={TrendingUp} accent="green" footnote="Projeção · preço × vendas/mês prevista (não é venda realizada)" delay={0.42} className="h-full" />
         </Ocultavel>
 
-        <Ocultavel id="painel.reavaliar" label="Fila de re-avaliação" className="col-span-12 lg:col-span-4">
+        <Ocultavel id="painel.reavaliar" label="Fila de re-avaliação" className={`col-span-12 ${spanClass(linhaFinal, "painel.reavaliar")}`}>
         <GlowCard className="h-full" delay={0.45}>
           <div className="mb-3 flex items-center justify-between">
             <span className="font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">Fila de re-avaliação</span>
