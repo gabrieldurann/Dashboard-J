@@ -29,8 +29,13 @@ export function TextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input type="text" {...props} className={inputClass} />;
 }
 
-/** An empty box shows nothing — a leftover 0 is noise the user has to type around. */
-const paraTexto = (v?: number) => (v === undefined || Number.isNaN(v) || v === 0 ? "" : String(v));
+/**
+ * An empty box shows nothing — a leftover 0 is noise the user has to type around. Rate fields
+ * opt out via `mostrarZero`: a configured 0% (tax-free region, free freight) is a real setting
+ * and must read as "0", not as an untouched field.
+ */
+const paraTexto = (v?: number, mostrarZero = false) =>
+  v === undefined || Number.isNaN(v) ? "" : v === 0 && !mostrarZero ? "" : String(v);
 
 /** Sensible "Ex.: …" hint per unit, so the field is never just a blank rectangle. */
 const exemploPara = (unit?: string) => (unit === "%" ? "Ex.: 15" : unit === "R$" ? "Ex.: 22,50" : "Ex.: 100");
@@ -48,6 +53,7 @@ export function NumberInput({
   step = "any",
   allowEmpty = false,
   placeholder,
+  mostrarZero = false,
 }: {
   value: number | undefined;
   onValue: (v: number | undefined) => void;
@@ -55,17 +61,19 @@ export function NumberInput({
   step?: string;
   allowEmpty?: boolean;
   placeholder?: string;
+  /** show a configured 0 instead of an empty box (rates: 0% tax, free freight) */
+  mostrarZero?: boolean;
 }) {
-  const [texto, setTexto] = useState(() => paraTexto(value));
+  const [texto, setTexto] = useState(() => paraTexto(value, mostrarZero));
   // what we last reported upward — lets us tell our own echo from a genuine external change
   const reportado = useRef<number | undefined>(value);
 
   useEffect(() => {
     if (value !== reportado.current) {
-      setTexto(paraTexto(value));
+      setTexto(paraTexto(value, mostrarZero));
       reportado.current = value;
     }
-  }, [value]);
+  }, [value, mostrarZero]);
 
   const aoDigitar = (raw: string) => {
     setTexto(raw);

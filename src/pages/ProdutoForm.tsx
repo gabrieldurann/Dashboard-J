@@ -155,6 +155,7 @@ export function ProdutoForm() {
                   value={Math.round((draft.imposto ?? 0) * 1000) / 10}
                   onValue={(v) => set("imposto", (v ?? 0) / 100)}
                   unit="%"
+                  mostrarZero
                 />
               </Field>
               <Field label="Comissão categoria" hint="11–15%">
@@ -162,6 +163,7 @@ export function ProdutoForm() {
                   value={Math.round((draft.comissao ?? 0) * 1000) / 10}
                   onValue={(v) => set("comissao", (v ?? 0) / 100)}
                   unit="%"
+                  mostrarZero
                 />
               </Field>
               <Field label="Custo embalagem/branding (un)" hint="Opcional">

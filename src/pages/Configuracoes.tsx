@@ -29,7 +29,7 @@ function PercentField({
 }) {
   return (
     <Field label={label} hint={hint}>
-      <NumberInput value={Math.round(valor * 10000) / 100} onValue={(v) => onValor((v ?? 0) / 100)} unit="%" />
+      <NumberInput value={Math.round(valor * 10000) / 100} onValue={(v) => onValor((v ?? 0) / 100)} unit="%" mostrarZero />
     </Field>
   );
 }
@@ -187,11 +187,11 @@ export function Configuracoes() {
           delay={0.05}
         >
           <div className="grid grid-cols-2 gap-4">
-            <Field label="Frete por unidade" hint="Planilha: R$ 5,65">
-              <NumberInput value={cfg.freteUnit} onValue={(v) => set("freteUnit", v ?? 0)} unit="R$" />
+            <Field label="Frete por unidade" hint="Planilha: R$ 5,65 · 0 = sem frete">
+              <NumberInput value={cfg.freteUnit} onValue={(v) => set("freteUnit", v ?? 0)} unit="R$" mostrarZero />
             </Field>
             <Field label="Frete grátis acima de" hint="Planilha: R$ 79,00">
-              <NumberInput value={cfg.freteGratisAcima} onValue={(v) => set("freteGratisAcima", v ?? 0)} unit="R$" />
+              <NumberInput value={cfg.freteGratisAcima} onValue={(v) => set("freteGratisAcima", v ?? 0)} unit="R$" mostrarZero />
             </Field>
           </div>
         </Secao>

@@ -304,10 +304,12 @@ export function Calculadora() {
                 </Field>
               )}
               <Field label="Imposto" hint="Padrão 4%">
-                <NumberInput value={Math.round(f.imposto * 1000) / 10} onValue={(v) => set("imposto", (v ?? 0) / 100)} unit="%" />
+                <NumberInput value={Math.round(f.imposto * 1000) / 10} onValue={(v) => set("imposto", (v ?? 0) / 100)} unit="%"
+                  mostrarZero />
               </Field>
               <Field label="Comissão categoria" hint="11–15%">
-                <NumberInput value={Math.round(f.comissao * 1000) / 10} onValue={(v) => set("comissao", (v ?? 0) / 100)} unit="%" />
+                <NumberInput value={Math.round(f.comissao * 1000) / 10} onValue={(v) => set("comissao", (v ?? 0) / 100)} unit="%"
+                  mostrarZero />
               </Field>
               <Field label="Custo embalagem/branding (un)" hint="Opcional">
                 <NumberInput value={f.custoEmbalagem} onValue={(v) => set("custoEmbalagem", v ?? 0)} unit="R$" />

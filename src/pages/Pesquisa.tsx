@@ -262,10 +262,12 @@ export function Pesquisa() {
               <NumberInput value={d.qtdCaixa} onValue={(v) => set("qtdCaixa", v ?? 0)} />
             </Field>
             <Field label="Imposto" hint="Padrão 4%">
-              <NumberInput value={Math.round(d.imposto * 1000) / 10} onValue={(v) => set("imposto", (v ?? 0) / 100)} unit="%" />
+              <NumberInput value={Math.round(d.imposto * 1000) / 10} onValue={(v) => set("imposto", (v ?? 0) / 100)} unit="%"
+                  mostrarZero />
             </Field>
             <Field label="Comissão categoria" hint="11–15%">
-              <NumberInput value={Math.round(d.comissao * 1000) / 10} onValue={(v) => set("comissao", (v ?? 0) / 100)} unit="%" />
+              <NumberInput value={Math.round(d.comissao * 1000) / 10} onValue={(v) => set("comissao", (v ?? 0) / 100)} unit="%"
+                  mostrarZero />
             </Field>
             <Field label="Veredito">
               <select value={d.aprovacao} onChange={(e) => set("aprovacao", e.target.value as Aprov)} className={inputClass}>
