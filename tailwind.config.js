@@ -17,6 +17,8 @@ export default {
         goldSoft: "var(--c-gold-soft)",
         danger: "var(--c-danger)",
         amber: "var(--c-amber)",
+        amberSoft: "var(--c-amber-soft)",
+        neutroSoft: "var(--c-neutro-soft)",
         sky: "var(--c-sky)",
         skySoft: "var(--c-sky-soft)",
         txt: "var(--c-txt)",

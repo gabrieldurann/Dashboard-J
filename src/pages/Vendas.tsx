@@ -12,10 +12,10 @@ import { toast } from "../store/useToast";
 import { PAISES, paisFlag, paisNome } from "../data/countries";
 
 const STATUS: Record<VendaStatus, { label: string; cls: string }> = {
-  pendente: { label: "Pendente", cls: "text-amber border-amber/40 bg-amber/10" },
+  pendente: { label: "Pendente", cls: "text-amber border-amber/40 bg-amberSoft" },
   enviado: { label: "Enviado", cls: "text-sky border-sky/40 bg-skySoft" },
   entregue: { label: "Entregue", cls: "text-green border-green/40 bg-greenSoft" },
-  cancelado: { label: "Cancelado", cls: "text-txtFaint border-line" },
+  cancelado: { label: "Cancelado", cls: "text-txtDim border-lineStrong bg-neutroSoft" },
 };
 const STATUS_KEYS = Object.keys(STATUS) as VendaStatus[];
 

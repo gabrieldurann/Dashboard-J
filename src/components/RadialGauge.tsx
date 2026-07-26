@@ -28,7 +28,7 @@ export function RadialGauge({
         <defs>
           <linearGradient id="gaugeFill" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor={cores.green} />
-            <stop offset="100%" stopColor={cores.gold} />
+            <stop offset="100%" stopColor={cores.gaugeFim} />
           </linearGradient>
         </defs>
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={cores.line} strokeWidth={stroke} />
@@ -64,7 +64,7 @@ export function RadialGauge({
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="font-mono text-4xl font-semibold tabular-nums text-txt">{display}</span>
-        <span className="eyebrow mt-1" style={{ color: cores.gold }}>
+        <span className="eyebrow mt-1" style={{ color: cores.gaugeFim }}>
           {label}
         </span>
       </div>

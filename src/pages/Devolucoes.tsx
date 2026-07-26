@@ -16,11 +16,11 @@ import { useStore } from "../store/useStore";
 
 
 const STATUS: Record<DevolucaoStatus, { label: string; cls: string }> = {
-  solicitada: { label: "Solicitada", cls: "text-amber border-amber/40 bg-amber/10" },
+  solicitada: { label: "Solicitada", cls: "text-amber border-amber/40 bg-amberSoft" },
   em_analise: { label: "Em análise", cls: "text-sky border-sky/40 bg-skySoft" },
   aprovada: { label: "Aprovada", cls: "text-green border-green/40 bg-greenSoft" },
   concluida: { label: "Concluída", cls: "text-green border-green/40 bg-greenSoft" },
-  recusada: { label: "Recusada", cls: "text-txtFaint border-line" },
+  recusada: { label: "Recusada", cls: "text-txtDim border-lineStrong bg-neutroSoft" },
 };
 const STATUS_KEYS = Object.keys(STATUS) as DevolucaoStatus[];
 /** A return counts as "open" until it is concluded or rejected. */

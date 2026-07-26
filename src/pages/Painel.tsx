@@ -78,6 +78,10 @@ export function Painel() {
   const todosOcultos = CARDS.every((c) => cardsOcultos.includes(c.id));
   const visivel = (id: string) => !cardsOcultos.includes(id);
 
+  // "Money in the pocket" reads better as green on a light surface; the dark HUD keeps its gold.
+  const claro = useStore((s) => s.tema) === "claro";
+  const acento = claro ? "green" : "gold";
+
   // The profit column is one slot in the hero row; it disappears only when all of its
   // cards are hidden, and the gauge then takes the whole row.
   const blocoLucro = visivel("painel.lucroLiquido") || visivel("painel.lucroSemOp") || visivel("painel.cascata");
@@ -199,15 +203,20 @@ export function Painel() {
           <div className={`grid gap-4 ${visivel("painel.lucroLiquido") && visivel("painel.lucroSemOp") ? "grid-cols-1 xl:grid-cols-2" : "grid-cols-1"}`}>
             {/* box 1 — the "money in the pocket" number, after operational costs too */}
             <Ocultavel id="painel.lucroLiquido" label="Lucro líquido / mês">
-              <GlowCard accent={lucroLiquidoTotal >= 0 ? "gold" : "none"} className="h-full" delay={0.05}>
+              <GlowCard accent={lucroLiquidoTotal >= 0 ? acento : "none"} className="h-full" delay={0.05}>
                 <div className="flex items-center gap-2">
-                  <span className="flex h-[26px] w-[26px] items-center justify-center rounded-chip bg-goldSoft">
-                    <Wallet size={15} className="text-gold" strokeWidth={2} />
+                  <span className={`flex h-[26px] w-[26px] items-center justify-center rounded-chip ${claro ? "bg-greenSoft" : "bg-goldSoft"}`}>
+                    <Wallet size={15} className={claro ? "text-green" : "text-gold"} strokeWidth={2} />
                   </span>
                   <span className="font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">Lucro líquido / mês</span>
                 </div>
                 <div className="mt-3">
-                  <BigStat value={lucroLiquidoTotal} format={money} accent={lucroLiquidoTotal >= 0 ? "text-gold" : "text-danger"} className="text-3xl" />
+                  <BigStat
+                    value={lucroLiquidoTotal}
+                    format={money}
+                    accent={lucroLiquidoTotal >= 0 ? (claro ? "text-green" : "text-gold") : "text-danger"}
+                    className="text-3xl"
+                  />
                 </div>
                 <p className="mt-1.5 font-mono text-xs text-txtFaint">O que sobra no bolso — após custos, impostos, comissão, devoluções e custos operacionais.</p>
               </GlowCard>
@@ -238,7 +247,9 @@ export function Painel() {
               <span className="text-txtFaint">−</span>
               <span className="text-danger">Operacional {money(totalOp)}</span>
               <span className="text-txtFaint">=</span>
-              <span className={lucroLiquidoTotal >= 0 ? "text-gold" : "text-danger"}>{money(lucroLiquidoTotal)}</span>
+              <span className={lucroLiquidoTotal >= 0 ? (claro ? "text-green" : "text-gold") : "text-danger"}>
+                {money(lucroLiquidoTotal)}
+              </span>
             </div>
             <button
               onClick={() => setDetalhes((v) => !v)}

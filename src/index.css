@@ -20,7 +20,12 @@
   --c-gold-soft: rgba(232, 184, 75, 0.14);
   --c-danger: #ff5f6b;
   --c-amber: #f5a623;
+  --c-amber-soft: rgba(245, 166, 35, 0.16);
+  /* muted chip for inactive/cancelled states */
+  --c-neutro-soft: rgba(140, 170, 200, 0.12);
   --c-sky: #4ea1f0;
+  /* far end of the margin gauge sweep — warm in dark, cool in light (gold reads too yellow there) */
+  --c-gauge-fim: #e8b84b;
   --c-sky-soft: rgba(78, 161, 240, 0.16);
   --c-txt: #e8eef5;
   --c-txt-dim: #8b97a8;
@@ -50,7 +55,10 @@
   --c-gold-soft: rgba(221, 155, 0, 0.17);
   --c-danger: #f01f3d;
   --c-amber: #f58300;
+  --c-amber-soft: rgba(245, 131, 0, 0.16);
+  --c-neutro-soft: rgba(20, 35, 55, 0.09);
   --c-sky: #0d7ff0;
+  --c-gauge-fim: #0d7ff0;
   --c-sky-soft: rgba(13, 127, 240, 0.16);
   --c-txt: #10151d;
   --c-txt-dim: #4d5a70;
