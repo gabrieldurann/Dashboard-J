@@ -64,7 +64,7 @@ export function PeriodCard({
           animate={{ width: `${Math.round(fill * 100)}%` }}
           transition={{ duration: 0.7, ease: EASE, delay: delay + 0.1 }}
           className="h-full rounded-full"
-          style={{ background: `linear-gradient(90deg, ${cores.sky}, ${cores.green})` }}
+          style={{ background: cores.green }}
         />
       </div>
 

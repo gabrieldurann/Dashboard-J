@@ -42,21 +42,24 @@ const ESCURA: Paleta = {
   globoGlow: "#0a1a16",
 };
 
-/** Same hues darkened so they hold contrast on a bright surface. */
+/**
+ * Same hues on a bright surface. They keep full chroma and only give up lightness — desaturating
+ * them turns gold into brown and the whole page reads dead. Must match index.css.
+ */
 const CLARA: Paleta = {
-  bg: "#f4f6fa",
-  panel: "rgba(255,255,255,0.9)",
-  line: "rgba(24,40,60,0.12)",
-  green: "#0f9d6b",
-  gold: "#a97b12",
-  danger: "#d23c47",
-  amber: "#b5841a",
-  sky: "#1c78cf",
-  txt: "#14181f",
-  txtDim: "#55617a",
-  txtFaint: "#7d879b",
-  roxo: "#7d43c0",
-  ciano: "#137d7d",
+  bg: "#f2f5f9",
+  panel: "rgba(255,255,255,0.92)",
+  line: "rgba(20,35,55,0.13)",
+  green: "#00b37c",
+  gold: "#dd9b00",
+  danger: "#f01f3d",
+  amber: "#f58300",
+  sky: "#0d7ff0",
+  txt: "#10151d",
+  txtDim: "#4d5a70",
+  txtFaint: "#79849a",
+  roxo: "#8a2be2",
+  ciano: "#00adad",
   globoBase: "#c8d4e2",
   globoGlow: "#e8eef5",
 };

@@ -34,29 +34,31 @@
   --c-globo-glow: #0a1a16;
 }
 
-/* ── Light: same hues, re-tuned for a bright surface (darker accents so they stay legible) ── */
+/* ── Light: the same HUD language on a bright surface. Accents keep full chroma (saturated,
+      never muddied toward brown/grey) and only lose lightness — that's what makes them pop
+      on white instead of looking washed out. ── */
 :root[data-theme="claro"] {
   color-scheme: light;
-  --c-bg: #f4f6fa;
+  --c-bg: #f2f5f9;
   --c-bg-raise: #ffffff;
-  --c-panel: rgba(255, 255, 255, 0.9);
-  --c-line: rgba(24, 40, 60, 0.12);
-  --c-line-strong: rgba(24, 40, 60, 0.24);
-  --c-green: #0f9d6b;
-  --c-green-soft: rgba(15, 157, 107, 0.12);
-  --c-gold: #a97b12;
-  --c-gold-soft: rgba(169, 123, 18, 0.12);
-  --c-danger: #d23c47;
-  --c-amber: #b5841a;
-  --c-sky: #1c78cf;
-  --c-sky-soft: rgba(28, 120, 207, 0.12);
-  --c-txt: #14181f;
-  --c-txt-dim: #55617a;
-  --c-txt-faint: #7d879b;
-  --c-vinheta-1: rgba(15, 157, 107, 0.07);
-  --c-vinheta-2: rgba(169, 123, 18, 0.06);
-  --c-grid: rgba(15, 157, 107, 0.07);
-  --c-scroll: rgba(24, 40, 60, 0.22);
+  --c-panel: rgba(255, 255, 255, 0.92);
+  --c-line: rgba(20, 35, 55, 0.13);
+  --c-line-strong: rgba(20, 35, 55, 0.26);
+  --c-green: #00b37c;
+  --c-green-soft: rgba(0, 179, 124, 0.16);
+  --c-gold: #dd9b00;
+  --c-gold-soft: rgba(221, 155, 0, 0.17);
+  --c-danger: #f01f3d;
+  --c-amber: #f58300;
+  --c-sky: #0d7ff0;
+  --c-sky-soft: rgba(13, 127, 240, 0.16);
+  --c-txt: #10151d;
+  --c-txt-dim: #4d5a70;
+  --c-txt-faint: #79849a;
+  --c-vinheta-1: rgba(0, 179, 124, 0.1);
+  --c-vinheta-2: rgba(221, 155, 0, 0.09);
+  --c-grid: rgba(0, 179, 124, 0.09);
+  --c-scroll: rgba(20, 35, 55, 0.24);
   --c-globo-base: #c8d4e2;
   --c-globo-glow: #e8eef5;
 }
