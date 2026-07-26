@@ -28,6 +28,7 @@ export function RadialGauge({
         <defs>
           <linearGradient id="gaugeFill" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor={cores.green} />
+            <stop offset={cores.gaugeVerdeAte} stopColor={cores.green} />
             <stop offset="100%" stopColor={cores.gaugeFim} />
           </linearGradient>
         </defs>

@@ -13,8 +13,11 @@ export type Paleta = {
   danger: string;
   amber: string;
   sky: string;
-  /** far end of the margin-gauge sweep (gold reads too yellow on a light surface) */
+  /** far end of the margin-gauge sweep */
   gaugeFim: string;
+  /** how far the green holds before turning toward `gaugeFim` — light keeps far more green,
+   *  so the arc doesn't read yellow on a bright surface */
+  gaugeVerdeAte: string;
   txt: string;
   txtDim: string;
   txtFaint: string;
@@ -36,6 +39,7 @@ const ESCURA: Paleta = {
   amber: "#f5a623",
   sky: "#4ea1f0",
   gaugeFim: "#e8b84b",
+  gaugeVerdeAte: "0%",
   txt: "#e8eef5",
   txtDim: "#8b97a8",
   txtFaint: "#5a6678",
@@ -58,7 +62,8 @@ const CLARA: Paleta = {
   danger: "#f01f3d",
   amber: "#f58300",
   sky: "#0d7ff0",
-  gaugeFim: "#0d7ff0",
+  gaugeFim: "#dd9b00",
+  gaugeVerdeAte: "68%",
   txt: "#10151d",
   txtDim: "#4d5a70",
   txtFaint: "#79849a",
