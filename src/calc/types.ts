@@ -18,7 +18,9 @@ export type Produto = {
   imposto: number; // I — default 0.04
   comissao: number; // J — default 0.15
   custoEmbalagem?: number; // optional packaging/branding cost per unit (idea #7)
-  estoqueAtual?: number; // current units in stock (idea #1 "manage stock")
+  /** Opening balance in units. Real stock is DERIVED from here plus the ledgers
+   *  (see `estoqueProdutos`): inicial + compras recebidas − vendidas + devoluções reestocadas. */
+  estoqueInicial?: number;
   /** manual override of the auto Aprovado/Reprovado rule; null = use auto */
   aprovadoManual?: boolean | null;
 };
@@ -85,6 +87,32 @@ export type Devolucao = {
   canal?: string; // snapshot of the sales channel (Amazon, Mercado Livre…)
   cliente?: string; // snapshot
   numeroPedido?: string; // snapshot
+  observacao?: string;
+};
+
+/** Where a stock purchase is in its lifecycle. Only `recebida` adds units to stock. */
+export type CompraStatus = "pedida" | "em_transito" | "recebida" | "cancelada";
+
+/**
+ * A stock purchase (idea #3) — what was bought from the supplier, for how much, and whether it
+ * has arrived. Mirrors the Vendas/Devoluções ledgers: received purchases feed the derived stock,
+ * and each purchase keeps the unit cost actually paid (the product's own custoUnit is only
+ * updated on request, never silently).
+ */
+export type Compra = {
+  id: string;
+  produtoId?: string; // link to a catalog product (optional → avulsa)
+  produtoNome: string; // snapshot of the product name
+  codigoProduto?: string; // snapshot
+  data: string; // ISO datetime the order was placed
+  dataRecebimento?: string; // ISO date it arrived (set when status = recebida)
+  quantidade: number; // units bought
+  custoUnit: number; // unit cost paid on this purchase
+  frete?: number; // freight for the whole purchase
+  outrosCustos?: number; // import tax, despachante, etc.
+  status: CompraStatus;
+  fornecedor?: string;
+  numeroNota?: string; // invoice / order number
   observacao?: string;
 };
 

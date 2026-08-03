@@ -11,6 +11,7 @@ import {
 } from "./constants";
 import type {
   CategoriaCusto,
+  Compra,
   CustoOperacional,
   Devolucao,
   MetricasProduto,
@@ -499,6 +500,108 @@ export function serieFinanceiraMensal(
     const r = resultadoVendas(doMes, produtos, cfg);
     return { chave: m.chave, bruto: r.bruto, custo: r.custo, lucro: r.lucro };
   });
+}
+
+// ─── Purchases & derived stock (idea #3) ─────────────────────────────────────
+// Stock is computed, never stored: the product carries only an opening balance and every
+// movement lives in a ledger. That keeps it self-healing (no double-counting when a status
+// is toggled) and consistent with how the rest of the app derives its numbers.
+
+/** What a purchase actually cost: goods + freight + any extras. */
+export const custoTotalCompra = (c: Compra) =>
+  c.quantidade * c.custoUnit + (c.frete ?? 0) + (c.outrosCustos ?? 0);
+
+/** Purchases that landed in stock. Cancelled and not-yet-arrived ones don't count. */
+const comprasRecebidas = (compras: Compra[]) => compras.filter((c) => c.status === "recebida");
+
+export type ResumoCompras = {
+  pedidos: number; // purchase records (excluding cancelled)
+  unidades: number; // units bought (excluding cancelled)
+  investido: number; // R$ committed, including freight/extras
+  recebidas: number; // records already in stock
+  pendentes: number; // ordered or in transit — money already committed, goods not arrived
+  aCaminho: number; // units still on the way
+};
+
+/** Totals across a set of purchases (cancelled ones are excluded from every figure). */
+export function resumoCompras(compras: Compra[]): ResumoCompras {
+  const r: ResumoCompras = { pedidos: 0, unidades: 0, investido: 0, recebidas: 0, pendentes: 0, aCaminho: 0 };
+  for (const c of compras) {
+    if (c.status === "cancelada") continue;
+    r.pedidos += 1;
+    r.unidades += c.quantidade;
+    r.investido += custoTotalCompra(c);
+    if (c.status === "recebida") r.recebidas += 1;
+    else {
+      r.pendentes += 1;
+      r.aCaminho += c.quantidade;
+    }
+  }
+  return r;
+}
+
+export type AggFornecedor = { fornecedor: string; pedidos: number; unidades: number; investido: number; share: number };
+
+/** Purchases grouped by supplier, biggest spend first. */
+export function comprasPorFornecedor(compras: Compra[]): AggFornecedor[] {
+  const map = new Map<string, { pedidos: number; unidades: number; investido: number }>();
+  for (const c of compras) {
+    if (c.status === "cancelada") continue;
+    const k = c.fornecedor?.trim() || "Sem fornecedor";
+    const g = map.get(k) ?? { pedidos: 0, unidades: 0, investido: 0 };
+    g.pedidos += 1;
+    g.unidades += c.quantidade;
+    g.investido += custoTotalCompra(c);
+    map.set(k, g);
+  }
+  const total = [...map.values()].reduce((s, g) => s + g.investido, 0);
+  return [...map.entries()]
+    .map(([fornecedor, g]) => ({ fornecedor, ...g, share: total > 0 ? g.investido / total : 0 }))
+    .sort((a, b) => b.investido - a.investido);
+}
+
+export type EstoqueProduto = {
+  produtoId: string;
+  inicial: number;
+  comprado: number; // units from received purchases
+  vendido: number; // units sold (cancelled sales excluded)
+  devolvido: number; // units that came back and were restocked
+  atual: number; // inicial + comprado − vendido + devolvido
+};
+
+/**
+ * Current stock per product, derived from the opening balance and the three ledgers.
+ * Returns a Map keyed by produtoId so callers can look a product up directly.
+ */
+export function estoqueProdutos(
+  produtos: Produto[],
+  compras: Compra[],
+  vendas: Venda[],
+  devolucoes: Devolucao[],
+): Map<string, EstoqueProduto> {
+  const mapa = new Map<string, EstoqueProduto>(
+    produtos.map((p) => [
+      p.id,
+      { produtoId: p.id, inicial: p.estoqueInicial ?? 0, comprado: 0, vendido: 0, devolvido: 0, atual: 0 },
+    ]),
+  );
+
+  for (const c of comprasRecebidas(compras)) {
+    const e = c.produtoId && mapa.get(c.produtoId);
+    if (e) e.comprado += c.quantidade;
+  }
+  for (const v of vendasRealizadas(vendas)) {
+    const e = v.produtoId && mapa.get(v.produtoId);
+    if (e) e.vendido += v.quantidade;
+  }
+  for (const d of devolucoes) {
+    if (!d.reestocado) continue;
+    const e = d.produtoId && mapa.get(d.produtoId);
+    if (e) e.devolvido += d.quantidade;
+  }
+
+  for (const e of mapa.values()) e.atual = e.inicial + e.comprado - e.vendido + e.devolvido;
+  return mapa;
 }
 
 // ─── Returns / refunds (idea #1) ─────────────────────────────────────────────

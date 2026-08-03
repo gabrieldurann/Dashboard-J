@@ -1,7 +1,7 @@
 import { ExternalLink, PackageOpen, Pencil, Plus, Search, SearchX, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { calcularMetricas, gruposDuplicados } from "../calc/engine";
+import { calcularMetricas, estoqueProdutos, gruposDuplicados } from "../calc/engine";
 import type { StatusCor } from "../calc/constants";
 import { DuplicateBanner } from "../components/DuplicateBanner";
 import { GlowCard } from "../components/GlowCard";
@@ -25,6 +25,9 @@ const FILTROS: { key: Filtro; label: string }[] = [
 
 export function Produtos() {
   const statusCores = useStatusCores();
+  const compras = useStore((s) => s.compras);
+  const vendasLedger = useStore((s) => s.vendas);
+  const devolucoes = useStore((s) => s.devolucoes);
   const cfg = useConfig();
   const produtos = useStore((s) => s.produtos);
   const removeProduto = useStore((s) => s.removeProduto);
@@ -32,6 +35,12 @@ export function Produtos() {
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<Filtro>("todos");
   const filtrosAtivos = busca.trim() !== "" || filtro !== "todos";
+
+  // stock is derived from the ledgers, never stored (idea #3)
+  const estoque = useMemo(
+    () => estoqueProdutos(produtos, compras, vendasLedger, devolucoes),
+    [produtos, compras, vendasLedger, devolucoes],
+  );
 
   // duplicate cleanup (idea #10) — catches dupes from the calculator, manual adds, anywhere
   const dupGrupos = useMemo(() => gruposDuplicados(produtos), [produtos]);
@@ -193,19 +202,28 @@ export function Produtos() {
                   <td className="px-4 py-3 font-mono text-sm tabular-nums text-txtDim">{money(m.lucroUnit)}</td>
                   <td className="px-4 py-3 font-mono text-sm tabular-nums text-txtDim">{money(m.lucroCaixa)}</td>
                   <td className="px-4 py-3 font-mono text-sm tabular-nums text-green">{money(m.lucroMensal)}</td>
-                  <td className="px-4 py-3">
-                    {p.estoqueAtual != null ? (
-                      <div className="font-mono text-sm leading-tight tabular-nums">
-                        <span className="text-txt">{number(p.estoqueAtual)} un</span>
-                        {p.qtdCaixa > 0 && (
-                          <span className="block text-[11px] text-txtFaint">
-                            {number(p.estoqueAtual / p.qtdCaixa)} cx
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-txtFaint">—</span>
-                    )}
+                  {/* stock is derived — the tooltip shows the movements behind the number */}
+                  <td
+                    className="px-4 py-3"
+                    title={(() => {
+                      const e = estoque.get(p.id);
+                      return e
+                        ? `inicial ${e.inicial} + compras ${e.comprado} − vendas ${e.vendido} + devoluções ${e.devolvido}`
+                        : "";
+                    })()}
+                  >
+                    {(() => {
+                      const e = estoque.get(p.id);
+                      if (!e) return <span className="text-txtFaint">—</span>;
+                      return (
+                        <div className="font-mono text-sm leading-tight tabular-nums">
+                          <span className={e.atual < 0 ? "text-danger" : "text-txt"}>{number(e.atual)} un</span>
+                          {p.qtdCaixa > 0 && (
+                            <span className="block text-[11px] text-txtFaint">{number(e.atual / p.qtdCaixa)} cx</span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3">
                     {p.link ? (

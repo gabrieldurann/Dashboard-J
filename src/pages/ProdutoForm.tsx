@@ -176,8 +176,8 @@ export function ProdutoForm() {
                   allowEmpty
                 />
               </Field>
-              <Field label="Estoque atual" hint="em unidades (produtos)">
-                <NumberInput value={draft.estoqueAtual} onValue={(v) => set("estoqueAtual", v)} allowEmpty />
+              <Field label="Estoque inicial" hint="saldo de partida — o atual é calculado com compras, vendas e devoluções">
+                <NumberInput value={draft.estoqueInicial} onValue={(v) => set("estoqueInicial", v)} allowEmpty />
               </Field>
               <Field label="Data da pesquisa">
                 <input

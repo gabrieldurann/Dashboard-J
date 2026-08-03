@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   calcularMetricas,
   capitalParaEstoque,
+  comprasPorFornecedor,
+  custoTotalCompra,
   custosPorCategoria,
   desempenhoProdutos,
+  estoqueProdutos,
   devolucoesPorMotivo,
   faixasDesempenho,
   freteUnitario,
@@ -12,6 +15,7 @@ import {
   gruposDuplicados,
   mesmoNome,
   normalizaNome,
+  resumoCompras,
   resumoDevolucoes,
   taxaDevolucao,
   totalOperacional,
@@ -29,7 +33,7 @@ import {
   vendasPorPais,
 } from "./engine";
 import { CONFIG_PADRAO } from "./constants";
-import type { CustoOperacional, Devolucao, Produto, Venda } from "./types";
+import type { Compra, CustoOperacional, Devolucao, Produto, Venda } from "./types";
 
 const base: Produto = {
   id: "1",
@@ -378,6 +382,82 @@ describe("configurable rates (Configurações, idea #9)", () => {
   it("omitting the config keeps the sheet defaults (no behaviour change)", () => {
     expect(calcularMetricas(base)).toEqual(calcularMetricas(base, CONFIG_PADRAO));
     expect(statusCor(0.12)).toBe(statusCor(0.12, CONFIG_PADRAO));
+  });
+});
+
+const compra = (over: Partial<Compra>): Compra => ({
+  id: crypto.randomUUID(),
+  produtoNome: "Produto",
+  data: "2026-03-01T10:00",
+  quantidade: 10,
+  custoUnit: 20,
+  status: "recebida",
+  ...over,
+});
+
+describe("compras & derived stock (idea #3)", () => {
+  const prod: Produto = { id: "p1", nome: "P", precoVenda: 100, vendasMes: 0, custoUnit: 40, qtdCaixa: 10, imposto: 0.04, comissao: 0.15, estoqueInicial: 50 };
+
+  it("custoTotalCompra adds freight and extras to the goods", () => {
+    expect(custoTotalCompra(compra({ quantidade: 10, custoUnit: 20, frete: 100, outrosCustos: 50 }))).toBe(350);
+    expect(custoTotalCompra(compra({ quantidade: 10, custoUnit: 20 }))).toBe(200); // both optional
+  });
+
+  it("resumoCompras separates received from still-on-the-way, ignoring cancelled", () => {
+    const r = resumoCompras([
+      compra({ quantidade: 100, custoUnit: 10, status: "recebida" }),
+      compra({ quantidade: 40, custoUnit: 10, status: "em_transito" }),
+      compra({ quantidade: 25, custoUnit: 10, status: "pedida" }),
+      compra({ quantidade: 999, custoUnit: 10, status: "cancelada" }),
+    ]);
+    expect(r.pedidos).toBe(3); // cancelled excluded everywhere
+    expect(r.unidades).toBe(165);
+    expect(r.investido).toBe(1650);
+    expect(r.recebidas).toBe(1);
+    expect(r.pendentes).toBe(2);
+    expect(r.aCaminho).toBe(65); // 40 + 25 units not yet in stock
+  });
+
+  it("comprasPorFornecedor ranks spend, shares summing to 1", () => {
+    const agg = comprasPorFornecedor([
+      compra({ fornecedor: "A", quantidade: 10, custoUnit: 10 }), // 100
+      compra({ fornecedor: "B", quantidade: 10, custoUnit: 5 }), // 50
+      compra({ fornecedor: "A", quantidade: 10, custoUnit: 20 }), // 200
+      compra({ quantidade: 10, custoUnit: 1 }), // no supplier → "Sem fornecedor"
+    ]);
+    expect(agg[0].fornecedor).toBe("A");
+    expect(agg[0].investido).toBe(300);
+    expect(agg.some((a) => a.fornecedor === "Sem fornecedor")).toBe(true);
+    expect(agg.reduce((s, a) => s + a.share, 0)).toBeCloseTo(1, 6);
+  });
+
+  it("stock = inicial + recebidas − vendidas + devolvidas reestocadas", () => {
+    const e = estoqueProdutos(
+      [prod],
+      [
+        compra({ produtoId: "p1", quantidade: 120, status: "recebida" }),
+        compra({ produtoId: "p1", quantidade: 60, status: "em_transito" }), // not in stock yet
+        compra({ produtoId: "p1", quantidade: 999, status: "cancelada" }),
+      ],
+      [venda({ produtoId: "p1", quantidade: 30 }), venda({ produtoId: "p1", quantidade: 500, status: "cancelado" })],
+      [
+        devolucao({ produtoId: "p1", quantidade: 8, reestocado: true }),
+        devolucao({ produtoId: "p1", quantidade: 5, reestocado: false }), // scrapped
+      ],
+    ).get("p1")!;
+    expect(e).toMatchObject({ inicial: 50, comprado: 120, vendido: 30, devolvido: 8 });
+    expect(e.atual).toBe(148); // 50 + 120 − 30 + 8
+  });
+
+  it("treats a product with no movements as its opening balance, and no balance as zero", () => {
+    const mapa = estoqueProdutos([prod, { ...prod, id: "p2", estoqueInicial: undefined }], [], [], []);
+    expect(mapa.get("p1")!.atual).toBe(50);
+    expect(mapa.get("p2")!.atual).toBe(0);
+  });
+
+  it("ignores movements that reference an unknown product", () => {
+    const e = estoqueProdutos([prod], [compra({ produtoId: "zzz", quantidade: 999 })], [], []).get("p1")!;
+    expect(e.atual).toBe(50);
   });
 });
 

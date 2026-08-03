@@ -1,4 +1,4 @@
-import { BarChart3, Building2, Calculator, ClipboardList, FileText, LayoutDashboard, Package, Pencil, Plug, Receipt, RotateCcw, Settings, SlidersHorizontal } from "lucide-react";
+import { BarChart3, Building2, ShoppingCart, Calculator, ClipboardList, FileText, LayoutDashboard, Package, Pencil, Plug, Receipt, RotateCcw, Settings, SlidersHorizontal } from "lucide-react";
 import { NavLink } from "react-router-dom";
 
 const NAV = [
@@ -7,6 +7,7 @@ const NAV = [
   { to: "/produtos", label: "Produtos", icon: Package, end: false },
   { to: "/vendas", label: "Vendas", icon: Receipt, end: false },
   { to: "/vendas-avulsas", label: "Vendas avulsas", icon: Pencil, end: false },
+  { to: "/compras", label: "Compras", icon: ShoppingCart, end: false },
   { to: "/devolucoes", label: "Devoluções", icon: RotateCcw, end: false },
   { to: "/calculadora", label: "Calculadora", icon: Calculator, end: false },
   { to: "/simulacoes", label: "Simulações", icon: SlidersHorizontal, end: false },

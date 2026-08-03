@@ -7,6 +7,7 @@ import { Toaster } from "./components/Toaster";
 import { EASE } from "./theme/tokens";
 import { useAplicarTema } from "./theme/useCores";
 import { Calculadora } from "./pages/Calculadora";
+import { Compras } from "./pages/Compras";
 import { Conexoes } from "./pages/Conexoes";
 import { Configuracoes } from "./pages/Configuracoes";
 import { CustosOperacionais } from "./pages/CustosOperacionais";
@@ -41,6 +42,7 @@ function AnimatedRoutes() {
           <Route path="/produtos/:id" element={<ProdutoForm />} />
           <Route path="/vendas" element={<Vendas />} />
           <Route path="/vendas-avulsas" element={<VendasAvulsas />} />
+          <Route path="/compras" element={<Compras />} />
           <Route path="/devolucoes" element={<Devolucoes />} />
           <Route path="/calculadora" element={<Calculadora />} />
           <Route path="/simulacoes" element={<Simulacoes />} />

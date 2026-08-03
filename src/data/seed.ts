@@ -1,5 +1,5 @@
 import { COMISSAO_PADRAO, IMPOSTO_PADRAO } from "../calc/constants";
-import type { CustoOperacional, Devolucao, Pesquisa, Produto, Venda } from "../calc/types";
+import type { Compra, CustoOperacional, Devolucao, Pesquisa, Produto, Venda } from "../calc/types";
 
 // ⚠️ SAMPLE DATA ONLY — safe to be public.
 // This file ships in the repo so the build/demo isn't empty for reviewers. It intentionally
@@ -26,7 +26,7 @@ export const PRODUTOS_SEED: Produto[] = [
     qtdCaixa: 30,
     imposto: d,
     comissao: 0.15,
-    estoqueAtual: 24,
+    estoqueInicial: 24,
     aprovadoManual: null,
   },
   {
@@ -41,7 +41,7 @@ export const PRODUTOS_SEED: Produto[] = [
     qtdCaixa: 80,
     imposto: d,
     comissao: 0.13,
-    estoqueAtual: 70,
+    estoqueInicial: 70,
     aprovadoManual: null,
   },
   {
@@ -57,7 +57,7 @@ export const PRODUTOS_SEED: Produto[] = [
     qtdCaixa: 100,
     imposto: d,
     comissao: 0.15,
-    estoqueAtual: 90,
+    estoqueInicial: 90,
     aprovadoManual: null,
   },
   {
@@ -72,7 +72,7 @@ export const PRODUTOS_SEED: Produto[] = [
     qtdCaixa: 150,
     imposto: d,
     comissao: 0.15,
-    estoqueAtual: 140,
+    estoqueInicial: 140,
     aprovadoManual: null,
   },
 ];
@@ -725,6 +725,107 @@ export const DEVOLUCOES_SEED: Devolucao[] = [
     canal: "Amazon",
     cliente: "Louis Moreau",
     numeroPedido: "PED-1027",
+  },
+];
+
+// Sample stock purchases (demo only). Sized in whole boxes so the DERIVED stock
+// (inicial + recebidas − vendidas + devolvidas reestocadas) lands on a healthy positive figure
+// for every product. Includes one in-transit and one cancelled purchase to exercise those states.
+export const COMPRAS_SEED: Compra[] = [
+  {
+    id: "c-1001",
+    produtoId: "demo-1",
+    produtoNome: "Mini Projetor Portátil",
+    codigoProduto: "DEMO-001",
+    data: "2026-03-04T10:00",
+    dataRecebimento: "2026-03-19",
+    quantidade: 120, // 4 caixas de 30
+    custoUnit: 40,
+    frete: 380,
+    status: "recebida",
+    fornecedor: "Fornecedor Exemplo A",
+    numeroNota: "NF-2201",
+  },
+  {
+    id: "c-1002",
+    produtoId: "demo-2",
+    produtoNome: "Garrafa Térmica Inox 1L",
+    codigoProduto: "DEMO-002",
+    data: "2026-03-11T09:30",
+    dataRecebimento: "2026-03-24",
+    quantidade: 160, // 2 caixas de 80
+    custoUnit: 22,
+    frete: 240,
+    status: "recebida",
+    fornecedor: "Fornecedor Exemplo B",
+    numeroNota: "NF-2214",
+  },
+  {
+    id: "c-1003",
+    produtoId: "demo-3",
+    produtoNome: "Organizador de Cabos (kit 5)",
+    codigoProduto: "DEMO-003",
+    data: "2026-04-02T15:20",
+    dataRecebimento: "2026-04-15",
+    quantidade: 100, // 1 caixa
+    custoUnit: 21.5,
+    frete: 180,
+    status: "recebida",
+    fornecedor: "Fornecedor Exemplo B",
+    numeroNota: "NF-2240",
+  },
+  {
+    id: "c-1004",
+    produtoId: "demo-4",
+    produtoNome: "Suporte de Copo Veicular",
+    codigoProduto: "DEMO-004",
+    data: "2026-04-08T11:05",
+    dataRecebimento: "2026-04-22",
+    quantidade: 300, // 2 caixas de 150
+    custoUnit: 16,
+    frete: 300,
+    outrosCustos: 120,
+    status: "recebida",
+    fornecedor: "Fornecedor Exemplo C",
+    numeroNota: "NF-2255",
+  },
+  {
+    id: "c-1005",
+    produtoId: "demo-1",
+    produtoNome: "Mini Projetor Portátil",
+    codigoProduto: "DEMO-001",
+    data: "2026-06-26T14:00",
+    quantidade: 60, // 2 caixas — melhor preço negociado
+    custoUnit: 38.5,
+    frete: 190,
+    status: "em_transito",
+    fornecedor: "Fornecedor Exemplo A",
+    numeroNota: "NF-2310",
+    observacao: "Preço melhor que o cadastrado (R$ 40,00).",
+  },
+  {
+    id: "c-1006",
+    produtoId: "demo-4",
+    produtoNome: "Suporte de Copo Veicular",
+    codigoProduto: "DEMO-004",
+    data: "2026-07-02T09:15",
+    quantidade: 150,
+    custoUnit: 16,
+    frete: 150,
+    status: "pedida",
+    fornecedor: "Fornecedor Exemplo C",
+  },
+  {
+    id: "c-1007",
+    produtoId: "demo-2",
+    produtoNome: "Garrafa Térmica Inox 1L",
+    codigoProduto: "DEMO-002",
+    data: "2026-05-14T16:40",
+    quantidade: 80,
+    custoUnit: 24,
+    status: "cancelada",
+    fornecedor: "Fornecedor Exemplo B",
+    observacao: "Cancelada — fornecedor subiu o preço.",
   },
 ];
 
