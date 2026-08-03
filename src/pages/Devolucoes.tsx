@@ -84,6 +84,8 @@ export function Devolucoes() {
   const updateDevolucao = useStore((s) => s.updateDevolucao);
   const removeDevolucao = useStore((s) => s.removeDevolucao);
 
+  // stacked by default; "dividido" restores the old summary-on-the-left arrangement
+  const dividido = useStore((s) => s.layouts["devolucoes"]) === "dividido";
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [d, setD] = useState<Draft>(emptyDraft);
@@ -252,7 +254,7 @@ export function Devolucoes() {
       subtitle="Devoluções e reembolsos — motivo, valor devolvido e reposição ao estoque. Os reembolsos reduzem o lucro líquido do Painel."
       actions={
         <div className="flex items-center gap-2">
-          <ExibicaoMenu cards={CARDS} />
+          <ExibicaoMenu cards={CARDS} paginaLayout="devolucoes" />
           <button
             onClick={() => (showForm ? setShowForm(false) : abrirNovo())}
           className="flex items-center gap-2 rounded-chip border border-lineStrong bg-greenSoft px-4 py-2.5 font-mono text-sm text-txt transition-opacity hover:opacity-90"
@@ -458,7 +460,7 @@ export function Devolucoes() {
 
       <div className="grid grid-cols-12 gap-4">
         {/* the ledger owns the full width — it's what this page is for */}
-        <GlowCard className="col-span-12 overflow-hidden p-0">
+        <GlowCard className={`col-span-12 overflow-hidden p-0 ${dividido ? "lg:col-span-8" : ""}`}>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left">
               <thead>
@@ -532,13 +534,13 @@ export function Devolucoes() {
         </GlowCard>
 
         {/* breakdown sits UNDER the table so the ledger is never squeezed; hide it for table-only */}
-        <Ocultavel id="devolucoes.resumo" label="Resumo por motivo" className="col-span-12">
+        <Ocultavel id="devolucoes.resumo" label="Resumo por motivo" className={`col-span-12 ${dividido ? "lg:col-span-4 lg:order-first" : ""}`}>
           <GlowCard className="h-full">
             <span className="font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">Por motivo</span>
             {porMotivo.length === 0 ? (
               <p className="py-8 text-center text-sm text-txtDim">Nenhuma devolução no filtro atual.</p>
             ) : (
-              <ul className="mt-3 grid grid-cols-1 gap-x-8 gap-y-2.5 sm:grid-cols-2 xl:grid-cols-3">
+              <ul className={`mt-3 ${dividido ? "flex flex-col gap-2.5" : "grid grid-cols-1 gap-x-8 gap-y-2.5 sm:grid-cols-2 xl:grid-cols-3"}`}>
                 {porMotivo.map((m, i) => (
                   <li key={m.motivo}>
                     <div className="flex items-baseline justify-between gap-2">

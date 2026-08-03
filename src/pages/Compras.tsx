@@ -81,6 +81,8 @@ export function Compras() {
   const removeCompra = useStore((s) => s.removeCompra);
   const updateProduto = useStore((s) => s.updateProduto);
 
+  // stacked by default; "dividido" restores the old summary-on-the-left arrangement
+  const dividido = useStore((s) => s.layouts["compras"]) === "dividido";
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [d, setD] = useState<Draft>(emptyDraft);
@@ -232,7 +234,7 @@ export function Compras() {
       subtitle="Reposição de estoque — o que foi comprado, quanto custou e o que já chegou. As compras recebidas entram no estoque."
       actions={
         <div className="flex items-center gap-2">
-          <ExibicaoMenu cards={CARDS} />
+          <ExibicaoMenu cards={CARDS} paginaLayout="compras" />
           <button
             onClick={() => (showForm ? setShowForm(false) : abrirNovo())}
           className="flex items-center gap-2 rounded-chip border border-lineStrong bg-greenSoft px-4 py-2.5 font-mono text-sm text-txt transition-opacity hover:opacity-90"
@@ -409,7 +411,7 @@ export function Compras() {
 
       <div className="grid grid-cols-12 gap-4">
         {/* the ledger owns the full width — it's what this page is for */}
-        <GlowCard className="col-span-12 overflow-hidden p-0">
+        <GlowCard className={`col-span-12 overflow-hidden p-0 ${dividido ? "lg:col-span-8" : ""}`}>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left">
               <thead>
@@ -494,13 +496,13 @@ export function Compras() {
           </div>
         </GlowCard>
 
-        <Ocultavel id="compras.resumo" label="Resumo por fornecedor" className="col-span-12">
+        <Ocultavel id="compras.resumo" label="Resumo por fornecedor" className={`col-span-12 ${dividido ? "lg:col-span-4 lg:order-first" : ""}`}>
             <GlowCard className="h-full">
             <span className="font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">Por fornecedor</span>
             {porFornecedor.length === 0 ? (
               <p className="py-8 text-center text-sm text-txtDim">Nenhuma compra no filtro atual.</p>
             ) : (
-              <ul className="mt-3 grid grid-cols-1 gap-x-8 gap-y-2.5 sm:grid-cols-2 xl:grid-cols-3">
+              <ul className={`mt-3 ${dividido ? "flex flex-col gap-2.5" : "grid grid-cols-1 gap-x-8 gap-y-2.5 sm:grid-cols-2 xl:grid-cols-3"}`}>
                 {porFornecedor.map((f, i) => (
                   <li key={f.fornecedor}>
                     <div className="flex items-baseline justify-between gap-2">

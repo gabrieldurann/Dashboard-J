@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { CONFIG_PADRAO, type Configuracoes } from "../calc/constants";
 import type { Tema } from "../theme/tokens";
+import type { LayoutLedger } from "../components/ExibicaoMenu";
 import type { CalculoSalvo, Compra, CustoOperacional, Devolucao, Pesquisa, Produto, Venda, VendaAvulsa } from "../calc/types";
 import { COMPRAS_SEED, CUSTOS_OPERACIONAIS_SEED, DEVOLUCOES_SEED, PESQUISAS_SEED, PRODUTOS_SEED, VENDAS_SEED } from "../data/seed";
 
@@ -43,6 +44,9 @@ type State = {
   resetConfiguracoes: () => void;
   /** overwrite every product's & pesquisa's own tax/commission with the current defaults */
   aplicarTaxasPadrao: () => void;
+  /** per-page table/summary arrangement on the ledger pages, keyed by page id */
+  layouts: Record<string, LayoutLedger>;
+  setLayout: (pagina: string, l: LayoutLedger) => void;
   /** ids of dashboard cards the user chose to hide (a display preference, not data) */
   cardsOcultos: string[];
   toggleCardOculto: (id: string) => void;
@@ -117,6 +121,8 @@ export const useStore = create<State>()(
             pesquisas: s.pesquisas.map((p) => ({ ...p, imposto, comissao })),
           };
         }),
+      layouts: {},
+      setLayout: (pagina, l) => set((s) => ({ layouts: { ...s.layouts, [pagina]: l } })),
       cardsOcultos: [],
       toggleCardOculto: (id) =>
         set((s) => ({
