@@ -6,6 +6,8 @@ import type { Devolucao, DevolucaoStatus, MotivoDevolucao } from "../calc/types"
 import { Field, inputClass, NumberInput, TextInput } from "../components/Field";
 import { GlowCard } from "../components/GlowCard";
 import { MetricTile } from "../components/MetricTile";
+import { ExibicaoMenu } from "../components/ExibicaoMenu";
+import { Ocultavel, type CardRegistrado } from "../components/Ocultavel";
 import { Screen } from "../components/Screen";
 import { date as fmtDate, datetime, money, percent } from "../i18n/format";
 import { MOTIVO_LABEL, MOTIVOS } from "../i18n/labels";
@@ -14,6 +16,12 @@ import { confirmAction } from "../store/useConfirm";
 import { toast } from "../store/useToast";
 import { useStore } from "../store/useStore";
 
+
+/** Blocks the user can hide to focus on the ledger alone. */
+const CARDS: CardRegistrado[] = [
+  { id: "devolucoes.kpis", label: "Indicadores do topo" },
+  { id: "devolucoes.resumo", label: "Resumo por motivo" },
+];
 
 const STATUS: Record<DevolucaoStatus, { label: string; cls: string }> = {
   solicitada: { label: "Solicitada", cls: "text-amber border-amber/40 bg-amberSoft" },
@@ -243,12 +251,15 @@ export function Devolucoes() {
       title="Devoluções"
       subtitle="Devoluções e reembolsos — motivo, valor devolvido e reposição ao estoque. Os reembolsos reduzem o lucro líquido do Painel."
       actions={
-        <button
-          onClick={() => (showForm ? setShowForm(false) : abrirNovo())}
+        <div className="flex items-center gap-2">
+          <ExibicaoMenu cards={CARDS} />
+          <button
+            onClick={() => (showForm ? setShowForm(false) : abrirNovo())}
           className="flex items-center gap-2 rounded-chip border border-lineStrong bg-greenSoft px-4 py-2.5 font-mono text-sm text-txt transition-opacity hover:opacity-90"
         >
-          {showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? "Fechar" : "Registrar devolução"}
-        </button>
+            {showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? "Fechar" : "Registrar devolução"}
+          </button>
+        </div>
       }
     >
       {showForm && (
@@ -377,12 +388,14 @@ export function Devolucoes() {
       )}
 
       {/* summary (reflects current filters) */}
-      <div className="mb-4 grid grid-cols-12 gap-4">
+      <Ocultavel id="devolucoes.kpis" label="Indicadores do topo" className="mb-4 block">
+        <div className="grid grid-cols-12 gap-4">
         <MetricTile label="Reembolso total" value={resumo.reembolso} format={money} icon={Coins} accent="gold" footnote="Valor devolvido aos clientes (nas devoluções filtradas)" className="col-span-6 lg:col-span-3" />
         <MetricTile label="Taxa de devolução" value={taxa} format={percent} icon={RotateCcw} footnote="Unidades devolvidas ÷ unidades vendidas" className="col-span-6 lg:col-span-3" delay={0.05} />
         <MetricTile label="Unidades devolvidas" value={resumo.unidades} format={(v) => String(Math.round(v))} icon={Undo2} footnote={`${resumo.registros} devolução(ões)`} className="col-span-6 lg:col-span-3" delay={0.1} />
         <MetricTile label="Reestocadas" value={resumo.reestocadas} format={(v) => String(Math.round(v))} icon={PackageCheck} accent="green" footnote="Unidades que voltaram ao estoque" className="col-span-6 lg:col-span-3" delay={0.15} />
-      </div>
+        </div>
+      </Ocultavel>
 
       {/* filters */}
       <div className="mb-4 flex flex-wrap items-end gap-3">
@@ -444,39 +457,8 @@ export function Devolucoes() {
       </div>
 
       <div className="grid grid-cols-12 gap-4">
-        {/* breakdown by reason */}
-        <GlowCard className="col-span-12 lg:col-span-5">
-          <span className="font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">Por motivo</span>
-          {porMotivo.length === 0 ? (
-            <p className="py-8 text-center text-sm text-txtDim">Nenhuma devolução no filtro atual.</p>
-          ) : (
-            <ul className="mt-3 flex flex-col gap-2.5">
-              {porMotivo.map((m, i) => (
-                <li key={m.motivo}>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="text-sm text-txt">{MOTIVO_LABEL[m.motivo]}</span>
-                    <span className="flex items-baseline gap-3">
-                      <span className="font-mono text-xs tabular-nums text-txtDim">{m.unidades} un</span>
-                      <span className="font-mono text-sm tabular-nums text-gold">{money(m.reembolso)}</span>
-                      <span className="w-12 text-right font-mono text-xs tabular-nums text-txtDim">{percent(m.share)}</span>
-                    </span>
-                  </div>
-                  <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-line/40">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(m.share / maxShare) * 100}%` }}
-                      transition={{ duration: 0.6, ease: EASE, delay: 0.05 * i }}
-                      className="h-full rounded-full bg-gold"
-                    />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </GlowCard>
-
-        {/* table */}
-        <GlowCard className="col-span-12 overflow-hidden p-0 lg:col-span-7">
+        {/* the ledger owns the full width — it's what this page is for */}
+        <GlowCard className="col-span-12 overflow-hidden p-0">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left">
               <thead>
@@ -548,6 +530,39 @@ export function Devolucoes() {
             </table>
           </div>
         </GlowCard>
+
+        {/* breakdown sits UNDER the table so the ledger is never squeezed; hide it for table-only */}
+        <Ocultavel id="devolucoes.resumo" label="Resumo por motivo" className="col-span-12">
+          <GlowCard className="h-full">
+            <span className="font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">Por motivo</span>
+            {porMotivo.length === 0 ? (
+              <p className="py-8 text-center text-sm text-txtDim">Nenhuma devolução no filtro atual.</p>
+            ) : (
+              <ul className="mt-3 grid grid-cols-1 gap-x-8 gap-y-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                {porMotivo.map((m, i) => (
+                  <li key={m.motivo}>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="truncate text-sm text-txt">{MOTIVO_LABEL[m.motivo]}</span>
+                      <span className="flex shrink-0 items-baseline gap-3">
+                        <span className="font-mono text-xs tabular-nums text-txtDim">{m.unidades} un</span>
+                        <span className="font-mono text-sm tabular-nums text-gold">{money(m.reembolso)}</span>
+                        <span className="w-12 text-right font-mono text-xs tabular-nums text-txtDim">{percent(m.share)}</span>
+                      </span>
+                    </div>
+                    <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-line/40">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(m.share / maxShare) * 100}%` }}
+                        transition={{ duration: 0.6, ease: EASE, delay: 0.05 * i }}
+                        className="h-full rounded-full bg-gold"
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </GlowCard>
+        </Ocultavel>
       </div>
     </Screen>
   );

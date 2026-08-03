@@ -6,6 +6,8 @@ import type { Compra, CompraStatus } from "../calc/types";
 import { Field, inputClass, NumberInput, TextInput } from "../components/Field";
 import { GlowCard } from "../components/GlowCard";
 import { MetricTile } from "../components/MetricTile";
+import { ExibicaoMenu } from "../components/ExibicaoMenu";
+import { Ocultavel, type CardRegistrado } from "../components/Ocultavel";
 import { Screen } from "../components/Screen";
 import { Tooltip } from "../components/Tooltip";
 import { date as fmtDate, datetime, money, number, percent } from "../i18n/format";
@@ -17,6 +19,12 @@ import { useStore } from "../store/useStore";
 // Compras = the stock purchase ledger (idea #3). Received purchases feed the derived stock
 // (see `estoqueProdutos`); the unit cost paid is kept per purchase and only copied onto the
 // product when the user asks — never silently, since custoUnit drives every margin.
+
+/** Blocks the user can hide to focus on the ledger alone. */
+const CARDS: CardRegistrado[] = [
+  { id: "compras.kpis", label: "Indicadores do topo" },
+  { id: "compras.resumo", label: "Resumo por fornecedor" },
+];
 
 const STATUS: Record<CompraStatus, { label: string; cls: string }> = {
   pedida: { label: "Pedida", cls: "text-amber border-amber/40 bg-amberSoft" },
@@ -223,12 +231,15 @@ export function Compras() {
       title="Compras"
       subtitle="Reposição de estoque — o que foi comprado, quanto custou e o que já chegou. As compras recebidas entram no estoque."
       actions={
-        <button
-          onClick={() => (showForm ? setShowForm(false) : abrirNovo())}
+        <div className="flex items-center gap-2">
+          <ExibicaoMenu cards={CARDS} />
+          <button
+            onClick={() => (showForm ? setShowForm(false) : abrirNovo())}
           className="flex items-center gap-2 rounded-chip border border-lineStrong bg-greenSoft px-4 py-2.5 font-mono text-sm text-txt transition-opacity hover:opacity-90"
         >
-          {showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? "Fechar" : "Registrar compra"}
-        </button>
+            {showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? "Fechar" : "Registrar compra"}
+          </button>
+        </div>
       }
     >
       {showForm && (
@@ -345,12 +356,14 @@ export function Compras() {
       )}
 
       {/* summary (reflects the current filters) */}
-      <div className="mb-4 grid grid-cols-12 gap-4">
+      <Ocultavel id="compras.kpis" label="Indicadores do topo" className="mb-4 block">
+        <div className="grid grid-cols-12 gap-4">
         <MetricTile dense label="Investido" value={resumo.investido} format={money} icon={Coins} accent="gold" footnote="Produtos + frete + outros custos" className="col-span-6 lg:col-span-3" />
         <MetricTile dense label="Unidades compradas" value={resumo.unidades} format={(v) => number(v)} icon={ShoppingCart} footnote={`${resumo.pedidos} compra(s)`} className="col-span-6 lg:col-span-3" delay={0.05} />
         <MetricTile dense label="Já recebidas" value={resumo.recebidas} format={(v) => number(v)} icon={PackageCheck} accent="green" footnote="Compras que entraram no estoque" className="col-span-6 lg:col-span-3" delay={0.1} />
         <MetricTile dense label="A caminho" value={resumo.aCaminho} format={(v) => number(v)} icon={Truck} accent="red" footnote={`${resumo.pendentes} compra(s) pendente(s), em unidades`} className="col-span-6 lg:col-span-3" delay={0.15} />
-      </div>
+        </div>
+      </Ocultavel>
 
       {/* filters */}
       <div className="mb-4 flex flex-wrap items-end gap-3">
@@ -395,38 +408,8 @@ export function Compras() {
       </div>
 
       <div className="grid grid-cols-12 gap-4">
-        {/* spend per supplier */}
-        <GlowCard className="col-span-12 lg:col-span-4">
-          <span className="font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">Por fornecedor</span>
-          {porFornecedor.length === 0 ? (
-            <p className="py-8 text-center text-sm text-txtDim">Nenhuma compra no filtro atual.</p>
-          ) : (
-            <ul className="mt-3 flex flex-col gap-2.5">
-              {porFornecedor.map((f, i) => (
-                <li key={f.fornecedor}>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="truncate text-sm text-txt">{f.fornecedor}</span>
-                    <span className="flex shrink-0 items-baseline gap-3">
-                      <span className="font-mono text-sm tabular-nums text-gold">{money(f.investido)}</span>
-                      <span className="w-12 text-right font-mono text-xs tabular-nums text-txtDim">{percent(f.share)}</span>
-                    </span>
-                  </div>
-                  <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-line/40">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(f.share / maxShare) * 100}%` }}
-                      transition={{ duration: 0.6, ease: EASE, delay: 0.05 * i }}
-                      className="h-full rounded-full bg-gold"
-                    />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </GlowCard>
-
-        {/* ledger */}
-        <GlowCard className="col-span-12 overflow-hidden p-0 lg:col-span-8">
+        {/* the ledger owns the full width — it's what this page is for */}
+        <GlowCard className="col-span-12 overflow-hidden p-0">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left">
               <thead>
@@ -510,6 +493,37 @@ export function Compras() {
             </table>
           </div>
         </GlowCard>
+
+        <Ocultavel id="compras.resumo" label="Resumo por fornecedor" className="col-span-12">
+            <GlowCard className="h-full">
+            <span className="font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">Por fornecedor</span>
+            {porFornecedor.length === 0 ? (
+              <p className="py-8 text-center text-sm text-txtDim">Nenhuma compra no filtro atual.</p>
+            ) : (
+              <ul className="mt-3 grid grid-cols-1 gap-x-8 gap-y-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                {porFornecedor.map((f, i) => (
+                  <li key={f.fornecedor}>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="truncate text-sm text-txt">{f.fornecedor}</span>
+                      <span className="flex shrink-0 items-baseline gap-3">
+                        <span className="font-mono text-sm tabular-nums text-gold">{money(f.investido)}</span>
+                        <span className="w-12 text-right font-mono text-xs tabular-nums text-txtDim">{percent(f.share)}</span>
+                      </span>
+                    </div>
+                    <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-line/40">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(f.share / maxShare) * 100}%` }}
+                        transition={{ duration: 0.6, ease: EASE, delay: 0.05 * i }}
+                        className="h-full rounded-full bg-gold"
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            </GlowCard>
+          </Ocultavel>
       </div>
     </Screen>
   );
