@@ -465,8 +465,20 @@ export function Devolucoes() {
             <table className="w-full border-collapse text-left">
               <thead>
                 <tr className="border-b border-line">
-                  {["Data", "Produto", "Pedido", "Qtd", "Motivo", "Status", "Reembolso", "Estoque", ""].map((h) => (
-                    <th key={h} className="whitespace-nowrap px-4 py-3 font-mono text-[10px] uppercase tracking-[0.12em] text-txtFaint">
+                  {/* secondary columns drop out when the window is narrow, so the ledger never
+                      needs a horizontal scroll — the data is still searchable and in the form */}
+                  {[
+                    { h: "Data", cls: "" },
+                    { h: "Produto", cls: "" },
+                    { h: "Pedido", cls: "hidden xl:table-cell" },
+                    { h: "Qtd", cls: "" },
+                    { h: "Motivo", cls: "hidden xl:table-cell" },
+                    { h: "Status", cls: "" },
+                    { h: "Reembolso", cls: "" },
+                    { h: "Estoque", cls: "" },
+                    { h: "", cls: "" },
+                  ].map(({ h, cls }) => (
+                    <th key={h} className={`whitespace-nowrap px-3 py-3 font-mono text-[10px] uppercase tracking-[0.12em] text-txtFaint ${cls}`}>
                       {h}
                     </th>
                   ))}
@@ -475,23 +487,27 @@ export function Devolucoes() {
               <tbody>
                 {linhas.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center text-sm text-txtDim">
+                    <td colSpan={9} className="px-3 py-12 text-center text-sm text-txtDim">
                       Nenhuma devolução encontrada.
                     </td>
                   </tr>
                 ) : (
                   linhas.map((r) => (
                     <tr key={r.id} className="border-b border-line/60 transition-colors hover:bg-greenSoft/20">
-                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-txtDim">{datetime(r.data)}</td>
-                      <td className="px-4 py-3 text-sm text-txt">
-                        {r.produtoNome}
+                      <td className="whitespace-nowrap px-3 py-3 font-mono text-xs text-txtDim">
+                        {/* just the date when space is tight; full timestamp on wide screens */}
+                        <span className="xl:hidden">{fmtDate(r.data)}</span>
+                        <span className="hidden xl:inline">{datetime(r.data)}</span>
+                      </td>
+                      <td className="max-w-[140px] px-3 py-3 text-sm text-txt xl:max-w-[200px]">
+                        <span className="block truncate">{r.produtoNome}</span>
                         {!r.produtoId && <span className="ml-2 font-mono text-[10px] text-gold">avulsa</span>}
                         {r.cliente && <span className="block font-mono text-[11px] text-txtFaint">{r.cliente}</span>}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-txtDim">{r.numeroPedido ?? "—"}</td>
-                      <td className="px-4 py-3 font-mono text-sm tabular-nums text-txtDim">{r.quantidade}</td>
-                      <td className="px-4 py-3">
-                        <span className="rounded-full border border-line px-2.5 py-1 font-mono text-[10px] text-txtDim">
+                      <td className="hidden whitespace-nowrap px-3 py-3 font-mono text-xs text-txtDim xl:table-cell">{r.numeroPedido ?? "—"}</td>
+                      <td className="px-3 py-3 font-mono text-sm tabular-nums text-txtDim">{r.quantidade}</td>
+                      <td className="hidden px-3 py-3 xl:table-cell">
+                        <span className="whitespace-nowrap rounded-full border border-line px-2.5 py-1 font-mono text-[10px] text-txtDim">
                           {MOTIVO_LABEL[r.motivo]}
                         </span>
                       </td>
@@ -500,8 +516,8 @@ export function Devolucoes() {
                           {STATUS[r.status].label}
                         </span>
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 font-mono text-sm tabular-nums text-gold">{money(r.valorReembolsado)}</td>
-                      <td className="px-4 py-3">
+                      <td className="whitespace-nowrap px-3 py-3 font-mono text-sm tabular-nums text-gold">{money(r.valorReembolsado)}</td>
+                      <td className="px-3 py-3">
                         {r.reestocado ? (
                           <span className="inline-flex flex-col gap-0.5">
                             <span className="inline-flex items-center gap-1 font-mono text-[11px] text-green">
@@ -515,7 +531,7 @@ export function Devolucoes() {
                           <span className="font-mono text-[11px] text-danger">perda</span>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-3">
                         <div className="flex items-center gap-3">
                           <button onClick={() => editar(r)} className="text-txtDim transition-colors hover:text-green" title="Editar">
                             <Pencil size={15} />

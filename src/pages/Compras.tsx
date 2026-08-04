@@ -416,8 +416,19 @@ export function Compras() {
             <table className="w-full border-collapse text-left">
               <thead>
                 <tr className="border-b border-line">
-                  {["Data", "Produto", "Qtd", "Custo/un", "Total", "Status", "Nota", ""].map((h) => (
-                    <th key={h} className="whitespace-nowrap px-3 py-3 font-mono text-[10px] uppercase tracking-[0.12em] text-txtFaint">
+                  {/* secondary columns drop out when the window is narrow, so the ledger never
+                      needs a horizontal scroll — the data is still searchable and in the form */}
+                  {[
+                    { h: "Data", cls: "" },
+                    { h: "Produto", cls: "" },
+                    { h: "Qtd", cls: "" },
+                    { h: "Custo/un", cls: "hidden xl:table-cell" },
+                    { h: "Total", cls: "" },
+                    { h: "Status", cls: "" },
+                    { h: "Nota", cls: "hidden xl:table-cell" },
+                    { h: "", cls: "" },
+                  ].map(({ h, cls }) => (
+                    <th key={h} className={`whitespace-nowrap px-3 py-3 font-mono text-[10px] uppercase tracking-[0.12em] text-txtFaint ${cls}`}>
                       {h}
                     </th>
                   ))}
@@ -426,7 +437,7 @@ export function Compras() {
               <tbody>
                 {linhas.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-sm text-txtDim">
+                    <td colSpan={8} className="px-3 py-12 text-center text-sm text-txtDim">
                       Nenhuma compra encontrada.
                     </td>
                   </tr>
@@ -442,12 +453,12 @@ export function Compras() {
                             <span className="block text-[10px] text-txtFaint">chegou {fmtDate(c.dataRecebimento)}</span>
                           )}
                         </td>
-                        <td className="max-w-[190px] px-3 py-3 text-sm text-txt">
+                        <td className="max-w-[140px] px-3 py-3 text-sm text-txt xl:max-w-[190px]">
                           <span className="block truncate">{c.produtoNome}</span>
                           {c.fornecedor && <span className="block font-mono text-[11px] text-txtFaint">{c.fornecedor}</span>}
                         </td>
                         <td className="px-3 py-3 font-mono text-sm tabular-nums text-txtDim">{number(c.quantidade)}</td>
-                        <td className="whitespace-nowrap px-3 py-3 font-mono text-sm tabular-nums text-txt">
+                        <td className="hidden whitespace-nowrap px-3 py-3 font-mono text-sm tabular-nums text-txt xl:table-cell">
                           {money(c.custoUnit)}
                           {custoDiferente && (
                             <span className="block text-[10px] text-amber">≠ {money(prod!.custoUnit)}</span>
@@ -461,7 +472,7 @@ export function Compras() {
                             {STATUS[c.status].label}
                           </span>
                         </td>
-                        <td className="whitespace-nowrap px-3 py-3 font-mono text-xs text-txtDim">{c.numeroNota ?? "—"}</td>
+                        <td className="hidden whitespace-nowrap px-3 py-3 font-mono text-xs text-txtDim xl:table-cell">{c.numeroNota ?? "—"}</td>
                         <td className="px-3 py-3">
                           <div className="flex items-center gap-3">
                             {custoDiferente && (
