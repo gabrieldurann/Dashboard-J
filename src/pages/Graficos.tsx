@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import {
+  ABC_CORTE_A,
+  ABC_CORTE_B,
   curvaABC,
   desempenhoProdutos,
   devolucoesPorMotivo,
@@ -17,7 +19,6 @@ import { DonutChart } from "../components/DonutChart";
 import { inputClass } from "../components/Field";
 import { GlowCard } from "../components/GlowCard";
 import { MultiAreaChart } from "../components/MultiAreaChart";
-import { ParetoChart } from "../components/ParetoChart";
 import { RadialGauge } from "../components/RadialGauge";
 import { Screen } from "../components/Screen";
 import { money, percent } from "../i18n/format";
@@ -55,9 +56,9 @@ const ROTULO_ABC: Record<ClasseABC, string> = {
   C: "marginais",
   Z: "sem venda",
 };
-const CORTES_ABC = [
-  { share: 0.8, label: "80% · A" },
-  { share: 0.95, label: "95% · B" },
+const CORTES_ABC = (total: number) => [
+  { valor: total * ABC_CORTE_A, label: "80% · fim do A" },
+  { valor: total * ABC_CORTE_B, label: "95% · fim do B" },
 ];
 
 /** Card shell with a heading + optional one-line explainer, so every chart reads the same. */
@@ -146,14 +147,23 @@ export function Graficos() {
   // ── ABC: which products the business actually depends on ──
   const abc = useMemo(() => curvaABC(filtradas, produtos, cfg), [filtradas, produtos, cfg]);
   const resumoAbc = useMemo(() => resumoABC(abc), [abc]);
-  const paretoItens = abc.map((l) => ({
-    id: l.produtoId,
-    nome: l.nome,
-    valor: l.bruto,
-    acumulado: l.acumulado,
-    classe: l.classe,
-    cor: CORES_ABC(cores)[l.classe],
-  }));
+  // Class Z has no revenue, so it has no place on a revenue curve — it's read off the card beside it.
+  const abcComVenda = abc.filter((l) => l.bruto > 0);
+  const abcTotal = abcComVenda.reduce((s, l) => s + l.bruto, 0);
+  // Both series are in R$ so they share the chart's one scale honestly: the cumulative climbs to
+  // the total while the per-product line falls away — the concentration is the gap between them.
+  const abcSeries = [
+    {
+      nome: "Acumulado",
+      cor: cores.green,
+      valores: abcComVenda.map((l) => l.acumulado * abcTotal),
+    },
+    {
+      nome: "Faturamento do produto",
+      cor: cores.sky,
+      valores: abcComVenda.map((l) => l.bruto),
+    },
+  ];
 
   // ── channels & returns ──
   const porCanal = useMemo(() => vendasPorCanal(filtradas), [filtradas]);
@@ -286,11 +296,21 @@ export function Graficos() {
         {/* ABC — how concentrated the business is */}
         <Grafico
           titulo="Curva ABC"
-          legenda="Barras = faturamento por produto · linha = acumulado · A carrega os primeiros 80%"
+          legenda="Produtos do maior para o menor · onde o acumulado cruza 80% termina a classe A"
           className="col-span-12 lg:col-span-7"
           delay={0.28}
         >
-          <ParetoChart itens={paretoItens} cortes={CORTES_ABC} />
+          {abcComVenda.length > 0 ? (
+            <MultiAreaChart
+              labels={abcComVenda.map((l) => `${l.nome} · classe ${l.classe}`)}
+              labelsEixo={abcComVenda.map((l) => l.classe)}
+              series={abcSeries}
+              cortes={CORTES_ABC(abcTotal)}
+              format={money}
+            />
+          ) : (
+            <p className="py-8 text-center text-sm text-txtDim">Sem vendas no filtro atual.</p>
+          )}
         </Grafico>
 
         <Grafico

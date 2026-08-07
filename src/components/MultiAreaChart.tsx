@@ -16,12 +16,19 @@ export type Serie = {
 
 export function MultiAreaChart({
   labels,
+  labelsEixo,
   series,
+  cortes = [],
   format,
   height = 220,
 }: {
+  /** One per point. Shown in the tooltip, and on the axis unless `labelsEixo` is given. */
   labels: string[];
+  /** Compact axis labels for when `labels` are too long to sit under the chart. */
+  labelsEixo?: string[];
   series: Serie[];
+  /** Dashed horizontal reference lines, in the same unit as the series (e.g. ABC cut-offs). */
+  cortes?: { valor: number; label: string }[];
   format: (v: number) => string;
   height?: number;
 }) {
@@ -91,6 +98,19 @@ export function MultiAreaChart({
               </linearGradient>
             ))}
           </defs>
+          {cortes.map((c) => (
+            <line
+              key={c.label}
+              x1="0"
+              x2="100"
+              y1={yPct(c.valor)}
+              y2={yPct(c.valor)}
+              stroke="var(--c-line-strong)"
+              strokeWidth="1"
+              strokeDasharray="3 3"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
           {visiveis.map((s, si) => {
             const coords = s.valores.map((v, i) => ({ x: xPct(i), y: yPct(v) }));
             const line = smoothPath(coords);
@@ -120,6 +140,16 @@ export function MultiAreaChart({
             );
           })}
         </svg>
+
+        {cortes.map((c) => (
+          <span
+            key={c.label}
+            className="pointer-events-none absolute right-0 -translate-y-full pr-0.5 font-mono text-[10px] text-txtFaint"
+            style={{ top: `${yPct(c.valor)}%` }}
+          >
+            {c.label}
+          </span>
+        ))}
 
         {/* hover guide + a dot per visible series */}
         {hover !== null && (
@@ -170,7 +200,7 @@ export function MultiAreaChart({
 
       {/* x-axis labels */}
       <div className="mt-2 flex justify-between">
-        {labels.map((l, i) => (
+        {(labelsEixo ?? labels).map((l, i) => (
           <span
             key={i}
             className={`font-mono text-[10px] uppercase tracking-[0.08em] ${hover === i ? "text-txt" : "text-txtFaint"}`}
