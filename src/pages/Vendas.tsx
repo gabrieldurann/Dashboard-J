@@ -1,11 +1,17 @@
-import { Coins, Package, Pencil, Plus, Receipt, Save, Search, Trash2, X } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import { ChevronDown, Coins, Package, Pencil, Plus, Receipt, Save, Search, Trash2, X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { detalharVenda } from "../calc/engine";
 import type { Venda, VendaStatus } from "../calc/types";
+import { CascataVenda } from "../components/CascataVenda";
 import { Field, inputClass, NumberInput, TextInput } from "../components/Field";
 import { GlowCard } from "../components/GlowCard";
 import { MetricTile } from "../components/MetricTile";
 import { Screen } from "../components/Screen";
-import { datetime, money } from "../i18n/format";
+import { date, datetime, money, percent } from "../i18n/format";
+import { EASE } from "../theme/tokens";
+import { useStatusCores } from "../theme/useCores";
+import { useConfig } from "../store/useConfig";
 import { useStore } from "../store/useStore";
 import { confirmAction } from "../store/useConfirm";
 import { toast } from "../store/useToast";
@@ -18,6 +24,26 @@ const STATUS: Record<VendaStatus, { label: string; cls: string }> = {
   cancelado: { label: "Cancelado", cls: "text-txtDim border-lineStrong bg-neutroSoft" },
 };
 const STATUS_KEYS = Object.keys(STATUS) as VendaStatus[];
+
+/**
+ * Ledger columns, staged by width. The collapsed row carries the money; everything else lives in
+ * the expanded panel, which is why columns can be dropped as space runs out without losing data.
+ * Nº do pedido and Código are panel-only (still searchable) — with 14 columns the table could not
+ * fit any realistic window. See the layout notes in PLAN.md.
+ */
+const COLUNAS: { k: string; label: string; cls?: string }[] = [
+  { k: "chevron", label: "" },
+  { k: "data", label: "Data" },
+  { k: "produto", label: "Produto" },
+  { k: "qtd", label: "Qtd", cls: "hidden xl:table-cell" },
+  { k: "total", label: "Total" },
+  { k: "lucro", label: "Lucro" },
+  { k: "margem", label: "Margem" },
+  { k: "canal", label: "Canal", cls: "hidden xl:table-cell" },
+  { k: "status", label: "Status" },
+  { k: "pais", label: "País", cls: "hidden xl:table-cell" },
+  { k: "acoes", label: "" },
+];
 
 const nowLocal = () => {
   const d = new Date();
@@ -68,6 +94,8 @@ const emptyDraft = (): Draft => ({
 });
 
 export function Vendas() {
+  const cfg = useConfig();
+  const statusCores = useStatusCores();
   const vendas = useStore((s) => s.vendas);
   const produtos = useStore((s) => s.produtos);
   const addVenda = useStore((s) => s.addVenda);
@@ -76,6 +104,7 @@ export function Vendas() {
 
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [aberta, setAberta] = useState<string | null>(null); // expanded order (one at a time)
   const [d, setD] = useState<Draft>(emptyDraft);
 
   const [busca, setBusca] = useState("");
@@ -110,6 +139,12 @@ export function Vendas() {
       })
       .sort((a, b) => (a.data < b.data ? 1 : -1));
   }, [vendas, busca, fProduto, fStatus, fCanal, dataDe, dataAte]);
+
+  // Per-order waterfall for the visible rows. Same source as every total in the app.
+  const detalhes = useMemo(
+    () => new Map(linhas.map((v) => [v.id, detalharVenda(v, produtos, cfg)])),
+    [linhas, produtos, cfg],
+  );
 
   const totais = useMemo(() => {
     const receita = linhas.reduce((s, v) => s + v.valorTotal, 0);
@@ -416,15 +451,18 @@ export function Vendas() {
         )}
       </div>
 
-      {/* table */}
+      {/* table — click a row to open its profit waterfall (Phase 10a) */}
       <GlowCard className="overflow-hidden p-0">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="border-b border-line">
-                {["Data", "Pedido", "Produto", "Código", "Qtd", "Total", "Canal", "Status", "Cliente", "País", "Entrega", ""].map((h) => (
-                  <th key={h} className="whitespace-nowrap px-4 py-3 font-mono text-[10px] uppercase tracking-[0.12em] text-txtFaint">
-                    {h}
+                {COLUNAS.map((c) => (
+                  <th
+                    key={c.k}
+                    className={`whitespace-nowrap px-2 py-3 font-mono text-[10px] uppercase tracking-[0.12em] text-txtFaint xl:px-3 ${c.cls ?? ""}`}
+                  >
+                    {c.label}
                   </th>
                 ))}
               </tr>
@@ -432,60 +470,162 @@ export function Vendas() {
             <tbody>
               {linhas.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-4 py-10 text-center text-sm text-txtDim">
+                  <td colSpan={COLUNAS.length} className="px-4 py-10 text-center text-sm text-txtDim">
                     Nenhuma venda encontrada.
                   </td>
                 </tr>
               ) : (
-                linhas.map((v) => (
-                  <tr key={v.id} className="border-b border-line/60 transition-colors hover:bg-greenSoft/20">
-                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-txtDim">{datetime(v.data)}</td>
-                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-txtDim">{v.numeroPedido ?? "—"}</td>
-                    <td className="px-4 py-3 text-sm text-txt">
-                      {v.produtoNome}
-                      {!v.produtoId && <span className="ml-2 font-mono text-[10px] text-gold">avulsa</span>}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-txtDim">{v.codigoProduto ?? "—"}</td>
-                    <td className="px-4 py-3 font-mono text-sm tabular-nums text-txtDim">{v.quantidade}</td>
-                    <td className="whitespace-nowrap px-4 py-3 font-mono text-sm tabular-nums text-txt">{money(v.valorTotal)}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-txtDim">{v.canal ?? "—"}</td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] ${STATUS[v.status].cls}`}>
-                        {STATUS[v.status].label}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-txtDim">{v.cliente ?? "—"}</td>
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-txtDim">
-                      {v.pais ? (
-                        <span>
-                          <span className="mr-1.5">{paisFlag(v.pais)}</span>
-                          {paisNome(v.pais)}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-txtDim" title={[v.enderecoEntrega, v.cidade && `${v.cidade}/${v.uf ?? ""}`, v.cep].filter(Boolean).join(" · ")}>
-                      {v.cidade ? `${v.cidade}${v.uf ? "/" + v.uf : ""}` : v.enderecoEntrega ? "ver endereço" : "—"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <button onClick={() => editar(v)} className="text-txtDim transition-colors hover:text-green" title="Editar venda">
-                          <Pencil size={15} />
-                        </button>
-                        <button onClick={() => excluirVenda(v)} className="text-txtDim transition-colors hover:text-danger" title="Excluir venda">
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                linhas.map((v) => {
+                  const det = detalhes.get(v.id)!;
+                  const aberto = aberta === v.id;
+                  const produto = v.produtoId ? produtos.find((p) => p.id === v.produtoId) : undefined;
+                  return (
+                    <Fragment key={v.id}>
+                      <tr
+                        onClick={() => setAberta(aberto ? null : v.id)}
+                        className={`cursor-pointer border-b border-line/60 transition-colors hover:bg-greenSoft/20 ${aberto ? "bg-greenSoft/20" : ""}`}
+                      >
+                        <td className="px-2 py-3">
+                          <motion.span
+                            animate={{ rotate: aberto ? 180 : 0 }}
+                            transition={{ duration: 0.2, ease: EASE }}
+                            className="flex text-txtFaint"
+                          >
+                            <ChevronDown size={16} />
+                          </motion.span>
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-3 xl:px-3 font-mono text-xs text-txtDim">
+{date(v.data)}
+                        </td>
+                        <td className="max-w-[110px] truncate px-2 py-3 text-sm text-txt xl:max-w-[135px] xl:px-3" title={v.produtoNome}>
+                          {v.produtoNome}
+                          {!v.produtoId && <span className="ml-2 font-mono text-[10px] text-gold">avulsa</span>}
+                        </td>
+                        <td className="hidden px-2 py-3 xl:px-3 font-mono text-sm tabular-nums text-txtDim xl:table-cell">{v.quantidade}</td>
+                        <td className="whitespace-nowrap px-2 py-3 xl:px-3 font-mono text-sm tabular-nums text-txt">{money(v.valorTotal)}</td>
+                        <td className="whitespace-nowrap px-2 py-3 xl:px-3 font-mono text-sm tabular-nums">
+                          {det.atribuido ? (
+                            <span style={{ color: statusCores[det.statusCor] }}>{money(det.lucro)}</span>
+                          ) : (
+                            <span className="text-txtFaint" title="Venda avulsa — sem custo atribuído">—</span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-3 xl:px-3 font-mono text-sm tabular-nums">
+                          {det.atribuido ? (
+                            <span style={{ color: statusCores[det.statusCor] }}>{percent(det.margem)}</span>
+                          ) : (
+                            <span className="text-txtFaint">—</span>
+                          )}
+                        </td>
+                        <td className="hidden whitespace-nowrap px-2 py-3 xl:px-3 text-sm text-txtDim xl:table-cell">{v.canal ?? "—"}</td>
+                        <td className="px-2 py-3 xl:px-3">
+                          <span className={`whitespace-nowrap rounded-full border px-2.5 py-1 font-mono text-[10px] ${STATUS[v.status].cls}`}>
+                            {STATUS[v.status].label}
+                          </span>
+                        </td>
+                        <td className="hidden max-w-[140px] truncate px-2 py-3 text-sm text-txtDim 2xl:table-cell xl:px-3">{v.cliente ?? "—"}</td>
+                        <td className="hidden whitespace-nowrap px-2 py-3 xl:px-3 text-sm text-txtDim xl:table-cell">
+                          {v.pais ? (
+                            <span title={paisNome(v.pais)}>
+                              {paisFlag(v.pais)}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className="px-2 py-3 xl:px-3" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center gap-3">
+                            <button onClick={() => editar(v)} className="text-txtDim transition-colors hover:text-green" title="Editar venda">
+                              <Pencil size={15} />
+                            </button>
+                            <button onClick={() => excluirVenda(v)} className="text-txtDim transition-colors hover:text-danger" title="Excluir venda">
+                              <Trash2 size={15} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      <AnimatePresence initial={false}>
+                        {aberto && (
+                          <tr>
+                            <td colSpan={COLUNAS.length} className="p-0">
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.28, ease: EASE }}
+                                className="overflow-hidden border-b border-line/60 bg-bgRaise/40"
+                              >
+                                <div className="grid gap-6 px-4 py-5 lg:grid-cols-2">
+                                  <div className="flex flex-col gap-3">
+                                    <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-txtFaint">
+                                      Dados do pedido
+                                    </span>
+                                    <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5">
+                                      <Dado termo="Data de criação" valor={datetime(v.data)} />
+                                      <Dado termo="Nº do pedido" valor={v.numeroPedido} />
+                                      <Dado termo="Quantidade" valor={`${v.quantidade} × ${money(v.valorUnitario)}`} />
+                                      <Dado termo="Canal" valor={v.canal} />
+                                      <Dado termo="Código" valor={v.codigoProduto} />
+                                      <Dado termo="ASIN" valor={produto?.asin} />
+                                      <Dado termo="EAN" valor={produto?.ean} />
+                                      <Dado termo="Cliente" valor={v.cliente} />
+                                      <Dado
+                                        termo="País"
+                                        valor={v.pais ? `${paisFlag(v.pais)} ${paisNome(v.pais)}` : undefined}
+                                      />
+                                    </dl>
+                                    {(v.enderecoEntrega || v.cidade || v.cep) && (
+                                      <dl className="grid grid-cols-1 gap-2.5">
+                                        <Dado
+                                          termo="Entrega"
+                                          valor={[v.enderecoEntrega, v.cidade && `${v.cidade}${v.uf ? "/" + v.uf : ""}`, v.cep]
+                                            .filter(Boolean)
+                                            .join(" · ")}
+                                        />
+                                      </dl>
+                                    )}
+                                    {v.observacao && (
+                                      <p className="rounded-chip bg-panel px-3 py-2 text-xs leading-relaxed text-txtDim">
+                                        {v.observacao}
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  <div className="flex flex-col gap-3">
+                                    <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-txtFaint">
+                                      Composição do lucro
+                                    </span>
+                                    <CascataVenda detalhe={det} />
+                                  </div>
+                                </div>
+                              </motion.div>
+                            </td>
+                          </tr>
+                        )}
+                      </AnimatePresence>
+                    </Fragment>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </GlowCard>
     </Screen>
+  );
+}
+
+/** One term/value pair of the expanded order's metadata. Renders nothing when there's no value. */
+function Dado({ termo, valor }: { termo: string; valor?: string }) {
+  if (!valor) return null;
+  return (
+    <div className="min-w-0">
+      <dt className="font-mono text-[10px] uppercase tracking-[0.1em] text-txtFaint">{termo}</dt>
+      <dd className="truncate text-sm text-txt" title={valor}>
+        {valor}
+      </dd>
+    </div>
   );
 }
 

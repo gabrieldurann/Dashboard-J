@@ -373,6 +373,112 @@ export type ResultadoVendas = {
   lucro: number; // líquido — o que sobra no bolso
 };
 
+// ─── Per-order breakdown (Phase 10a, Gestor Seller idea #2) ───
+// The Vendas page expands one sale into a waterfall: what came in, what each deduction took,
+// and what was left. `resultadoVendas` below is the sum of these, so the per-order figures and
+// every total in the app (Painel, Gráficos, Relatórios) come from ONE definition of "lucro".
+
+/** One signed row of the per-order waterfall. `valor` is always positive; `tipo` gives it a sign. */
+export type LinhaCascata = {
+  chave: string;
+  label: string;
+  /** Longer note shown under the label (e.g. the rate or unit maths behind the figure). */
+  nota?: string;
+  valor: number;
+  tipo: "entrada" | "saida";
+};
+
+export type DetalheVenda = {
+  bruto: number;
+  imposto: number;
+  comissao: number;
+  custo: number;
+  embalagem: number;
+  frete: number;
+  lucro: number;
+  margem: number; // lucro ÷ bruto
+  statusCor: StatusCor;
+  /** false = avulsa or a `produtoId` with no matching product → only the gross is knowable. */
+  atribuido: boolean;
+  /** false = cancelled → shown, but excluded from every total in the app. */
+  contabilizado: boolean;
+  /** Deduction rows, zero-valued ones omitted. Empty when `atribuido` is false. */
+  linhas: LinhaCascata[];
+};
+
+/**
+ * Break a single sale into its profit waterfall. Mirrors `resultadoVendas` exactly (it is built
+ * from this), so an expanded order always reconciles with the page totals.
+ *
+ * A sale with no matching catalog product (`avulsa`) has no cost basis, so it reports the gross
+ * with `atribuido: false` and a zero lucro — it must not inflate profit with pure revenue.
+ */
+export function detalharVenda(
+  venda: Venda,
+  produtos: Produto[],
+  cfg: Configuracoes = CONFIG_PADRAO,
+): DetalheVenda {
+  const bruto = venda.valorTotal;
+  const contabilizado = venda.status !== "cancelado";
+  const p = venda.produtoId ? produtos.find((x) => x.id === venda.produtoId) : undefined;
+
+  const vazio: DetalheVenda = {
+    bruto,
+    imposto: 0,
+    comissao: 0,
+    custo: 0,
+    embalagem: 0,
+    frete: 0,
+    lucro: 0,
+    margem: 0,
+    statusCor: statusCor(0, cfg),
+    atribuido: false,
+    contabilizado,
+    linhas: [],
+  };
+  if (!p) return vazio;
+
+  const taxaImposto = p.imposto ?? cfg.imposto;
+  const taxaComissao = p.comissao ?? cfg.comissao;
+  const imposto = bruto * taxaImposto;
+  const comissao = bruto * taxaComissao;
+  const custo = p.custoUnit * venda.quantidade;
+  const frete = venda.frete ?? freteUnitario(p.precoVenda, cfg.freteUnit, cfg.freteGratisAcima) * venda.quantidade;
+  const embalagem = (p.custoEmbalagem ?? 0) * venda.quantidade;
+  const lucro = bruto - imposto - comissao - custo - frete - embalagem;
+  const margem = bruto > 0 ? lucro / bruto : 0;
+
+  const pct = (n: number) => `${(n * 100).toFixed(n * 100 % 1 === 0 ? 0 : 1).replace(".", ",")}%`;
+  const porUnidade = (unit: number) =>
+    venda.quantidade > 1 ? `${venda.quantidade} × ${unit.toFixed(2).replace(".", ",")}` : undefined;
+
+  const todas: LinhaCascata[] = [
+    { chave: "itens", label: "Total dos itens", nota: porUnidade(venda.valorUnitario), valor: bruto, tipo: "entrada" },
+    { chave: "imposto", label: "Imposto", nota: pct(taxaImposto), valor: imposto, tipo: "saida" },
+    { chave: "comissao", label: "Comissão do canal", nota: pct(taxaComissao), valor: comissao, tipo: "saida" },
+    { chave: "custo", label: "Custo dos produtos", nota: porUnidade(p.custoUnit), valor: custo, tipo: "saida" },
+    { chave: "embalagem", label: "Embalagem", nota: porUnidade(p.custoEmbalagem ?? 0), valor: embalagem, tipo: "saida" },
+    { chave: "frete", label: "Frete", nota: venda.frete === undefined ? "pela regra do produto" : undefined, valor: frete, tipo: "saida" },
+  ];
+  // zero-valued deductions are noise — drop them, but always keep the gross line
+  const linhas = todas.filter((l) => l.chave === "itens" || l.valor > 0);
+
+  return {
+    bruto,
+    imposto,
+    comissao,
+    custo,
+    embalagem,
+    frete,
+    lucro,
+    margem,
+    statusCor: statusCor(margem, cfg),
+    atribuido: true,
+    contabilizado,
+    linhas,
+  };
+}
+
 /**
  * Realized financials for a set of sales, joined to their catalog products (cancelled excluded).
  * Per sale: imposto & comissão are % of revenue (the product's rates), custo = custoUnit × qtd,
@@ -384,23 +490,16 @@ export function resultadoVendas(
   produtos: Produto[],
   cfg: Configuracoes = CONFIG_PADRAO,
 ): ResultadoVendas {
-  const porId = new Map(produtos.map((p) => [p.id, p]));
   const r: ResultadoVendas = { bruto: 0, custo: 0, imposto: 0, comissao: 0, frete: 0, lucro: 0 };
   for (const v of vendas) {
     if (v.status === "cancelado") continue;
-    r.bruto += v.valorTotal;
-    const p = v.produtoId ? porId.get(v.produtoId) : undefined;
-    if (!p) continue; // avulsa / sem produto → conta só no bruto
-    const imposto = v.valorTotal * (p.imposto ?? cfg.imposto);
-    const comissao = v.valorTotal * (p.comissao ?? cfg.comissao);
-    const custo = p.custoUnit * v.quantidade;
-    const frete = v.frete ?? freteUnitario(p.precoVenda, cfg.freteUnit, cfg.freteGratisAcima) * v.quantidade;
-    const embalagem = (p.custoEmbalagem ?? 0) * v.quantidade;
-    r.imposto += imposto;
-    r.comissao += comissao;
-    r.custo += custo;
-    r.frete += frete;
-    r.lucro += v.valorTotal - imposto - comissao - custo - frete - embalagem;
+    const d = detalharVenda(v, produtos, cfg);
+    r.bruto += d.bruto;
+    r.imposto += d.imposto;
+    r.comissao += d.comissao;
+    r.custo += d.custo;
+    r.frete += d.frete;
+    r.lucro += d.lucro;
   }
   return r;
 }
@@ -459,6 +558,102 @@ export function desempenhoProdutos(
   return linhas
     .map((l) => ({ ...l, share: total > 0 ? l.bruto / total : 0 }))
     .sort((a, b) => b.bruto - a.bruto);
+}
+
+// ─── Curva ABC (Gestor Seller, Phase 10a) ───
+// A different lens from the margin health bands: bands ask "is this product healthy?", ABC asks
+// "how much does the business depend on it?". A product can be class A (carries the revenue) and
+// still be a red band (thin margin) — that combination is exactly what you want to spot.
+
+export type ClasseABC = "A" | "B" | "C" | "Z";
+
+/** Cumulative-revenue cut-offs: A carries the first 80%, B the next 15%, C the last 5%. */
+export const ABC_CORTE_A = 0.8;
+export const ABC_CORTE_B = 0.95;
+
+export type LinhaABC = {
+  produtoId: string;
+  nome: string;
+  unidades: number;
+  bruto: number;
+  lucro: number;
+  margem: number;
+  statusCor: StatusCor;
+  share: number; // this product's share of total revenue
+  acumulado: number; // cumulative share including this product
+  classe: ClasseABC;
+};
+
+/**
+ * Classifies products by how much of the revenue they carry, richest first (Pareto).
+ * Class is decided on the cumulative share *before* the product is added, which keeps the
+ * classes contiguous and always makes the best seller an A.
+ *
+ * Catalog products with no attributable revenue in the period are class **Z** — they only cost
+ * money (stock, listing effort) and are the first thing to question.
+ */
+export function curvaABC(
+  vendas: Venda[],
+  produtos: Produto[],
+  cfg: Configuracoes = CONFIG_PADRAO,
+): LinhaABC[] {
+  const desempenho = desempenhoProdutos(vendas, produtos, cfg); // already sorted by bruto desc
+  const total = desempenho.reduce((s, d) => s + d.bruto, 0);
+
+  let acumuladoAntes = 0;
+  const comVenda: LinhaABC[] = desempenho.map((d) => {
+    const share = total > 0 ? d.bruto / total : 0;
+    const classe: ClasseABC =
+      acumuladoAntes < ABC_CORTE_A ? "A" : acumuladoAntes < ABC_CORTE_B ? "B" : "C";
+    acumuladoAntes += share;
+    return {
+      produtoId: d.produtoId,
+      nome: d.nome,
+      unidades: d.unidades,
+      bruto: d.bruto,
+      lucro: d.lucro,
+      margem: d.margem,
+      statusCor: d.statusCor,
+      share,
+      acumulado: acumuladoAntes,
+      classe,
+    };
+  });
+
+  // catalog products that sold nothing — revenue 0, so they sit at the end as class Z
+  const vendeu = new Set(comVenda.map((l) => l.produtoId));
+  const zerados: LinhaABC[] = produtos
+    .filter((p) => !vendeu.has(p.id))
+    .map((p) => ({
+      produtoId: p.id,
+      nome: p.nome,
+      unidades: 0,
+      bruto: 0,
+      lucro: 0,
+      margem: 0,
+      statusCor: statusCor(0, cfg),
+      share: 0,
+      acumulado: comVenda.length > 0 ? 1 : 0,
+      classe: "Z" as const,
+    }));
+
+  return [...comVenda, ...zerados];
+}
+
+/** ABC rollup per class — how many products carry how much revenue and profit. */
+export function resumoABC(linhas: LinhaABC[]): { classe: ClasseABC; produtos: number; bruto: number; lucro: number; share: number }[] {
+  const total = linhas.reduce((s, l) => s + l.bruto, 0);
+  return (["A", "B", "C", "Z"] as ClasseABC[]).map((classe) => {
+    const doGrupo = linhas.filter((l) => l.classe === classe);
+    const bruto = doGrupo.reduce((s, l) => s + l.bruto, 0);
+    return {
+      classe,
+      produtos: doGrupo.length,
+      bruto,
+      lucro: doGrupo.reduce((s, l) => s + l.lucro, 0),
+      share: total > 0 ? bruto / total : 0,
+    };
+  });
 }
 
 /** Products split into the three health bands (idea #3), each list keeping its incoming order. */

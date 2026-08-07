@@ -18,6 +18,9 @@ import {
   resumoCompras,
   resumoDevolucoes,
   taxaDevolucao,
+  curvaABC,
+  detalharVenda,
+  resumoABC,
   totalOperacional,
   preencherMeses,
   precoParaMargem,
@@ -274,6 +277,136 @@ describe("resultadoVendas (realized financials, joined to products)", () => {
     );
     expect(r.bruto).toBe(150); // 100 + 50 (cancelled excluded)
     expect(r.custo).toBe(40); // only the matched, non-cancelled sale
+  });
+});
+
+describe("detalharVenda (per-order waterfall, Phase 10a)", () => {
+  const prod: Produto = {
+    id: "p1",
+    nome: "P",
+    precoVenda: 100,
+    vendasMes: 10,
+    custoUnit: 40,
+    qtdCaixa: 10,
+    imposto: 0.04,
+    comissao: 0.15,
+    custoEmbalagem: 1,
+  };
+
+  it("breaks one order into signed lines that reconcile to the profit", () => {
+    const d = detalharVenda(venda({ produtoId: "p1", quantidade: 2, valorTotal: 200, frete: 6 }), [prod]);
+    expect(d.imposto).toBeCloseTo(8, 6); // 200 × 0.04
+    expect(d.comissao).toBeCloseTo(30, 6); // 200 × 0.15
+    expect(d.custo).toBe(80); // 40 × 2
+    expect(d.embalagem).toBe(2); // 1 × 2
+    expect(d.frete).toBe(6);
+    expect(d.lucro).toBeCloseTo(74, 6); // 200 − 8 − 30 − 80 − 2 − 6
+    expect(d.margem).toBeCloseTo(0.37, 6);
+    expect(d.statusCor).toBe("verde");
+
+    // the rendered lines must add up to exactly the same profit
+    const soma = d.linhas.reduce((s, l) => s + (l.tipo === "entrada" ? l.valor : -l.valor), 0);
+    expect(soma).toBeCloseTo(d.lucro, 6);
+  });
+
+  it("omits zero-valued deductions but always keeps the gross line", () => {
+    const semExtras: Produto = { ...prod, custoEmbalagem: 0 };
+    const d = detalharVenda(venda({ produtoId: "p1", valorTotal: 100, frete: 0 }), [semExtras]);
+    expect(d.linhas.map((l) => l.chave)).toEqual(["itens", "imposto", "comissao", "custo"]);
+  });
+
+  it("falls back to the product's freight rule when the sale carries no frete", () => {
+    const barato: Produto = { ...prod, precoVenda: 50 }; // below the free-freight threshold
+    const d = detalharVenda(venda({ produtoId: "p1", quantidade: 2, valorTotal: 100 }), [barato]);
+    expect(d.frete).toBeCloseTo(CONFIG_PADRAO.freteUnit * 2, 6);
+  });
+
+  it("reports an avulsa as gross-only, never as profit", () => {
+    const d = detalharVenda(venda({ produtoId: undefined, valorTotal: 50 }), [prod]);
+    expect(d.atribuido).toBe(false);
+    expect(d.bruto).toBe(50);
+    expect(d.lucro).toBe(0);
+    expect(d.linhas).toEqual([]);
+  });
+
+  it("still details a cancelled order but flags it as not counted", () => {
+    const d = detalharVenda(venda({ produtoId: "p1", valorTotal: 100, status: "cancelado" }), [prod]);
+    expect(d.contabilizado).toBe(false);
+    expect(d.lucro).toBeGreaterThan(0); // the maths is shown…
+    expect(resultadoVendas([venda({ produtoId: "p1", valorTotal: 100, status: "cancelado" })], [prod]).lucro).toBe(0); // …but excluded from totals
+  });
+
+  it("sums to resultadoVendas across a mixed ledger", () => {
+    const vendas = [
+      venda({ produtoId: "p1", quantidade: 2, valorTotal: 200, frete: 6 }),
+      venda({ produtoId: "p1", quantidade: 1, valorTotal: 100, frete: 3 }),
+      venda({ produtoId: undefined, valorTotal: 50 }), // avulsa → gross only
+      venda({ produtoId: "p1", valorTotal: 900, status: "cancelado" }), // excluded
+    ];
+    const total = resultadoVendas(vendas, [prod]);
+    const somaDetalhes = vendas
+      .filter((v) => v.status !== "cancelado")
+      .map((v) => detalharVenda(v, [prod]));
+    expect(somaDetalhes.reduce((s, d) => s + d.lucro, 0)).toBeCloseTo(total.lucro, 6);
+    expect(somaDetalhes.reduce((s, d) => s + d.bruto, 0)).toBeCloseTo(total.bruto, 6);
+  });
+});
+
+describe("curvaABC (Gestor Seller ABC classification)", () => {
+  // revenue split 70 / 20 / 7 / 3. p1 alone is only 70%, so p2 is what carries the business past
+  // the 80% line and belongs in A too (the crossing item is included — standard Pareto).
+  const mk = (id: string, custo: number): Produto => ({
+    id, nome: id.toUpperCase(), precoVenda: 100, vendasMes: 0, custoUnit: custo, qtdCaixa: 10, imposto: 0.04, comissao: 0.15,
+  });
+  const prods = [mk("p1", 40), mk("p2", 40), mk("p3", 40), mk("p4", 40), mk("p5", 40)];
+  const vendas: Venda[] = [
+    venda({ produtoId: "p1", quantidade: 7, valorTotal: 700, frete: 0 }),
+    venda({ produtoId: "p2", quantidade: 2, valorTotal: 200, frete: 0 }),
+    venda({ produtoId: "p3", quantidade: 1, valorTotal: 70, frete: 0 }),
+    venda({ produtoId: "p4", quantidade: 1, valorTotal: 30, frete: 0 }),
+    // p5 never sold → class Z
+  ];
+
+  it("ranks by revenue and cuts the classes on cumulative share", () => {
+    const abc = curvaABC(vendas, prods);
+    expect(abc.map((l) => l.nome)).toEqual(["P1", "P2", "P3", "P4", "P5"]);
+    expect(abc.map((l) => l.classe)).toEqual(["A", "A", "B", "C", "Z"]);
+  });
+
+  it("accumulates share to 100% across the products that sold", () => {
+    const abc = curvaABC(vendas, prods);
+    expect(abc[0].share).toBeCloseTo(0.7, 6);
+    expect(abc[0].acumulado).toBeCloseTo(0.7, 6);
+    expect(abc[1].acumulado).toBeCloseTo(0.9, 6);
+    expect(abc[3].acumulado).toBeCloseTo(1, 6);
+  });
+
+  it("always makes the best seller class A, even when it alone exceeds 80%", () => {
+    const abc = curvaABC([venda({ produtoId: "p1", quantidade: 1, valorTotal: 1000, frete: 0 })], prods);
+    expect(abc[0].classe).toBe("A");
+  });
+
+  it("flags never-sold catalog products as Z with no revenue", () => {
+    const z = curvaABC(vendas, prods).find((l) => l.nome === "P5")!;
+    expect(z.classe).toBe("Z");
+    expect(z.bruto).toBe(0);
+    expect(z.unidades).toBe(0);
+  });
+
+  it("rolls up per class without losing revenue", () => {
+    const abc = curvaABC(vendas, prods);
+    const resumo = resumoABC(abc);
+    expect(resumo.map((r) => r.classe)).toEqual(["A", "B", "C", "Z"]);
+    expect(resumo.find((r) => r.classe === "A")!.produtos).toBe(2); // p1 + p2 carry 90%
+    expect(resumo.find((r) => r.classe === "A")!.share).toBeCloseTo(0.9, 6);
+    expect(resumo.find((r) => r.classe === "C")!.produtos).toBe(1);
+    expect(resumo.reduce((s, r) => s + r.bruto, 0)).toBeCloseTo(1000, 6);
+    expect(resumo.reduce((s, r) => s + r.share, 0)).toBeCloseTo(1, 6);
+  });
+
+  it("returns an empty curve when there are no sales at all", () => {
+    expect(curvaABC([], []).length).toBe(0);
+    expect(curvaABC([], prods).every((l) => l.classe === "Z")).toBe(true);
   });
 });
 

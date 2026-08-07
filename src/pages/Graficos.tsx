@@ -1,19 +1,23 @@
 import { motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import {
+  curvaABC,
   desempenhoProdutos,
   devolucoesPorMotivo,
   faixasDesempenho,
   resultadoVendas,
+  resumoABC,
   serieFinanceiraMensal,
   vendasPorCanal,
 } from "../calc/engine";
+import type { ClasseABC } from "../calc/engine";
 import type { StatusCor } from "../calc/constants";
 import { BarRanking } from "../components/BarRanking";
 import { DonutChart } from "../components/DonutChart";
 import { inputClass } from "../components/Field";
 import { GlowCard } from "../components/GlowCard";
 import { MultiAreaChart } from "../components/MultiAreaChart";
+import { ParetoChart } from "../components/ParetoChart";
 import { RadialGauge } from "../components/RadialGauge";
 import { Screen } from "../components/Screen";
 import { money, percent } from "../i18n/format";
@@ -36,6 +40,24 @@ const FAIXAS: { cor: StatusCor; titulo: string }[] = [
   { cor: "verde", titulo: "Indo bem" },
   { cor: "amarelo", titulo: "Mediano" },
   { cor: "vermelho", titulo: "Ruim" },
+];
+
+/** ABC is about dependency, so it gets its own scale: A strongest → Z inert. */
+const CORES_ABC = (c: Paleta): Record<ClasseABC, string> => ({
+  A: c.green,
+  B: c.sky,
+  C: c.amber,
+  Z: c.txtFaint,
+});
+const ROTULO_ABC: Record<ClasseABC, string> = {
+  A: "essenciais",
+  B: "de apoio",
+  C: "marginais",
+  Z: "sem venda",
+};
+const CORTES_ABC = [
+  { share: 0.8, label: "80% · A" },
+  { share: 0.95, label: "95% · B" },
 ];
 
 /** Card shell with a heading + optional one-line explainer, so every chart reads the same. */
@@ -120,6 +142,18 @@ export function Graficos() {
     const bruto = lista.reduce((s, l) => s + l.bruto, 0);
     return { ...f, qtd: lista.length, bruto, share: totalFaixas > 0 ? bruto / totalFaixas : 0 };
   });
+
+  // ── ABC: which products the business actually depends on ──
+  const abc = useMemo(() => curvaABC(filtradas, produtos, cfg), [filtradas, produtos, cfg]);
+  const resumoAbc = useMemo(() => resumoABC(abc), [abc]);
+  const paretoItens = abc.map((l) => ({
+    id: l.produtoId,
+    nome: l.nome,
+    valor: l.bruto,
+    acumulado: l.acumulado,
+    classe: l.classe,
+    cor: CORES_ABC(cores)[l.classe],
+  }));
 
   // ── channels & returns ──
   const porCanal = useMemo(() => vendasPorCanal(filtradas), [filtradas]);
@@ -246,6 +280,67 @@ export function Graficos() {
             </>
           ) : (
             <p className="py-8 text-center text-sm text-txtDim">Sem vendas no filtro atual.</p>
+          )}
+        </Grafico>
+
+        {/* ABC — how concentrated the business is */}
+        <Grafico
+          titulo="Curva ABC"
+          legenda="Barras = faturamento por produto · linha = acumulado · A carrega os primeiros 80%"
+          className="col-span-12 lg:col-span-7"
+          delay={0.28}
+        >
+          <ParetoChart itens={paretoItens} cortes={CORTES_ABC} />
+        </Grafico>
+
+        <Grafico
+          titulo="Dependência por classe"
+          legenda="Quantos produtos sustentam quanto do faturamento"
+          className="col-span-12 lg:col-span-5"
+          delay={0.3}
+        >
+          {abc.length > 0 ? (
+            <>
+              <div className="flex h-4 w-full overflow-hidden rounded-full bg-line/40">
+                {resumoAbc
+                  .filter((r) => r.share > 0)
+                  .map((r, i) => (
+                    <motion.div
+                      key={r.classe}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${r.share * 100}%` }}
+                      transition={{ duration: 0.65, ease: EASE, delay: 0.08 * i }}
+                      style={{ background: CORES_ABC(cores)[r.classe] }}
+                      title={`Classe ${r.classe}: ${percent(r.share)}`}
+                    />
+                  ))}
+              </div>
+              <ul className="mt-4 flex flex-col gap-2.5">
+                {resumoAbc.map((r) => (
+                  <li key={r.classe} className="flex items-baseline justify-between gap-3">
+                    <span className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full" style={{ background: CORES_ABC(cores)[r.classe] }} />
+                      <span className="text-sm text-txt">
+                        Classe {r.classe}
+                        <span className="ml-1.5 text-txtDim">{ROTULO_ABC[r.classe]}</span>
+                      </span>
+                      <span className="font-mono text-[11px] text-txtFaint">
+                        {r.produtos} {r.produtos === 1 ? "produto" : "produtos"}
+                      </span>
+                    </span>
+                    <span className="font-mono text-sm tabular-nums" style={{ color: CORES_ABC(cores)[r.classe] }}>
+                      {percent(r.share)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-4 font-mono text-[11px] leading-relaxed text-txtFaint">
+                Classe <span className="text-txtDim">A</span> é dependência, não saúde: um produto pode carregar o
+                faturamento e ainda ter margem ruim. Cruze com “Lucro por produto”.
+              </p>
+            </>
+          ) : (
+            <p className="py-8 text-center text-sm text-txtDim">Sem produtos para classificar.</p>
           )}
         </Grafico>
 
