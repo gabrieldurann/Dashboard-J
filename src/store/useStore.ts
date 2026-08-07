@@ -3,8 +3,8 @@ import { persist } from "zustand/middleware";
 import { CONFIG_PADRAO, type Configuracoes } from "../calc/constants";
 import type { Tema } from "../theme/tokens";
 import type { LayoutLedger } from "../components/ExibicaoMenu";
-import type { CalculoSalvo, Compra, CustoOperacional, Devolucao, Pesquisa, Produto, Venda, VendaAvulsa } from "../calc/types";
-import { COMPRAS_SEED, CUSTOS_OPERACIONAIS_SEED, DEVOLUCOES_SEED, PESQUISAS_SEED, PRODUTOS_SEED, VENDAS_SEED } from "../data/seed";
+import type { AnuncioAds, CalculoSalvo, Compra, CustoOperacional, Devolucao, Pesquisa, Produto, Venda, VendaAvulsa } from "../calc/types";
+import { ANUNCIOS_ADS_SEED, COMPRAS_SEED, CUSTOS_OPERACIONAIS_SEED, DEVOLUCOES_SEED, PESQUISAS_SEED, PRODUTOS_SEED, VENDAS_SEED } from "../data/seed";
 
 // Local-first store (PLAN.md §6): hydrates from the bundled seed, then persists the user's edits
 // to localStorage. The deployed link shows the seed to the partner; the user's test edits live
@@ -19,6 +19,7 @@ type State = {
   custosOperacionais: CustoOperacional[];
   devolucoes: Devolucao[];
   compras: Compra[];
+  anunciosAds: AnuncioAds[];
   addProduto: (p: Produto) => void;
   updateProduto: (id: string, patch: Partial<Produto>) => void;
   removeProduto: (id: string) => void;
@@ -52,6 +53,9 @@ type State = {
   toggleCardOculto: (id: string) => void;
   ocultarCards: (ids: string[]) => void;
   mostrarCards: (ids: string[]) => void;
+  addAnuncioAds: (a: AnuncioAds) => void;
+  updateAnuncioAds: (id: string, patch: Partial<AnuncioAds>) => void;
+  removeAnuncioAds: (id: string) => void;
   addCompra: (c: Compra) => void;
   updateCompra: (id: string, patch: Partial<Compra>) => void;
   removeCompra: (id: string) => void;
@@ -73,6 +77,7 @@ export const useStore = create<State>()(
       custosOperacionais: CUSTOS_OPERACIONAIS_SEED,
       devolucoes: DEVOLUCOES_SEED,
       compras: COMPRAS_SEED,
+      anunciosAds: ANUNCIOS_ADS_SEED,
       addProduto: (p) => set((s) => ({ produtos: [...s.produtos, p] })),
       updateProduto: (id, patch) =>
         set((s) => ({
@@ -134,6 +139,10 @@ export const useStore = create<State>()(
         set((s) => ({ cardsOcultos: [...new Set([...s.cardsOcultos, ...ids])] })),
       mostrarCards: (ids) =>
         set((s) => ({ cardsOcultos: s.cardsOcultos.filter((c) => !ids.includes(c)) })),
+      addAnuncioAds: (a) => set((s) => ({ anunciosAds: [a, ...s.anunciosAds] })),
+      updateAnuncioAds: (id, patch) =>
+        set((s) => ({ anunciosAds: s.anunciosAds.map((a) => (a.id === id ? { ...a, ...patch } : a)) })),
+      removeAnuncioAds: (id) => set((s) => ({ anunciosAds: s.anunciosAds.filter((a) => a.id !== id) })),
       addCompra: (c) => set((s) => ({ compras: [c, ...s.compras] })),
       updateCompra: (id, patch) =>
         set((s) => ({ compras: s.compras.map((c) => (c.id === id ? { ...c, ...patch } : c)) })),
@@ -155,6 +164,7 @@ export const useStore = create<State>()(
           custosOperacionais: CUSTOS_OPERACIONAIS_SEED,
           devolucoes: DEVOLUCOES_SEED,
           compras: COMPRAS_SEED,
+          anunciosAds: ANUNCIOS_ADS_SEED,
         }),
     }),
     {
@@ -164,8 +174,9 @@ export const useStore = create<State>()(
       // velocities. v5: demo scaled up ×12 + realistic operating costs. v6: returns ledger.
       // v7: returns gained status + restock date. v8: purchases ledger +
       // estoqueAtual renamed to estoqueInicial (stock is derived now). v9: operating entries
-      // gained tipo despesa/receita + recorrente/pontual, and the seed gained examples of each.)
-      name: "painel-j-v9",
+      // gained tipo despesa/receita + recorrente/pontual, and the seed gained examples of each.
+      // v10: Amazon Ads ledger.)
+      name: "painel-j-v10",
     },
   ),
 );

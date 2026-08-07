@@ -186,6 +186,33 @@ export type CustoOperacional = {
   observacao?: string;
 };
 
+/**
+ * One month of advertising for one product on one channel (idea #12, Amazon Ads and friends).
+ *
+ * Entered by hand today and imported from the Ads API once a backend exists — the shape is the
+ * same either way, so nothing here has to change when that lands.
+ */
+export type AnuncioAds = {
+  id: string;
+  produtoId?: string; // link to a catalog product (optional → avulso)
+  produtoNome: string; // snapshot of the product name
+  sku?: string;
+  canal: string; // Amazon, Mercado Livre, Shopee…
+  /** Month the figures refer to, ISO date. Ads are read per month, like operating costs. */
+  data: string;
+  /** What the campaign spent (R$) — this is the money that leaves. */
+  custo: number;
+  /** Revenue Amazon attributes to the ads (R$). */
+  faturamentoAds: number;
+  /** Units sold through the ads. */
+  unidadesAds: number;
+  /** Units sold without ads in the same month — the organic half of the split. */
+  unidadesOrganicas?: number;
+  /** Ad clicks, if known. Only used for the conversion rate. */
+  cliques?: number;
+  observacao?: string;
+};
+
 /** A product research entry — the "TabPesquisa" log. Mirrors the sheet's columns. */
 export type Pesquisa = {
   id: string;

@@ -1,4 +1,5 @@
-import { Building2, ChevronDown, Coins, EyeOff, Globe as GlobeIcon, Landmark, LineChart, MapPin, Package, Percent, RotateCcw, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
+import {
+  Megaphone, Building2, ChevronDown, Coins, EyeOff, Globe as GlobeIcon, Landmark, LineChart, MapPin, Package, Percent, RotateCcw, TrendingUp, Wallet, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import {
@@ -9,6 +10,7 @@ import {
   resumoPeriodo,
   serieMensal,
   totaisPortfolio,
+  custoAds,
   totalOperacional,
   vendasPorAno,
   vendasPorDia,
@@ -67,6 +69,7 @@ export function Painel() {
   const vendas = useStore((s) => s.vendas);
   const devolucoes = useStore((s) => s.devolucoes);
   const custosOperacionais = useStore((s) => s.custosOperacionais);
+  const anunciosAds = useStore((s) => s.anunciosAds);
   const t = useMemo(() => totaisPortfolio(produtos, cfg), [produtos, cfg]);
 
   // reveal/hide the secondary metric cards (idea: keep the headline clean, expand for detail)
@@ -157,10 +160,12 @@ export function Painel() {
     () => totalOperacional(custosOperacionais, mesChave),
     [custosOperacionais, mesChave],
   );
+  // advertising spend for the same month — the last deduction before "money in pocket" (idea #14)
+  const gastoAds = useMemo(() => custoAds(anunciosAds, mesChave), [anunciosAds, mesChave]);
   // two headline figures: profit before company overhead (all sale costs + returns), and the
   // true net "money in pocket" after overhead too.
   const lucroSemOperacional = resMes.lucro - reembolsoMes;
-  const lucroLiquidoTotal = lucroSemOperacional - totalOp;
+  const lucroLiquidoTotal = lucroSemOperacional - totalOp - gastoAds;
 
   // company-wide realized margin (blended profit ÷ gross over ALL sales) — not a per-product average
   const resTotal = useMemo(() => resultadoVendas(vendas, produtos, cfg), [vendas, produtos, cfg]);
@@ -250,6 +255,8 @@ export function Painel() {
               <span className="text-danger">Devoluções {money(reembolsoMes)}</span>
               <span className="text-txtFaint">−</span>
               <span className="text-danger">Operacional {money(totalOp)}</span>
+              <span className="text-txtFaint">−</span>
+              <span className="text-danger">Ads {money(gastoAds)}</span>
               <span className="text-txtFaint">=</span>
               <span className={lucroLiquidoTotal >= 0 ? (claro ? "text-green" : "text-gold") : "text-danger"}>
                 {money(lucroLiquidoTotal)}
@@ -284,6 +291,7 @@ export function Painel() {
                 <MetricTile dense label="Comissão / mês" value={resMes.comissao} format={money} icon={Percent} accent="red" footnote="Comissão dos canais" />
                 <MetricTile dense label="Devoluções / mês" value={reembolsoMes} format={money} icon={RotateCcw} accent="red" footnote="Reembolsos do mês" />
                 <MetricTile dense label="Custos operac. / mês" value={totalOp} format={money} icon={Building2} accent="red" footnote="Overhead fixo da empresa" />
+                <MetricTile dense label="Anúncios / mês" value={gastoAds} format={money} icon={Megaphone} accent="red" footnote="Tráfego pago (Ads)" />
               </div>
             </motion.div>
           )}

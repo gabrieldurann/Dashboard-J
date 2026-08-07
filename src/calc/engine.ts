@@ -10,6 +10,7 @@ import {
   type StatusCor,
 } from "./constants";
 import type {
+  AnuncioAds,
   CategoriaOperacional,
   TipoOperacional,
   Compra,
@@ -884,6 +885,110 @@ export function gruposDuplicados<T extends { nome: string }>(itens: T[]): T[][] 
 // ─── Operating costs (idea #13) ──────────────────────────────────────────────
 
 /** Total recurring monthly operating cost. */
+// ─── Amazon Ads (idea #12, Phase 11a) ───
+// ACOS and TACOS are the two numbers the whole page turns on, and they are easy to confuse:
+//   ACOS  = ad spend ÷ revenue the ads produced   → "is this campaign paying for itself?"
+//   TACOS = ad spend ÷ ALL revenue for the product → "what does advertising cost the business?"
+// A campaign can have a fine ACOS and still be a bad idea if it only reaches buyers who would
+// have bought organically, which is exactly what TACOS exposes.
+
+/** Ad spend ÷ revenue attributed to the ads. Null when the ads produced no revenue. */
+export function acos(custo: number, faturamentoAds: number): number | null {
+  return faturamentoAds > 0 ? custo / faturamentoAds : null;
+}
+
+/** Ad spend ÷ total revenue (ads + organic). Null when there was no revenue at all. */
+export function tacos(custo: number, faturamentoTotal: number): number | null {
+  return faturamentoTotal > 0 ? custo / faturamentoTotal : null;
+}
+
+export type ResumoAds = {
+  custo: number;
+  faturamentoAds: number;
+  unidadesAds: number;
+  unidadesOrganicas: number;
+  cliques: number;
+  /** Revenue attributed to ads ÷ units sold through them — the app's own reference price. */
+  faturamentoTotal: number; // ads revenue + the organic units valued at the same average price
+  acos: number | null;
+  tacos: number | null;
+  /** Units sold through the ads ÷ clicks. Null when clicks weren't recorded. */
+  conversao: number | null;
+  /** Share of units that came from ads rather than organically. */
+  parcelaAds: number | null;
+};
+
+/**
+ * Roll a set of ad entries into one summary.
+ *
+ * Total revenue is the ads revenue plus the organic units valued at the ads' own average price.
+ * That keeps TACOS computable from the ad ledger alone; once the Amazon API lands, real organic
+ * revenue can replace the estimate without touching the callers.
+ */
+export function resumoAds(anuncios: AnuncioAds[]): ResumoAds {
+  const custo = anuncios.reduce((s, a) => s + a.custo, 0);
+  const faturamentoAds = anuncios.reduce((s, a) => s + a.faturamentoAds, 0);
+  const unidadesAds = anuncios.reduce((s, a) => s + a.unidadesAds, 0);
+  const unidadesOrganicas = anuncios.reduce((s, a) => s + (a.unidadesOrganicas ?? 0), 0);
+  const cliques = anuncios.reduce((s, a) => s + (a.cliques ?? 0), 0);
+
+  // Value each entry's organic units at ITS OWN average price and only then sum. Blending one
+  // average across the whole set would price a R$119 projector and a R$29 cup holder alike.
+  const faturamentoTotal = anuncios.reduce((s, a) => {
+    const precoMedio = a.unidadesAds > 0 ? a.faturamentoAds / a.unidadesAds : 0;
+    return s + a.faturamentoAds + (a.unidadesOrganicas ?? 0) * precoMedio;
+  }, 0);
+  const unidades = unidadesAds + unidadesOrganicas;
+
+  return {
+    custo,
+    faturamentoAds,
+    unidadesAds,
+    unidadesOrganicas,
+    cliques,
+    faturamentoTotal,
+    acos: acos(custo, faturamentoAds),
+    tacos: tacos(custo, faturamentoTotal),
+    conversao: cliques > 0 ? unidadesAds / cliques : null,
+    parcelaAds: unidades > 0 ? unidadesAds / unidades : null,
+  };
+}
+
+export type DesempenhoAds = ResumoAds & {
+  produtoId?: string;
+  nome: string;
+  sku?: string;
+};
+
+/** Per-product ad performance, biggest spender first. Entries with no product group by name. */
+export function desempenhoAds(anuncios: AnuncioAds[]): DesempenhoAds[] {
+  const grupos = new Map<string, AnuncioAds[]>();
+  for (const a of anuncios) {
+    const chave = a.produtoId ?? `nome:${normalizaNome(a.produtoNome)}`;
+    const g = grupos.get(chave);
+    if (g) g.push(a);
+    else grupos.set(chave, [a]);
+  }
+  return [...grupos.values()]
+    .map((doGrupo) => ({
+      ...resumoAds(doGrupo),
+      produtoId: doGrupo[0].produtoId,
+      nome: doGrupo[0].produtoNome,
+      sku: doGrupo.find((a) => a.sku)?.sku,
+    }))
+    .sort((a, b) => b.custo - a.custo);
+}
+
+/** Ad entries belonging to one month ("YYYY-MM"). */
+export function anunciosDoMes(anuncios: AnuncioAds[], mes?: string): AnuncioAds[] {
+  return mes ? anuncios.filter((a) => a.data.slice(0, 7) === mes) : anuncios;
+}
+
+/** Total ad spend for a month — what the Painel subtracts to reach "money in pocket". */
+export function custoAds(anuncios: AnuncioAds[], mes?: string): number {
+  return anunciosDoMes(anuncios, mes).reduce((s, a) => s + a.custo, 0);
+}
+
 /**
  * Whether an operating entry applies to a given month. Recurring entries apply to every month;
  * one-offs only to the month of their `data`. With no `mes` the answer is the steady-state

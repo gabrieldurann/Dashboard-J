@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  acos,
   calcularMetricas,
+  custoAds,
+  desempenhoAds,
+  resumoAds,
+  tacos,
   capitalParaEstoque,
   comprasPorFornecedor,
   custoTotalCompra,
@@ -37,7 +42,7 @@ import {
   vendasPorPais,
 } from "./engine";
 import { CONFIG_PADRAO } from "./constants";
-import type { Compra, CustoOperacional, Devolucao, Produto, Venda } from "./types";
+import type { AnuncioAds, Compra, CustoOperacional, Devolucao, Produto, Venda } from "./types";
 
 const base: Produto = {
   id: "1",
@@ -628,6 +633,97 @@ describe("custos operacionais (idea #13)", () => {
     expect(agg.reduce((s, a) => s + a.share, 0)).toBeCloseTo(1, 6);
   });
   it("totalOperacional of nothing is 0", () => expect(totalOperacional([])).toBe(0));
+});
+
+describe("Amazon Ads: ACOS / TACOS / desempenho (idea #12, Phase 11a)", () => {
+  const anuncio = (over: Partial<AnuncioAds>): AnuncioAds => ({
+    id: crypto.randomUUID(),
+    produtoNome: "Produto",
+    canal: "Amazon",
+    data: "2026-06-01",
+    custo: 100,
+    faturamentoAds: 400,
+    unidadesAds: 10,
+    ...over,
+  });
+
+  it("ACOS is spend over the revenue the ads produced", () => {
+    expect(acos(100, 400)).toBeCloseTo(0.25, 6);
+  });
+  it("TACOS is spend over ALL revenue, so it is never above ACOS", () => {
+    expect(tacos(100, 1000)).toBeCloseTo(0.1, 6);
+    expect(tacos(100, 1000)!).toBeLessThan(acos(100, 400)!);
+  });
+  it("both are null rather than Infinity when there is no revenue", () => {
+    expect(acos(100, 0)).toBeNull();
+    expect(tacos(100, 0)).toBeNull();
+  });
+
+  it("values organic units at the ads' own average price to reach total revenue", () => {
+    // 10 ad units for 400 → 40 each; 30 organic units → 1200; total 1600
+    const r = resumoAds([anuncio({ unidadesOrganicas: 30 })]);
+    expect(r.faturamentoTotal).toBeCloseTo(1600, 6);
+    expect(r.acos).toBeCloseTo(0.25, 6); // 100 / 400
+    expect(r.tacos).toBeCloseTo(0.0625, 6); // 100 / 1600
+  });
+
+  it("reports the ads-vs-organic split and the click conversion", () => {
+    const r = resumoAds([anuncio({ unidadesOrganicas: 30, cliques: 200 })]);
+    expect(r.parcelaAds).toBeCloseTo(0.25, 6); // 10 of 40 units
+    expect(r.conversao).toBeCloseTo(0.05, 6); // 10 units / 200 clicks
+  });
+
+  it("leaves conversion null when clicks were not recorded", () => {
+    expect(resumoAds([anuncio({})]).conversao).toBeNull();
+  });
+
+  it("prices each entry's organic units at its own average, never a blended one", () => {
+    // a cheap product and an expensive one: a single blended price would misvalue both
+    const r = resumoAds([
+      anuncio({ faturamentoAds: 1000, unidadesAds: 10, unidadesOrganicas: 10, custo: 0 }), // 100 each → 1000 organic
+      anuncio({ faturamentoAds: 100, unidadesAds: 10, unidadesOrganicas: 10, custo: 0 }), // 10 each → 100 organic
+    ]);
+    expect(r.faturamentoTotal).toBeCloseTo(2200, 6); // 1000+1000 + 100+100
+    // a blended average (1100/20 = 55) would have produced 1100 + 20×55 = 2200 here by luck,
+    // so check an asymmetric split where the two differ
+    const assimetrico = resumoAds([
+      anuncio({ faturamentoAds: 1000, unidadesAds: 10, unidadesOrganicas: 0, custo: 0 }),
+      anuncio({ faturamentoAds: 100, unidadesAds: 10, unidadesOrganicas: 20, custo: 0 }),
+    ]);
+    expect(assimetrico.faturamentoTotal).toBeCloseTo(1300, 6); // 1000 + (100 + 20×10)
+  });
+
+  it("sums several months of one product", () => {
+    const r = resumoAds([
+      anuncio({ custo: 100, faturamentoAds: 400, unidadesAds: 10, data: "2026-05-01" }),
+      anuncio({ custo: 50, faturamentoAds: 100, unidadesAds: 2, data: "2026-06-01" }),
+    ]);
+    expect(r.custo).toBe(150);
+    expect(r.faturamentoAds).toBe(500);
+    expect(r.acos).toBeCloseTo(0.3, 6);
+  });
+
+  it("groups per product, biggest spender first, and keeps avulsos apart by name", () => {
+    const linhas = desempenhoAds([
+      anuncio({ produtoId: "p1", produtoNome: "Projetor", custo: 50 }),
+      anuncio({ produtoId: "p1", produtoNome: "Projetor", custo: 70, sku: "SKU-1" }),
+      anuncio({ produtoId: "p2", produtoNome: "Garrafa", custo: 200 }),
+      anuncio({ produtoNome: "Item solto", custo: 10 }),
+    ]);
+    expect(linhas.map((l) => l.nome)).toEqual(["Garrafa", "Projetor", "Item solto"]);
+    expect(linhas.find((l) => l.nome === "Projetor")!.custo).toBe(120);
+    expect(linhas.find((l) => l.nome === "Projetor")!.sku).toBe("SKU-1");
+  });
+
+  it("scopes spend to a month for the Painel's cascade", () => {
+    const lista = [
+      anuncio({ custo: 100, data: "2026-06-11" }),
+      anuncio({ custo: 40, data: "2026-05-11" }),
+    ];
+    expect(custoAds(lista, "2026-06")).toBe(100);
+    expect(custoAds(lista)).toBe(140); // no month = everything
+    expect(custoAds([], "2026-06")).toBe(0);
+  });
 });
 
 describe("receitas operacionais + recorrência (Phase 10b)", () => {

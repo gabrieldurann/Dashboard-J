@@ -1,5 +1,5 @@
 import { COMISSAO_PADRAO, IMPOSTO_PADRAO } from "../calc/constants";
-import type { Compra, CustoOperacional, Devolucao, Pesquisa, Produto, Venda } from "../calc/types";
+import type { AnuncioAds, Compra, CustoOperacional, Devolucao, Pesquisa, Produto, Venda } from "../calc/types";
 
 // ⚠️ SAMPLE DATA ONLY — safe to be public.
 // This file ships in the repo so the build/demo isn't empty for reviewers. It intentionally
@@ -831,6 +831,95 @@ export const COMPRAS_SEED: Compra[] = [
 
 // Sample operating costs (demo only) — realistic overhead that still leaves a healthy net against
 // the scaled sales. Real overhead is entered in the app (stays local).
+/**
+ * Amazon Ads, one row per product per month (idea #12). Entered by hand today; the Ads API will
+ * fill the same shape later. Sized against the real June sales so ACOS/TACOS read realistically:
+ * the projector is the healthy campaign, the cup holder is the one burning money.
+ */
+export const ANUNCIOS_ADS_SEED: AnuncioAds[] = [
+  // June — the month the Painel shows
+  {
+    id: "ads-1",
+    produtoId: "demo-1",
+    produtoNome: "Mini Projetor Portátil",
+    sku: "DEMO-001",
+    canal: "Amazon",
+    data: "2026-06-30",
+    custo: 310,
+    faturamentoAds: 2_997,
+    unidadesAds: 12,
+    unidadesOrganicas: 24,
+    cliques: 470,
+  },
+  {
+    id: "ads-2",
+    produtoId: "demo-2",
+    produtoNome: "Garrafa Térmica Inox 1L",
+    sku: "DEMO-002",
+    canal: "Amazon",
+    data: "2026-06-30",
+    custo: 155,
+    faturamentoAds: 998,
+    unidadesAds: 10,
+    unidadesOrganicas: 26,
+    cliques: 310,
+  },
+  {
+    id: "ads-3",
+    produtoId: "demo-4",
+    produtoNome: "Suporte de Copo Veicular",
+    sku: "DEMO-004",
+    canal: "Amazon",
+    data: "2026-06-30",
+    custo: 215,
+    faturamentoAds: 538,
+    unidadesAds: 18,
+    unidadesOrganicas: 30,
+    cliques: 360,
+    observacao: "ACOS alto — campanha em revisão",
+  },
+  {
+    id: "ads-4",
+    produtoId: "demo-3",
+    produtoNome: "Organizador de Cabos (kit 5)",
+    sku: "DEMO-003",
+    canal: "Mercado Livre",
+    data: "2026-06-30",
+    custo: 72,
+    faturamentoAds: 399,
+    unidadesAds: 10,
+    unidadesOrganicas: 14,
+    cliques: 190,
+  },
+  // May — so the page has a second month to compare against
+  {
+    id: "ads-5",
+    produtoId: "demo-1",
+    produtoNome: "Mini Projetor Portátil",
+    sku: "DEMO-001",
+    canal: "Amazon",
+    data: "2026-05-31",
+    custo: 270,
+    faturamentoAds: 2_398,
+    unidadesAds: 10,
+    unidadesOrganicas: 20,
+    cliques: 405,
+  },
+  {
+    id: "ads-6",
+    produtoId: "demo-2",
+    produtoNome: "Garrafa Térmica Inox 1L",
+    sku: "DEMO-002",
+    canal: "Amazon",
+    data: "2026-05-31",
+    custo: 140,
+    faturamentoAds: 848,
+    unidadesAds: 8,
+    unidadesOrganicas: 22,
+    cliques: 280,
+  },
+];
+
 export const CUSTOS_OPERACIONAIS_SEED: CustoOperacional[] = [
   { id: "op-1", nome: "Aluguel (galpão/escritório)", categoria: "aluguel", valorMensal: 1200 },
   { id: "op-2", nome: "Energia elétrica", categoria: "energia", valorMensal: 320 },
