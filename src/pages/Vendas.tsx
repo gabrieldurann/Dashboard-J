@@ -8,9 +8,8 @@ import { Field, inputClass, NumberInput, TextInput } from "../components/Field";
 import { GlowCard } from "../components/GlowCard";
 import { MetricTile } from "../components/MetricTile";
 import { Screen } from "../components/Screen";
-import { date, datetime, money, percent } from "../i18n/format";
+import { date, datetime, money } from "../i18n/format";
 import { EASE } from "../theme/tokens";
-import { useStatusCores } from "../theme/useCores";
 import { useConfig } from "../store/useConfig";
 import { useStore } from "../store/useStore";
 import { confirmAction } from "../store/useConfirm";
@@ -26,19 +25,20 @@ const STATUS: Record<VendaStatus, { label: string; cls: string }> = {
 const STATUS_KEYS = Object.keys(STATUS) as VendaStatus[];
 
 /**
- * Ledger columns, staged by width. The collapsed row carries the money; everything else lives in
- * the expanded panel, which is why columns can be dropped as space runs out without losing data.
- * Nº do pedido and Código are panel-only (still searchable) — with 14 columns the table could not
- * fit any realistic window. See the layout notes in PLAN.md.
+ * Ledger columns, staged by width. The collapsed row is for *finding* a sale — identifiers and
+ * the amount — while the money breakdown (lucro, margem) lives in the expanded waterfall, so it
+ * costs a click rather than a column. Cliente is panel-only; it is still searchable.
+ * The content box maxes out at ~1074px (Screen's `max-w-[1180px]`), so this is a fixed budget:
+ * adding a column here means removing one. See the layout notes in PLAN.md.
  */
 const COLUNAS: { k: string; label: string; cls?: string }[] = [
   { k: "chevron", label: "" },
   { k: "data", label: "Data" },
+  { k: "pedido", label: "Pedido" },
   { k: "produto", label: "Produto" },
+  { k: "codigo", label: "Código" },
   { k: "qtd", label: "Qtd", cls: "hidden xl:table-cell" },
   { k: "total", label: "Total" },
-  { k: "lucro", label: "Lucro" },
-  { k: "margem", label: "Margem" },
   { k: "canal", label: "Canal", cls: "hidden xl:table-cell" },
   { k: "status", label: "Status" },
   { k: "pais", label: "País", cls: "hidden xl:table-cell" },
@@ -95,7 +95,6 @@ const emptyDraft = (): Draft => ({
 
 export function Vendas() {
   const cfg = useConfig();
-  const statusCores = useStatusCores();
   const vendas = useStore((s) => s.vendas);
   const produtos = useStore((s) => s.produtos);
   const addVenda = useStore((s) => s.addVenda);
@@ -140,11 +139,12 @@ export function Vendas() {
       .sort((a, b) => (a.data < b.data ? 1 : -1));
   }, [vendas, busca, fProduto, fStatus, fCanal, dataDe, dataAte]);
 
-  // Per-order waterfall for the visible rows. Same source as every total in the app.
-  const detalhes = useMemo(
-    () => new Map(linhas.map((v) => [v.id, detalharVenda(v, produtos, cfg)])),
-    [linhas, produtos, cfg],
-  );
+  // Waterfall for the open order only — no point costing it for rows nobody expanded.
+  // Same source as every total in the app, so it always reconciles with the Painel.
+  const detalhe = useMemo(() => {
+    const v = linhas.find((x) => x.id === aberta);
+    return v ? detalharVenda(v, produtos, cfg) : null;
+  }, [linhas, aberta, produtos, cfg]);
 
   const totais = useMemo(() => {
     const receita = linhas.reduce((s, v) => s + v.valorTotal, 0);
@@ -476,7 +476,6 @@ export function Vendas() {
                 </tr>
               ) : (
                 linhas.map((v) => {
-                  const det = detalhes.get(v.id)!;
                   const aberto = aberta === v.id;
                   const produto = v.produtoId ? produtos.find((p) => p.id === v.produtoId) : undefined;
                   return (
@@ -494,37 +493,28 @@ export function Vendas() {
                             <ChevronDown size={16} />
                           </motion.span>
                         </td>
-                        <td className="whitespace-nowrap px-2 py-3 xl:px-3 font-mono text-xs text-txtDim">
-{date(v.data)}
+                        <td className="whitespace-nowrap px-2 py-3 font-mono text-xs text-txtDim xl:px-3">
+                          {date(v.data)}
+                        </td>
+                        <td className="whitespace-nowrap px-2 py-3 font-mono text-xs text-txtDim xl:px-3">
+                          {v.numeroPedido ?? "—"}
                         </td>
                         <td className="max-w-[110px] truncate px-2 py-3 text-sm text-txt xl:max-w-[135px] xl:px-3" title={v.produtoNome}>
                           {v.produtoNome}
                           {!v.produtoId && <span className="ml-2 font-mono text-[10px] text-gold">avulsa</span>}
                         </td>
-                        <td className="hidden px-2 py-3 xl:px-3 font-mono text-sm tabular-nums text-txtDim xl:table-cell">{v.quantidade}</td>
-                        <td className="whitespace-nowrap px-2 py-3 xl:px-3 font-mono text-sm tabular-nums text-txt">{money(v.valorTotal)}</td>
-                        <td className="whitespace-nowrap px-2 py-3 xl:px-3 font-mono text-sm tabular-nums">
-                          {det.atribuido ? (
-                            <span style={{ color: statusCores[det.statusCor] }}>{money(det.lucro)}</span>
-                          ) : (
-                            <span className="text-txtFaint" title="Venda avulsa — sem custo atribuído">—</span>
-                          )}
+                        <td className="whitespace-nowrap px-2 py-3 font-mono text-xs text-txtDim xl:px-3">
+                          {v.codigoProduto ?? "—"}
                         </td>
-                        <td className="whitespace-nowrap px-2 py-3 xl:px-3 font-mono text-sm tabular-nums">
-                          {det.atribuido ? (
-                            <span style={{ color: statusCores[det.statusCor] }}>{percent(det.margem)}</span>
-                          ) : (
-                            <span className="text-txtFaint">—</span>
-                          )}
-                        </td>
-                        <td className="hidden whitespace-nowrap px-2 py-3 xl:px-3 text-sm text-txtDim xl:table-cell">{v.canal ?? "—"}</td>
+                        <td className="hidden px-2 py-3 font-mono text-sm tabular-nums text-txtDim xl:table-cell xl:px-3">{v.quantidade}</td>
+                        <td className="whitespace-nowrap px-2 py-3 font-mono text-sm tabular-nums text-txt xl:px-3">{money(v.valorTotal)}</td>
+                        <td className="hidden whitespace-nowrap px-2 py-3 text-sm text-txtDim xl:table-cell xl:px-3">{v.canal ?? "—"}</td>
                         <td className="px-2 py-3 xl:px-3">
                           <span className={`whitespace-nowrap rounded-full border px-2.5 py-1 font-mono text-[10px] ${STATUS[v.status].cls}`}>
                             {STATUS[v.status].label}
                           </span>
                         </td>
-                        <td className="hidden max-w-[140px] truncate px-2 py-3 text-sm text-txtDim 2xl:table-cell xl:px-3">{v.cliente ?? "—"}</td>
-                        <td className="hidden whitespace-nowrap px-2 py-3 xl:px-3 text-sm text-txtDim xl:table-cell">
+                        <td className="hidden whitespace-nowrap px-2 py-3 text-sm text-txtDim xl:table-cell xl:px-3">
                           {v.pais ? (
                             <span title={paisNome(v.pais)}>
                               {paisFlag(v.pais)}
@@ -596,7 +586,7 @@ export function Vendas() {
                                     <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-txtFaint">
                                       Composição do lucro
                                     </span>
-                                    <CascataVenda detalhe={det} />
+                                    {detalhe && <CascataVenda detalhe={detalhe} />}
                                   </div>
                                 </div>
                               </motion.div>
