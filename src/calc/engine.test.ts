@@ -21,6 +21,7 @@ import {
   curvaABC,
   detalharVenda,
   resumoABC,
+  resumoOperacional,
   totalOperacional,
   preencherMeses,
   precoParaMargem,
@@ -627,6 +628,65 @@ describe("custos operacionais (idea #13)", () => {
     expect(agg.reduce((s, a) => s + a.share, 0)).toBeCloseTo(1, 6);
   });
   it("totalOperacional of nothing is 0", () => expect(totalOperacional([])).toBe(0));
+});
+
+describe("receitas operacionais + recorrência (Phase 10b)", () => {
+  const custos: CustoOperacional[] = [
+    { id: "1", nome: "Aluguel", categoria: "aluguel", valorMensal: 100 }, // legacy: no tipo, no recorrente
+    { id: "2", nome: "Internet", categoria: "internet", valorMensal: 60, tipo: "despesa", recorrente: true },
+    { id: "3", nome: "Contador extra", categoria: "contabilidade", valorMensal: 500, tipo: "despesa", recorrente: false, data: "2026-06-14" },
+    { id: "4", nome: "Rendimento", categoria: "juros", valorMensal: 30, tipo: "receita", recorrente: true },
+    { id: "5", nome: "Reembolso Amazon", categoria: "reembolso", valorMensal: 200, tipo: "receita", recorrente: false, data: "2026-06-20" },
+  ];
+
+  it("treats an entry with no tipo as a despesa (pre-10b data keeps its meaning)", () => {
+    expect(resumoOperacional([custos[0]]).despesas).toBe(100);
+    expect(resumoOperacional([custos[0]]).receitas).toBe(0);
+  });
+
+  it("without a month, reports the recurring run-rate only", () => {
+    const r = resumoOperacional(custos);
+    expect(r.despesas).toBe(160); // 100 + 60, the one-off 500 excluded
+    expect(r.receitas).toBe(30); // the one-off 200 excluded
+    expect(r.liquido).toBe(130);
+  });
+
+  it("adds a month's one-offs on top of the recurring entries", () => {
+    const r = resumoOperacional(custos, "2026-06");
+    expect(r.despesas).toBe(660); // 160 + 500
+    expect(r.receitas).toBe(230); // 30 + 200
+    expect(r.liquido).toBe(430);
+  });
+
+  it("ignores one-offs from other months", () => {
+    expect(resumoOperacional(custos, "2026-07")).toEqual(resumoOperacional(custos));
+  });
+
+  it("lets operational income exceed overhead, giving a negative net", () => {
+    const r = resumoOperacional([
+      { id: "a", nome: "Internet", categoria: "internet", valorMensal: 60 },
+      { id: "b", nome: "Rendimento", categoria: "juros", valorMensal: 250, tipo: "receita" },
+    ]);
+    expect(r.liquido).toBe(-190);
+    expect(totalOperacional([
+      { id: "a", nome: "Internet", categoria: "internet", valorMensal: 60 },
+      { id: "b", nome: "Rendimento", categoria: "juros", valorMensal: 250, tipo: "receita" },
+    ])).toBe(-190);
+  });
+
+  it("keeps despesas and receitas in separate category rankings", () => {
+    const desp = custosPorCategoria(custos, "despesa", "2026-06");
+    const rec = custosPorCategoria(custos, "receita", "2026-06");
+    expect(desp.map((a) => a.categoria)).toEqual(["contabilidade", "aluguel", "internet"]);
+    expect(rec.map((a) => a.categoria)).toEqual(["reembolso", "juros"]);
+    // each ranking's shares are of its own tipo, so both sum to 1
+    expect(desp.reduce((s, a) => s + a.share, 0)).toBeCloseTo(1, 6);
+    expect(rec.reduce((s, a) => s + a.share, 0)).toBeCloseTo(1, 6);
+  });
+
+  it("defaults custosPorCategoria to despesas, so old callers are unaffected", () => {
+    expect(custosPorCategoria(custos).map((a) => a.categoria)).toEqual(["aluguel", "internet"]);
+  });
 });
 
 const devolucao = (over: Partial<Devolucao>): Devolucao => ({

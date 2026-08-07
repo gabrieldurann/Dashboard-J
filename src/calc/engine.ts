@@ -10,7 +10,8 @@ import {
   type StatusCor,
 } from "./constants";
 import type {
-  CategoriaCusto,
+  CategoriaOperacional,
+  TipoOperacional,
   Compra,
   CustoOperacional,
   Devolucao,
@@ -883,16 +884,65 @@ export function gruposDuplicados<T extends { nome: string }>(itens: T[]): T[][] 
 // ─── Operating costs (idea #13) ──────────────────────────────────────────────
 
 /** Total recurring monthly operating cost. */
-export function totalOperacional(custos: CustoOperacional[]): number {
-  return custos.reduce((s, c) => s + c.valorMensal, 0);
+/**
+ * Whether an operating entry applies to a given month. Recurring entries apply to every month;
+ * one-offs only to the month of their `data`. With no `mes` the answer is the steady-state
+ * run-rate: recurring only, one-offs excluded.
+ */
+function aplicaNoMes(c: CustoOperacional, mes?: string): boolean {
+  if (c.recorrente !== false) return true; // absent/true = recurring
+  return mes !== undefined && (c.data ?? "").slice(0, 7) === mes;
 }
 
-export type AggCategoria = { categoria: CategoriaCusto; valor: number; share: number };
+export type ResumoOperacional = {
+  despesas: number; // money out
+  receitas: number; // operational income (money in that isn't a product sale)
+  liquido: number; // despesas − receitas — what the month's profit actually gives up
+};
 
-/** Operating costs grouped by category, biggest first, with each category's share of the total. */
-export function custosPorCategoria(custos: CustoOperacional[]): AggCategoria[] {
-  const map = new Map<CategoriaCusto, number>();
-  for (const c of custos) map.set(c.categoria, (map.get(c.categoria) ?? 0) + c.valorMensal);
+/**
+ * Operating despesas and receitas for a month ("YYYY-MM"), or the recurring run-rate when `mes`
+ * is omitted. Entries with no `tipo` count as despesas, so data created before operational
+ * income existed keeps its original meaning.
+ */
+export function resumoOperacional(custos: CustoOperacional[], mes?: string): ResumoOperacional {
+  let despesas = 0;
+  let receitas = 0;
+  for (const c of custos) {
+    if (!aplicaNoMes(c, mes)) continue;
+    if (c.tipo === "receita") receitas += c.valorMensal;
+    else despesas += c.valorMensal;
+  }
+  return { despesas, receitas, liquido: despesas - receitas };
+}
+
+/**
+ * Net operating impact for a month — despesas minus receitas. This is the figure a month's profit
+ * gives up, so it is what the Painel subtracts. Can go negative if operational income exceeds
+ * overhead.
+ */
+export function totalOperacional(custos: CustoOperacional[], mes?: string): number {
+  return resumoOperacional(custos, mes).liquido;
+}
+
+export type AggCategoria = { categoria: CategoriaOperacional; valor: number; share: number };
+
+/**
+ * Operating entries of one `tipo` grouped by category, biggest first, each with its share of that
+ * tipo's total. Despesas and receitas are kept apart — mixing them into one ranking would compare
+ * money out against money in.
+ */
+export function custosPorCategoria(
+  custos: CustoOperacional[],
+  tipo: TipoOperacional = "despesa",
+  mes?: string,
+): AggCategoria[] {
+  const map = new Map<CategoriaOperacional, number>();
+  for (const c of custos) {
+    if (!aplicaNoMes(c, mes)) continue;
+    if ((c.tipo ?? "despesa") !== tipo) continue;
+    map.set(c.categoria, (map.get(c.categoria) ?? 0) + c.valorMensal);
+  }
   const total = [...map.values()].reduce((s, v) => s + v, 0);
   return [...map.entries()]
     .map(([categoria, valor]) => ({ categoria, valor, share: total > 0 ? valor / total : 0 }))

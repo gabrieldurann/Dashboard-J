@@ -163,8 +163,9 @@ export const useStore = create<State>()(
       // instead of masking it. (v2: country data. v3: T1 historical sales. v4: calibrated
       // velocities. v5: demo scaled up ×12 + realistic operating costs. v6: returns ledger.
       // v7: returns gained status + restock date. v8: purchases ledger +
-      // estoqueAtual renamed to estoqueInicial (stock is derived now).)
-      name: "painel-j-v8",
+      // estoqueAtual renamed to estoqueInicial (stock is derived now). v9: operating entries
+      // gained tipo despesa/receita + recorrente/pontual, and the seed gained examples of each.)
+      name: "painel-j-v9",
     },
   ),
 );

@@ -838,4 +838,25 @@ export const CUSTOS_OPERACIONAIS_SEED: CustoOperacional[] = [
   { id: "op-4", nome: "Software & ferramentas", categoria: "software", valorMensal: 190 },
   { id: "op-5", nome: "Internet", categoria: "internet", valorMensal: 150 },
   { id: "op-6", nome: "Água", categoria: "agua", valorMensal: 90 },
+  // one-off despesa — only hits June, to show recorrente vs pontual side by side
+  {
+    id: "op-7",
+    nome: "Manutenção do galpão",
+    categoria: "outros",
+    valorMensal: 480,
+    tipo: "despesa",
+    recorrente: false,
+    data: "2026-06-11",
+  },
+  // operational income: money in that isn't a product sale (Phase 10b)
+  { id: "op-8", nome: "Rendimento da aplicação", categoria: "juros", valorMensal: 210, tipo: "receita" },
+  {
+    id: "op-9",
+    nome: "Reembolso de frete (Amazon)",
+    categoria: "reembolso",
+    valorMensal: 340,
+    tipo: "receita",
+    recorrente: false,
+    data: "2026-06-19",
+  },
 ];

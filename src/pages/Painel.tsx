@@ -151,8 +151,12 @@ export function Painel() {
     () => resumoDevolucoes(mesChave ? devolucoes.filter((r) => r.data.slice(0, 7) === mesChave) : []).reembolso,
     [devolucoes, mesChave],
   );
-  // company overhead (rent, internet, …) — a monthly figure, independent of the month's sales
-  const totalOp = useMemo(() => totalOperacional(custosOperacionais), [custosOperacionais]);
+  // company overhead (rent, internet, …) net of operational income, for this month: the recurring
+  // entries plus any one-off booked in it. Independent of the month's sales.
+  const totalOp = useMemo(
+    () => totalOperacional(custosOperacionais, mesChave),
+    [custosOperacionais, mesChave],
+  );
   // two headline figures: profit before company overhead (all sale costs + returns), and the
   // true net "money in pocket" after overhead too.
   const lucroSemOperacional = resMes.lucro - reembolsoMes;

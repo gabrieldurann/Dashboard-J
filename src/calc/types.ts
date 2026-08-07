@@ -155,11 +155,34 @@ export type CategoriaCusto =
   | "contabilidade"
   | "outros";
 
+/** Operational income (Gestor Seller "Receitas Operacionais") — money in that isn't a product sale. */
+export type CategoriaReceita =
+  | "juros" // rendimento de aplicação, juros recebidos
+  | "reembolso" // reembolso de fornecedor / marketplace
+  | "servicos" // serviços prestados
+  | "aluguel_recebido" // sublocação, aluguel de equipamento
+  | "outros_ganhos";
+
+export type CategoriaOperacional = CategoriaCusto | CategoriaReceita;
+
+/** Money out (despesa) or money in (receita). Absent means despesa — the original behaviour. */
+export type TipoOperacional = "despesa" | "receita";
+
+/** A company-level operating entry (idea #13) — overhead, or operational income, that belongs to no
+ *  single product: rent, internet, salaries, but also interest earned or a supplier rebate. */
 export type CustoOperacional = {
   id: string;
   nome: string;
-  categoria: CategoriaCusto;
-  valorMensal: number; // recurring monthly amount (R$)
+  categoria: CategoriaOperacional;
+  /** Amount for one month (R$). Named `valorMensal` since every entry is read per month. */
+  valorMensal: number;
+  /** Absent = "despesa", so entries created before operational income existed still read right. */
+  tipo?: TipoOperacional;
+  /** Applies every month (default) vs a one-off that only hits the month of `data`.
+   *  Absent = recurring, which is what every pre-existing entry was. */
+  recorrente?: boolean;
+  /** ISO date the one-off belongs to. Only meaningful when `recorrente` is false. */
+  data?: string;
   observacao?: string;
 };
 
