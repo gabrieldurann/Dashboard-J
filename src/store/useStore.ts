@@ -28,6 +28,8 @@ type State = {
   updatePesquisa: (id: string, patch: Partial<Pesquisa>) => void;
   removePesquisa: (id: string) => void;
   addVenda: (v: Venda) => void;
+  /** bulk insert from a marketplace sync — the importer has already de-duplicated */
+  importarVendas: (novas: Venda[]) => void;
   updateVenda: (id: string, patch: Partial<Venda>) => void;
   removeVenda: (id: string) => void;
   addVendaAvulsa: (v: VendaAvulsa) => void;
@@ -98,6 +100,7 @@ export const useStore = create<State>()(
       removePesquisa: (id) =>
         set((s) => ({ pesquisas: s.pesquisas.filter((p) => p.id !== id) })),
       addVenda: (v) => set((s) => ({ vendas: [v, ...s.vendas] })),
+      importarVendas: (novas) => set((s) => ({ vendas: [...novas, ...s.vendas] })),
       updateVenda: (id, patch) =>
         set((s) => ({
           vendas: s.vendas.map((v) => (v.id === id ? { ...v, ...patch } : v)),

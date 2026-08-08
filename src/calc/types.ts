@@ -49,6 +49,35 @@ export type Venda = {
   pais?: string; // ISO 3166-1 alpha-2 country code (see data/countries.ts) — for sales-per-country
   frete?: number;
   observacao?: string;
+  /** Where this record came from. Absent = typed in by hand, which is what every older sale was. */
+  origem?: OrigemDado;
+  /** Which linked account imported it — lets any figure be traced back to its connection. */
+  contaId?: string;
+};
+
+/** How a record entered the app. Imported records can always be traced back to their connection. */
+export type OrigemDado = "manual" | "amazon";
+
+/**
+ * One order line as a marketplace would hand it over. Deliberately shaped like the fields an
+ * Amazon order actually carries, so the importer that consumes it doesn't change when the mock
+ * is replaced by the real API response.
+ */
+export type PedidoAmazon = {
+  /** Amazon Order ID — the identity used to avoid importing the same line twice. */
+  numeroPedido: string;
+  data: string; // ISO datetime
+  sku: string;
+  titulo: string;
+  quantidade: number;
+  valorUnitario: number;
+  valorTotal: number;
+  frete?: number;
+  cliente?: string;
+  cidade?: string;
+  uf?: string;
+  pais?: string;
+  status: VendaStatus;
 };
 
 /** Why a customer returned the order (idea #1). Drives the "por motivo" breakdown. */

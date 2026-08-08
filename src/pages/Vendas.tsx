@@ -502,6 +502,14 @@ export function Vendas() {
                         <td className="max-w-[110px] truncate px-2 py-3 text-sm text-txt xl:max-w-[135px] xl:px-3" title={v.produtoNome}>
                           {v.produtoNome}
                           {!v.produtoId && <span className="ml-2 font-mono text-[10px] text-gold">avulsa</span>}
+                          {v.origem === "amazon" && (
+                            <span
+                              className="ml-2 font-mono text-[10px] text-sky"
+                              title="Importada automaticamente da conta Amazon conectada"
+                            >
+                              importada
+                            </span>
+                          )}
                         </td>
                         <td className="whitespace-nowrap px-2 py-3 font-mono text-xs text-txtDim xl:px-3">
                           {v.codigoProduto ?? "—"}
@@ -556,6 +564,10 @@ export function Vendas() {
                                       <Dado termo="Nº do pedido" valor={v.numeroPedido} />
                                       <Dado termo="Quantidade" valor={`${v.quantidade} × ${money(v.valorUnitario)}`} />
                                       <Dado termo="Canal" valor={v.canal} />
+                                      <Dado
+                                        termo="Origem"
+                                        valor={v.origem === "amazon" ? "Importada da Amazon" : undefined}
+                                      />
                                       <Dado termo="Código" valor={v.codigoProduto} />
                                       <Dado termo="ASIN" valor={produto?.asin} />
                                       <Dado termo="EAN" valor={produto?.ean} />

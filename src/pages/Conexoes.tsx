@@ -10,7 +10,9 @@ import {
   Unplug,
 } from "lucide-react";
 import { useState } from "react";
+import { importarPedidos } from "../calc/engine";
 import type { ContaAmazon, StatusConexao } from "../calc/types";
+import { pedidosDaConta } from "../data/amazonMock";
 import { ConectarConta } from "../components/ConectarConta";
 import { GlowCard } from "../components/GlowCard";
 import { Screen } from "../components/Screen";
@@ -39,6 +41,9 @@ export function Conexoes() {
   const addConta = useStore((s) => s.addContaAmazon);
   const updateConta = useStore((s) => s.updateContaAmazon);
   const removeConta = useStore((s) => s.removeContaAmazon);
+  const vendas = useStore((s) => s.vendas);
+  const produtos = useStore((s) => s.produtos);
+  const importarVendas = useStore((s) => s.importarVendas);
 
   const [modal, setModal] = useState(false);
   const [sincronizando, setSincronizando] = useState<string | null>(null);
@@ -49,13 +54,23 @@ export function Conexoes() {
     toast.success(`${c.apelido} conectada`);
   };
 
-  /** Simulated refresh — the real one will call the SP-API and import orders. */
+  /**
+   * Simulated refresh. `pedidosDaConta` stands in for the SP-API call; everything after it —
+   * matching by SKU, skipping what's already there, writing to the ledger — is the real logic
+   * and stays untouched when the API arrives.
+   */
   const sincronizar = (c: ContaAmazon) => {
     setSincronizando(c.id);
     setTimeout(() => {
+      const novas = importarPedidos(pedidosDaConta(c), vendas, produtos, c);
+      if (novas.length > 0) importarVendas(novas);
       updateConta(c.id, { ultimaSync: new Date().toISOString(), status: "conectada" });
       setSincronizando(null);
-      toast.success(`${c.apelido} sincronizada`);
+      toast.success(
+        novas.length === 0
+          ? "Nenhum pedido novo"
+          : `${novas.length} ${novas.length === 1 ? "pedido importado" : "pedidos importados"} de ${c.apelido}`,
+      );
     }, 1100);
   };
 

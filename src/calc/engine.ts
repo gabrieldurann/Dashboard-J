@@ -11,6 +11,8 @@ import {
 } from "./constants";
 import type {
   AnuncioAds,
+  ContaAmazon,
+  PedidoAmazon,
   CategoriaOperacional,
   TipoOperacional,
   Compra,
@@ -885,6 +887,69 @@ export function gruposDuplicados<T extends { nome: string }>(itens: T[]): T[][] 
 // ─── Operating costs (idea #13) ──────────────────────────────────────────────
 
 /** Total recurring monthly operating cost. */
+// ─── Importing marketplace orders (idea #15) ───
+
+/** Identity of an imported line: one order can carry several SKUs, each its own sale. */
+const chavePedido = (numeroPedido: string, sku: string) =>
+  `${numeroPedido.trim().toLowerCase()}·${sku.trim().toLowerCase()}`;
+
+/**
+ * Turn marketplace orders into sales, skipping anything already imported.
+ *
+ * Re-syncing is normal — a real integration re-reads a date window every time — so this must be
+ * idempotent: only lines whose (pedido, SKU) pair isn't already in the ledger come back.
+ *
+ * Products are matched by SKU against `codigoProduto`, which is what a real importer can do.
+ * An unmatched SKU still imports, as an avulsa: the revenue is real even when the app doesn't
+ * yet know the product's cost, and hiding the sale would understate the month.
+ */
+export function importarPedidos(
+  pedidos: PedidoAmazon[],
+  vendasExistentes: Venda[],
+  produtos: Produto[],
+  conta: ContaAmazon,
+): Venda[] {
+  const jaImportados = new Set(
+    vendasExistentes
+      .filter((v) => v.numeroPedido && v.codigoProduto)
+      .map((v) => chavePedido(v.numeroPedido!, v.codigoProduto!)),
+  );
+  const porSku = new Map(
+    produtos.filter((p) => p.codigoProduto).map((p) => [p.codigoProduto!.trim().toLowerCase(), p]),
+  );
+
+  const novas: Venda[] = [];
+  const vistos = new Set<string>(); // guards against duplicates inside one payload too
+  for (const p of pedidos) {
+    const chave = chavePedido(p.numeroPedido, p.sku);
+    if (jaImportados.has(chave) || vistos.has(chave)) continue;
+    vistos.add(chave);
+
+    const produto = porSku.get(p.sku.trim().toLowerCase());
+    novas.push({
+      id: crypto.randomUUID(),
+      data: p.data,
+      produtoId: produto?.id,
+      produtoNome: produto?.nome ?? p.titulo,
+      codigoProduto: p.sku,
+      quantidade: p.quantidade,
+      valorUnitario: p.valorUnitario,
+      valorTotal: p.valorTotal,
+      canal: "Amazon",
+      status: p.status,
+      numeroPedido: p.numeroPedido,
+      cliente: p.cliente,
+      cidade: p.cidade,
+      uf: p.uf,
+      pais: p.pais,
+      frete: p.frete,
+      origem: "amazon",
+      contaId: conta.id,
+    });
+  }
+  return novas;
+}
+
 // ─── Amazon Ads (idea #12, Phase 11a) ───
 // ACOS and TACOS are the two numbers the whole page turns on, and they are easy to confuse:
 //   ACOS  = ad spend ÷ revenue the ads produced   → "is this campaign paying for itself?"

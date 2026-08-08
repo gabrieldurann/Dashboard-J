@@ -4,6 +4,7 @@ import {
   calcularMetricas,
   custoAds,
   desempenhoAds,
+  importarPedidos,
   resumoAds,
   tacos,
   capitalParaEstoque,
@@ -42,7 +43,7 @@ import {
   vendasPorPais,
 } from "./engine";
 import { CONFIG_PADRAO } from "./constants";
-import type { AnuncioAds, Compra, CustoOperacional, Devolucao, Produto, Venda } from "./types";
+import type { AnuncioAds, Compra, ContaAmazon, CustoOperacional, Devolucao, PedidoAmazon, Produto, Venda } from "./types";
 
 const base: Produto = {
   id: "1",
@@ -633,6 +634,91 @@ describe("custos operacionais (idea #13)", () => {
     expect(agg.reduce((s, a) => s + a.share, 0)).toBeCloseTo(1, 6);
   });
   it("totalOperacional of nothing is 0", () => expect(totalOperacional([])).toBe(0));
+});
+
+describe("importarPedidos (marketplace order import, idea #15)", () => {
+  const conta: ContaAmazon = {
+    id: "c1",
+    apelido: "Loja",
+    sellerId: "A1",
+    marketplace: "Amazon.com.br",
+    regiao: "BR",
+    status: "conectada",
+    conectadaEm: "2026-06-01T00:00",
+    simulada: true,
+  };
+  const prod: Produto = {
+    id: "p1",
+    codigoProduto: "SKU-1",
+    nome: "Projetor",
+    precoVenda: 100,
+    vendasMes: 0,
+    custoUnit: 40,
+    qtdCaixa: 10,
+    imposto: 0.04,
+    comissao: 0.15,
+  };
+  const pedido = (over: Partial<PedidoAmazon>): PedidoAmazon => ({
+    numeroPedido: "701-0001",
+    data: "2026-06-20T10:00",
+    sku: "SKU-1",
+    titulo: "Projetor",
+    quantidade: 1,
+    valorUnitario: 100,
+    valorTotal: 100,
+    status: "entregue",
+    ...over,
+  });
+
+  it("matches the product by SKU and stamps where the sale came from", () => {
+    const [v] = importarPedidos([pedido({})], [], [prod], conta);
+    expect(v.produtoId).toBe("p1");
+    expect(v.produtoNome).toBe("Projetor");
+    expect(v.origem).toBe("amazon");
+    expect(v.contaId).toBe("c1");
+    expect(v.canal).toBe("Amazon");
+  });
+
+  it("still imports an unknown SKU, as an avulsa — the revenue is real either way", () => {
+    const [v] = importarPedidos([pedido({ sku: "SKU-DESCONHECIDO", titulo: "Outro" })], [], [prod], conta);
+    expect(v.produtoId).toBeUndefined();
+    expect(v.produtoNome).toBe("Outro");
+    expect(v.valorTotal).toBe(100);
+  });
+
+  it("is idempotent: re-syncing the same window imports nothing twice", () => {
+    const primeira = importarPedidos([pedido({})], [], [prod], conta);
+    const segunda = importarPedidos([pedido({})], primeira, [prod], conta);
+    expect(primeira).toHaveLength(1);
+    expect(segunda).toHaveLength(0);
+  });
+
+  it("treats each SKU of a multi-item order as its own sale", () => {
+    const novas = importarPedidos(
+      [pedido({}), pedido({ sku: "SKU-2", titulo: "Garrafa" })],
+      [],
+      [prod],
+      conta,
+    );
+    expect(novas).toHaveLength(2);
+    // …and re-importing that order adds neither back
+    expect(importarPedidos([pedido({}), pedido({ sku: "SKU-2", titulo: "Garrafa" })], novas, [prod], conta)).toHaveLength(0);
+  });
+
+  it("drops duplicates inside a single payload", () => {
+    expect(importarPedidos([pedido({}), pedido({})], [], [prod], conta)).toHaveLength(1);
+  });
+
+  it("only skips what actually matches — a different order with the same SKU still imports", () => {
+    const primeira = importarPedidos([pedido({})], [], [prod], conta);
+    const outra = importarPedidos([pedido({ numeroPedido: "701-0002" })], primeira, [prod], conta);
+    expect(outra).toHaveLength(1);
+  });
+
+  it("does not collide with hand-typed sales that carry the same order number", () => {
+    const manual = venda({ numeroPedido: "701-0001", codigoProduto: "SKU-1" });
+    expect(importarPedidos([pedido({})], [manual], [prod], conta)).toHaveLength(0);
+  });
 });
 
 describe("Amazon Ads: ACOS / TACOS / desempenho (idea #12, Phase 11a)", () => {
