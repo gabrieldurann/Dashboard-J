@@ -186,6 +186,37 @@ export type CustoOperacional = {
   observacao?: string;
 };
 
+/** State of a marketplace connection. Mirrors what an OAuth token's lifecycle can tell us. */
+export type StatusConexao =
+  | "conectada" // token válido, sincronizando
+  | "expirada" // token venceu — precisa reautorizar
+  | "revogada"; // acesso removido do lado do marketplace
+
+/**
+ * A linked Amazon Seller account (idea #15).
+ *
+ * ⚠️ Today every connection is **simulated** — there is no backend and no real OAuth. The shape
+ * is deliberately what a real authorization would return, so swapping the mock for the live flow
+ * is a substitution rather than a rewrite: only `simulada` flips to false and the tokens land
+ * server-side. Nothing in the UI reads a token, by design.
+ */
+export type ContaAmazon = {
+  id: string;
+  /** User-facing name, so several stores stay tellable apart. */
+  apelido: string;
+  /** Amazon's Seller ID (merchant token). Shown masked. */
+  sellerId: string;
+  /** e.g. "Amazon.com.br" — the marketplace the account sells on. */
+  marketplace: string;
+  /** Amazon's region grouping for the SP-API endpoint: BR/NA/EU/FE. */
+  regiao: string;
+  status: StatusConexao;
+  conectadaEm: string; // ISO datetime
+  ultimaSync?: string; // ISO datetime
+  /** true = ligação de demonstração. The real backend will write false. */
+  simulada: boolean;
+};
+
 /**
  * One month of advertising for one product on one channel (idea #12, Amazon Ads and friends).
  *

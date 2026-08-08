@@ -1,5 +1,5 @@
 import { COMISSAO_PADRAO, IMPOSTO_PADRAO } from "../calc/constants";
-import type { AnuncioAds, Compra, CustoOperacional, Devolucao, Pesquisa, Produto, Venda } from "../calc/types";
+import type { AnuncioAds, ContaAmazon, Compra, CustoOperacional, Devolucao, Pesquisa, Produto, Venda } from "../calc/types";
 
 // ⚠️ SAMPLE DATA ONLY — safe to be public.
 // This file ships in the repo so the build/demo isn't empty for reviewers. It intentionally
@@ -836,6 +836,24 @@ export const COMPRAS_SEED: Compra[] = [
  * fill the same shape later. Sized against the real June sales so ACOS/TACOS read realistically:
  * the projector is the healthy campaign, the cup holder is the one burning money.
  */
+/**
+ * ⚠️ SIMULATED connection — no real OAuth, no tokens, no Amazon call. Seeded so the connected
+ * state is visible immediately; connecting another account from the page exercises the flow.
+ */
+export const CONTAS_AMAZON_SEED: ContaAmazon[] = [
+  {
+    id: "conta-1",
+    apelido: "Loja Principal",
+    sellerId: "A2X9KDEMO4B1QZ",
+    marketplace: "Amazon.com.br",
+    regiao: "BR",
+    status: "conectada",
+    conectadaEm: "2026-05-12T09:24",
+    ultimaSync: "2026-06-30T07:10",
+    simulada: true,
+  },
+];
+
 export const ANUNCIOS_ADS_SEED: AnuncioAds[] = [
   // June — the month the Painel shows
   {

@@ -3,8 +3,8 @@ import { persist } from "zustand/middleware";
 import { CONFIG_PADRAO, type Configuracoes } from "../calc/constants";
 import type { Tema } from "../theme/tokens";
 import type { LayoutLedger } from "../components/ExibicaoMenu";
-import type { AnuncioAds, CalculoSalvo, Compra, CustoOperacional, Devolucao, Pesquisa, Produto, Venda, VendaAvulsa } from "../calc/types";
-import { ANUNCIOS_ADS_SEED, COMPRAS_SEED, CUSTOS_OPERACIONAIS_SEED, DEVOLUCOES_SEED, PESQUISAS_SEED, PRODUTOS_SEED, VENDAS_SEED } from "../data/seed";
+import type { AnuncioAds, ContaAmazon, CalculoSalvo, Compra, CustoOperacional, Devolucao, Pesquisa, Produto, Venda, VendaAvulsa } from "../calc/types";
+import { ANUNCIOS_ADS_SEED, CONTAS_AMAZON_SEED, COMPRAS_SEED, CUSTOS_OPERACIONAIS_SEED, DEVOLUCOES_SEED, PESQUISAS_SEED, PRODUTOS_SEED, VENDAS_SEED } from "../data/seed";
 
 // Local-first store (PLAN.md §6): hydrates from the bundled seed, then persists the user's edits
 // to localStorage. The deployed link shows the seed to the partner; the user's test edits live
@@ -20,6 +20,7 @@ type State = {
   devolucoes: Devolucao[];
   compras: Compra[];
   anunciosAds: AnuncioAds[];
+  contasAmazon: ContaAmazon[];
   addProduto: (p: Produto) => void;
   updateProduto: (id: string, patch: Partial<Produto>) => void;
   removeProduto: (id: string) => void;
@@ -53,6 +54,9 @@ type State = {
   toggleCardOculto: (id: string) => void;
   ocultarCards: (ids: string[]) => void;
   mostrarCards: (ids: string[]) => void;
+  addContaAmazon: (c: ContaAmazon) => void;
+  updateContaAmazon: (id: string, patch: Partial<ContaAmazon>) => void;
+  removeContaAmazon: (id: string) => void;
   addAnuncioAds: (a: AnuncioAds) => void;
   updateAnuncioAds: (id: string, patch: Partial<AnuncioAds>) => void;
   removeAnuncioAds: (id: string) => void;
@@ -78,6 +82,7 @@ export const useStore = create<State>()(
       devolucoes: DEVOLUCOES_SEED,
       compras: COMPRAS_SEED,
       anunciosAds: ANUNCIOS_ADS_SEED,
+      contasAmazon: CONTAS_AMAZON_SEED,
       addProduto: (p) => set((s) => ({ produtos: [...s.produtos, p] })),
       updateProduto: (id, patch) =>
         set((s) => ({
@@ -139,6 +144,10 @@ export const useStore = create<State>()(
         set((s) => ({ cardsOcultos: [...new Set([...s.cardsOcultos, ...ids])] })),
       mostrarCards: (ids) =>
         set((s) => ({ cardsOcultos: s.cardsOcultos.filter((c) => !ids.includes(c)) })),
+      addContaAmazon: (c) => set((s) => ({ contasAmazon: [...s.contasAmazon, c] })),
+      updateContaAmazon: (id, patch) =>
+        set((s) => ({ contasAmazon: s.contasAmazon.map((c) => (c.id === id ? { ...c, ...patch } : c)) })),
+      removeContaAmazon: (id) => set((s) => ({ contasAmazon: s.contasAmazon.filter((c) => c.id !== id) })),
       addAnuncioAds: (a) => set((s) => ({ anunciosAds: [a, ...s.anunciosAds] })),
       updateAnuncioAds: (id, patch) =>
         set((s) => ({ anunciosAds: s.anunciosAds.map((a) => (a.id === id ? { ...a, ...patch } : a)) })),
@@ -165,6 +174,7 @@ export const useStore = create<State>()(
           devolucoes: DEVOLUCOES_SEED,
           compras: COMPRAS_SEED,
           anunciosAds: ANUNCIOS_ADS_SEED,
+          contasAmazon: CONTAS_AMAZON_SEED,
         }),
     }),
     {
