@@ -13,6 +13,7 @@ import type {
   AnuncioAds,
   ContaAmazon,
   PedidoAmazon,
+  RelatorioAds,
   CategoriaOperacional,
   TipoOperacional,
   Compra,
@@ -938,9 +939,7 @@ export function importarPedidos(
       canal: "Amazon",
       status: p.status,
       numeroPedido: p.numeroPedido,
-      cliente: p.cliente,
-      cidade: p.cidade,
-      uf: p.uf,
+      // no cliente / cidade / uf: buyer data is restricted and a first integration won't have it
       pais: p.pais,
       frete: p.frete,
       origem: "amazon",
@@ -948,6 +947,63 @@ export function importarPedidos(
     });
   }
   return novas;
+}
+
+/** Identity of an imported ads row: one report line per campaign per period per SKU. */
+const chaveAds = (campanhaId: string, data: string, sku: string) =>
+  `${campanhaId.trim().toLowerCase()}·${data.slice(0, 7)}·${sku.trim().toLowerCase()}`;
+
+/**
+ * Turn Ads API report rows into the app's ad records, skipping anything already imported.
+ *
+ * Same contract as `importarPedidos` — re-running a report window must not double the spend —
+ * but the data arrives through a **different API and a different authorization**, which is why
+ * it is a separate function rather than a branch of the order importer.
+ *
+ * Organic units are deliberately left unset: the Ads API reports what the ads did, and it does
+ * not know how much sold without them. That figure comes from the order data, or from the user.
+ */
+export function importarAnuncios(
+  relatorios: RelatorioAds[],
+  anunciosExistentes: AnuncioAds[],
+  produtos: Produto[],
+  conta: ContaAmazon,
+): AnuncioAds[] {
+  const jaImportados = new Set(
+    anunciosExistentes
+      .filter((a) => a.campanhaId && a.sku)
+      .map((a) => chaveAds(a.campanhaId!, a.data, a.sku!)),
+  );
+  const porSku = new Map(
+    produtos.filter((p) => p.codigoProduto).map((p) => [p.codigoProduto!.trim().toLowerCase(), p]),
+  );
+
+  const novos: AnuncioAds[] = [];
+  const vistos = new Set<string>();
+  for (const r of relatorios) {
+    const chave = chaveAds(r.campanhaId, r.data, r.sku);
+    if (jaImportados.has(chave) || vistos.has(chave)) continue;
+    vistos.add(chave);
+
+    const produto = porSku.get(r.sku.trim().toLowerCase());
+    novos.push({
+      id: crypto.randomUUID(),
+      produtoId: produto?.id,
+      produtoNome: produto?.nome ?? r.titulo,
+      sku: r.sku,
+      canal: "Amazon",
+      data: r.data,
+      custo: r.custo,
+      faturamentoAds: r.faturamentoAds,
+      unidadesAds: r.unidadesAds,
+      cliques: r.cliques,
+      observacao: r.campanha,
+      origem: "amazon",
+      contaId: conta.id,
+      campanhaId: r.campanhaId,
+    });
+  }
+  return novos;
 }
 
 // ─── Amazon Ads (idea #12, Phase 11a) ───

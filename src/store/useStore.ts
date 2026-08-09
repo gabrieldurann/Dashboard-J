@@ -60,6 +60,8 @@ type State = {
   updateContaAmazon: (id: string, patch: Partial<ContaAmazon>) => void;
   removeContaAmazon: (id: string) => void;
   addAnuncioAds: (a: AnuncioAds) => void;
+  /** bulk insert from an Ads API sync — the importer has already de-duplicated */
+  importarAnunciosAds: (novos: AnuncioAds[]) => void;
   updateAnuncioAds: (id: string, patch: Partial<AnuncioAds>) => void;
   removeAnuncioAds: (id: string) => void;
   addCompra: (c: Compra) => void;
@@ -152,6 +154,7 @@ export const useStore = create<State>()(
         set((s) => ({ contasAmazon: s.contasAmazon.map((c) => (c.id === id ? { ...c, ...patch } : c)) })),
       removeContaAmazon: (id) => set((s) => ({ contasAmazon: s.contasAmazon.filter((c) => c.id !== id) })),
       addAnuncioAds: (a) => set((s) => ({ anunciosAds: [a, ...s.anunciosAds] })),
+      importarAnunciosAds: (novos) => set((s) => ({ anunciosAds: [...novos, ...s.anunciosAds] })),
       updateAnuncioAds: (id, patch) =>
         set((s) => ({ anunciosAds: s.anunciosAds.map((a) => (a.id === id ? { ...a, ...patch } : a)) })),
       removeAnuncioAds: (id) => set((s) => ({ anunciosAds: s.anunciosAds.filter((a) => a.id !== id) })),
@@ -188,8 +191,9 @@ export const useStore = create<State>()(
       // v7: returns gained status + restock date. v8: purchases ledger +
       // estoqueAtual renamed to estoqueInicial (stock is derived now). v9: operating entries
       // gained tipo despesa/receita + recorrente/pontual, and the seed gained examples of each.
-      // v10: Amazon Ads ledger.)
-      name: "painel-j-v10",
+      // v10: Amazon Ads ledger. v11: connections split per API (SP-API / Ads API) and imported
+      // orders no longer carry buyer data.)
+      name: "painel-j-v11",
     },
   ),
 );

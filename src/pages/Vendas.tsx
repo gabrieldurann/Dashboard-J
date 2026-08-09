@@ -496,7 +496,7 @@ export function Vendas() {
                         <td className="whitespace-nowrap px-2 py-3 font-mono text-xs text-txtDim xl:px-3">
                           {date(v.data)}
                         </td>
-                        <td className="whitespace-nowrap px-2 py-3 font-mono text-xs text-txtDim xl:px-3">
+                        <td className="max-w-[105px] truncate px-2 py-3 font-mono text-xs text-txtDim xl:px-3" title={v.numeroPedido}>
                           {v.numeroPedido ?? "—"}
                         </td>
                         <td className="max-w-[110px] truncate px-2 py-3 text-sm text-txt xl:max-w-[135px] xl:px-3" title={v.produtoNome}>
@@ -511,7 +511,7 @@ export function Vendas() {
                             </span>
                           )}
                         </td>
-                        <td className="whitespace-nowrap px-2 py-3 font-mono text-xs text-txtDim xl:px-3">
+                        <td className="max-w-[105px] truncate px-2 py-3 font-mono text-xs text-txtDim xl:px-3" title={v.codigoProduto}>
                           {v.codigoProduto ?? "—"}
                         </td>
                         <td className="hidden px-2 py-3 font-mono text-sm tabular-nums text-txtDim xl:table-cell xl:px-3">{v.quantidade}</td>

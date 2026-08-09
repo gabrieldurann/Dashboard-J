@@ -10,9 +10,9 @@ import {
   Unplug,
 } from "lucide-react";
 import { useState } from "react";
-import { importarPedidos } from "../calc/engine";
-import type { ContaAmazon, StatusConexao } from "../calc/types";
-import { pedidosDaConta } from "../data/amazonMock";
+import { importarAnuncios, importarPedidos } from "../calc/engine";
+import type { ConexaoServico, ContaAmazon, ServicoAmazon, StatusConexao } from "../calc/types";
+import { pedidosDaConta, relatoriosAdsDaConta } from "../data/amazonMock";
 import { ConectarConta } from "../components/ConectarConta";
 import { GlowCard } from "../components/GlowCard";
 import { Screen } from "../components/Screen";
@@ -33,6 +33,12 @@ const STATUS: Record<StatusConexao, { label: string; cls: string }> = {
   revogada: { label: "Revogada", cls: "text-txtDim border-lineStrong bg-neutroSoft" },
 };
 
+/** What each API is called and what it brings in — shown per connection, not per account. */
+const SERVICO: Record<ServicoAmazon, { nome: string; api: string; traz: string }> = {
+  "sp-api": { nome: "Vendas e estoque", api: "Selling Partner API", traz: "Pedidos → Vendas" },
+  "ads-api": { nome: "Anúncios", api: "Amazon Ads API", traz: "Campanhas → Ads" },
+};
+
 /** Seller IDs are semi-sensitive, so only the ends are shown. */
 const mascarar = (id: string) => (id.length <= 6 ? id : `${id.slice(0, 4)}••••${id.slice(-4)}`);
 
@@ -43,7 +49,9 @@ export function Conexoes() {
   const removeConta = useStore((s) => s.removeContaAmazon);
   const vendas = useStore((s) => s.vendas);
   const produtos = useStore((s) => s.produtos);
+  const anuncios = useStore((s) => s.anunciosAds);
   const importarVendas = useStore((s) => s.importarVendas);
+  const importarAds = useStore((s) => s.importarAnunciosAds);
 
   const [modal, setModal] = useState(false);
   const [sincronizando, setSincronizando] = useState<string | null>(null);
@@ -55,23 +63,57 @@ export function Conexoes() {
   };
 
   /**
-   * Simulated refresh. `pedidosDaConta` stands in for the SP-API call; everything after it —
-   * matching by SKU, skipping what's already there, writing to the ledger — is the real logic
-   * and stays untouched when the API arrives.
+   * Simulated refresh of ONE service. `pedidosDaConta` / `relatoriosAdsDaConta` stand in for the
+   * two API calls; everything after them — matching by SKU, skipping what's already there,
+   * writing to the ledgers — is the real logic and stays untouched when the APIs arrive.
    */
-  const sincronizar = (c: ContaAmazon) => {
-    setSincronizando(c.id);
+  const sincronizar = (c: ContaAmazon, servico: ServicoAmazon) => {
+    const chave = `${c.id}·${servico}`;
+    setSincronizando(chave);
     setTimeout(() => {
-      const novas = importarPedidos(pedidosDaConta(c), vendas, produtos, c);
-      if (novas.length > 0) importarVendas(novas);
-      updateConta(c.id, { ultimaSync: new Date().toISOString(), status: "conectada" });
+      let quantos = 0;
+      let oQue = "";
+      if (servico === "sp-api") {
+        const novas = importarPedidos(pedidosDaConta(c), vendas, produtos, c);
+        if (novas.length > 0) importarVendas(novas);
+        quantos = novas.length;
+        oQue = quantos === 1 ? "pedido importado" : "pedidos importados";
+      } else {
+        const novos = importarAnuncios(relatoriosAdsDaConta(c), anuncios, produtos, c);
+        if (novos.length > 0) importarAds(novos);
+        quantos = novos.length;
+        oQue = quantos === 1 ? "campanha importada" : "campanhas importadas";
+      }
+      atualizarConexao(c, servico, { ultimaSync: new Date().toISOString(), status: "conectada" });
       setSincronizando(null);
-      toast.success(
-        novas.length === 0
-          ? "Nenhum pedido novo"
-          : `${novas.length} ${novas.length === 1 ? "pedido importado" : "pedidos importados"} de ${c.apelido}`,
-      );
+      toast.success(quantos === 0 ? "Nada novo para importar" : `${quantos} ${oQue}`);
     }, 1100);
+  };
+
+  /** Patch one service's connection without touching the account's other authorization. */
+  const atualizarConexao = (c: ContaAmazon, servico: ServicoAmazon, patch: Partial<ConexaoServico>) =>
+    updateConta(c.id, {
+      conexoes: c.conexoes.map((x) => (x.servico === servico ? { ...x, ...patch } : x)),
+    });
+
+  /** Authorizing a second API on an account that already has one. */
+  const conectarServico = (c: ContaAmazon, servico: ServicoAmazon) => {
+    updateConta(c.id, {
+      conexoes: [...c.conexoes, { servico, status: "conectada", conectadaEm: new Date().toISOString() }],
+    });
+    toast.success(`${SERVICO[servico].nome} autorizado`);
+  };
+
+  const desconectarServico = async (c: ContaAmazon, servico: ServicoAmazon) => {
+    const ok = await confirmAction({
+      title: `Revogar ${SERVICO[servico].nome}?`,
+      message: `A conta continua conectada, mas ${SERVICO[servico].api} deixa de sincronizar. Os dados já importados permanecem.`,
+      confirmLabel: "Revogar",
+      danger: true,
+    });
+    if (!ok) return;
+    updateConta(c.id, { conexoes: c.conexoes.filter((x) => x.servico !== servico) });
+    toast.success("Autorização revogada");
   };
 
   const desconectar = async (c: ContaAmazon) => {
@@ -140,9 +182,6 @@ export function Conexoes() {
                       <ShoppingCart size={15} className="text-green" strokeWidth={2} />
                     </span>
                     <span className="font-display text-base text-txt">{c.apelido}</span>
-                    <span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] ${STATUS[c.status].cls}`}>
-                      {STATUS[c.status].label}
-                    </span>
                     {c.simulada && (
                       <span
                         className="rounded-full border border-lineStrong bg-neutroSoft px-2.5 py-1 font-mono text-[10px] text-txtDim"
@@ -152,34 +191,83 @@ export function Conexoes() {
                       </span>
                     )}
                   </div>
-                  <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2">
+                  <dl className="mt-3 grid grid-cols-3 gap-x-4 gap-y-2">
                     <Dado termo="Marketplace" valor={c.marketplace} />
                     <Dado termo="Região" valor={c.regiao} />
                     <Dado termo="Seller ID" valor={mascarar(c.sellerId)} />
-                    <Dado termo="Conectada em" valor={datetime(c.conectadaEm)} />
                   </dl>
-                  <p className="mt-3 font-mono text-[11px] text-txtFaint">
-                    Última sincronização: {c.ultimaSync ? datetime(c.ultimaSync) : "nunca"}
-                  </p>
                 </div>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  onClick={() => sincronizar(c)}
-                  disabled={sincronizando === c.id}
-                  className="flex items-center gap-2 rounded-chip border border-line px-3 py-2 font-mono text-xs text-txtDim transition-colors hover:text-txt disabled:opacity-50"
-                >
-                  <RefreshCw size={13} className={sincronizando === c.id ? "animate-spin" : ""} />
-                  {sincronizando === c.id ? "Sincronizando…" : "Sincronizar"}
-                </button>
-                <button
-                  onClick={() => desconectar(c)}
-                  className="flex items-center gap-2 rounded-chip border border-line px-3 py-2 font-mono text-xs text-txtDim transition-colors hover:text-danger"
-                >
-                  <Unplug size={13} /> Desconectar
-                </button>
+              {/* one row per API — each is its own authorization, with its own sync */}
+              <div className="mt-4 flex flex-col gap-2">
+                {(["sp-api", "ads-api"] as ServicoAmazon[]).map((sv) => {
+                  const conexao = c.conexoes.find((x) => x.servico === sv);
+                  const chave = `${c.id}·${sv}`;
+                  const carregando = sincronizando === chave;
+                  return (
+                    <div key={sv} className="rounded-card border border-line bg-bgRaise/40 p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-display text-sm text-txt">{SERVICO[sv].nome}</span>
+                        <span className="font-mono text-[10px] text-txtFaint">{SERVICO[sv].api}</span>
+                        {conexao ? (
+                          <span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] ${STATUS[conexao.status].cls}`}>
+                            {STATUS[conexao.status].label}
+                          </span>
+                        ) : (
+                          <span className="rounded-full border border-line px-2.5 py-1 font-mono text-[10px] text-txtFaint">
+                            Não autorizado
+                          </span>
+                        )}
+                      </div>
+
+                      {conexao ? (
+                        <>
+                          <p className="mt-2 font-mono text-[11px] text-txtFaint">
+                            {SERVICO[sv].traz} · última sincronização{" "}
+                            {conexao.ultimaSync ? datetime(conexao.ultimaSync) : "nunca"}
+                          </p>
+                          <div className="mt-2.5 flex flex-wrap gap-2">
+                            <button
+                              onClick={() => sincronizar(c, sv)}
+                              disabled={carregando}
+                              className="flex items-center gap-2 rounded-chip border border-line px-3 py-1.5 font-mono text-xs text-txtDim transition-colors hover:text-txt disabled:opacity-50"
+                            >
+                              <RefreshCw size={13} className={carregando ? "animate-spin" : ""} />
+                              {carregando ? "Sincronizando…" : "Sincronizar"}
+                            </button>
+                            <button
+                              onClick={() => desconectarServico(c, sv)}
+                              className="flex items-center gap-2 rounded-chip border border-line px-3 py-1.5 font-mono text-xs text-txtDim transition-colors hover:text-danger"
+                            >
+                              <Unplug size={13} /> Revogar
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p className="mt-2 font-mono text-[11px] leading-relaxed text-txtFaint">
+                            Aprovação separada na Amazon. Sem ela, {SERVICO[sv].traz.toLowerCase()} não entra.
+                          </p>
+                          <button
+                            onClick={() => conectarServico(c, sv)}
+                            className="mt-2.5 flex items-center gap-2 rounded-chip border border-lineStrong bg-greenSoft px-3 py-1.5 font-mono text-xs text-txt transition-opacity hover:opacity-90"
+                          >
+                            <Plus size={13} /> Autorizar
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
+
+              <button
+                onClick={() => desconectar(c)}
+                className="mt-3 flex items-center gap-2 font-mono text-xs text-txtFaint transition-colors hover:text-danger"
+              >
+                <Unplug size={13} /> Remover conta
+              </button>
             </GlowCard>
           ))
         )}

@@ -4,6 +4,7 @@ import {
   calcularMetricas,
   custoAds,
   desempenhoAds,
+  importarAnuncios,
   importarPedidos,
   resumoAds,
   tacos,
@@ -43,7 +44,7 @@ import {
   vendasPorPais,
 } from "./engine";
 import { CONFIG_PADRAO } from "./constants";
-import type { AnuncioAds, Compra, ContaAmazon, CustoOperacional, Devolucao, PedidoAmazon, Produto, Venda } from "./types";
+import type { AnuncioAds, Compra, ContaAmazon, CustoOperacional, Devolucao, PedidoAmazon, Produto, RelatorioAds, Venda } from "./types";
 
 const base: Produto = {
   id: "1",
@@ -643,8 +644,7 @@ describe("importarPedidos (marketplace order import, idea #15)", () => {
     sellerId: "A1",
     marketplace: "Amazon.com.br",
     regiao: "BR",
-    status: "conectada",
-    conectadaEm: "2026-06-01T00:00",
+    conexoes: [{ servico: "sp-api", status: "conectada", conectadaEm: "2026-06-01T00:00" }],
     simulada: true,
   };
   const prod: Produto = {
@@ -666,6 +666,7 @@ describe("importarPedidos (marketplace order import, idea #15)", () => {
     quantidade: 1,
     valorUnitario: 100,
     valorTotal: 100,
+    pais: "BR",
     status: "entregue",
     ...over,
   });
@@ -718,6 +719,63 @@ describe("importarPedidos (marketplace order import, idea #15)", () => {
   it("does not collide with hand-typed sales that carry the same order number", () => {
     const manual = venda({ numeroPedido: "701-0001", codigoProduto: "SKU-1" });
     expect(importarPedidos([pedido({})], [manual], [prod], conta)).toHaveLength(0);
+  });
+
+  it("never carries buyer data — that is restricted and a first integration will not have it", () => {
+    const [v] = importarPedidos([pedido({})], [], [prod], conta);
+    expect(v.cliente).toBeUndefined();
+    expect(v.cidade).toBeUndefined();
+    expect(v.uf).toBeUndefined();
+    expect(v.pais).toBeDefined(); // marketplace-derived, so it is fine
+  });
+
+  describe("importarAnuncios (Ads API — a separate authorization)", () => {
+    const rel = (over: Partial<RelatorioAds>): RelatorioAds => ({
+      campanhaId: "CAMP-1",
+      campanha: "SP · Auto",
+      data: "2026-06-30",
+      sku: "SKU-1",
+      titulo: "Projetor",
+      custo: 100,
+      faturamentoAds: 400,
+      unidadesAds: 4,
+      cliques: 200,
+      ...over,
+    });
+
+    it("matches by SKU and stamps the account it came from", () => {
+      const [a] = importarAnuncios([rel({})], [], [prod], conta);
+      expect(a.produtoId).toBe("p1");
+      expect(a.origem).toBe("amazon");
+      expect(a.contaId).toBe("c1");
+      expect(a.campanhaId).toBe("CAMP-1");
+    });
+
+    it("leaves organic units unset — the Ads API cannot know them", () => {
+      const [a] = importarAnuncios([rel({})], [], [prod], conta);
+      expect(a.unidadesOrganicas).toBeUndefined();
+    });
+
+    it("is idempotent per campaign per month", () => {
+      const primeira = importarAnuncios([rel({})], [], [prod], conta);
+      expect(importarAnuncios([rel({})], primeira, [prod], conta)).toHaveLength(0);
+      // a later month of the same campaign is genuinely new
+      expect(importarAnuncios([rel({ data: "2026-07-31" })], primeira, [prod], conta)).toHaveLength(1);
+    });
+
+    it("does not touch hand-entered ad rows, which carry no campanhaId", () => {
+      const manual: AnuncioAds = {
+        id: "m1",
+        produtoNome: "Projetor",
+        sku: "SKU-1",
+        canal: "Amazon",
+        data: "2026-06-30",
+        custo: 50,
+        faturamentoAds: 100,
+        unidadesAds: 1,
+      };
+      expect(importarAnuncios([rel({})], [manual], [prod], conta)).toHaveLength(1);
+    });
   });
 });
 

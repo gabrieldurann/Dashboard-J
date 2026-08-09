@@ -847,9 +847,16 @@ export const CONTAS_AMAZON_SEED: ContaAmazon[] = [
     sellerId: "A2X9KDEMO4B1QZ",
     marketplace: "Amazon.com.br",
     regiao: "BR",
-    status: "conectada",
-    conectadaEm: "2026-05-12T09:24",
-    ultimaSync: "2026-06-30T07:10",
+    // SP-API authorized and syncing; Ads deliberately NOT connected, because that is a separate
+    // application and approval — a seller really can have one without the other.
+    conexoes: [
+      {
+        servico: "sp-api",
+        status: "conectada",
+        conectadaEm: "2026-05-12T09:24",
+        ultimaSync: "2026-06-30T07:10",
+      },
+    ],
     simulada: true,
   },
 ];

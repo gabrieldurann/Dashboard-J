@@ -59,25 +59,48 @@ export type Venda = {
 export type OrigemDado = "manual" | "amazon";
 
 /**
- * One order line as a marketplace would hand it over. Deliberately shaped like the fields an
- * Amazon order actually carries, so the importer that consumes it doesn't change when the mock
- * is replaced by the real API response.
+ * One order line as the Selling Partner API hands it over.
+ *
+ * **Deliberately does NOT carry the buyer's name or address.** That is restricted data: it needs
+ * a separate authorization and, historically, passing Amazon's PII audit. A first working
+ * integration will not have it, so the mock must not pretend otherwise — the "Cliente" column
+ * simply stays empty on imported rows.
+ *
+ * `pais` is safe: it comes from the marketplace the account sells on, not from the buyer.
  */
 export type PedidoAmazon = {
   /** Amazon Order ID — the identity used to avoid importing the same line twice. */
   numeroPedido: string;
-  data: string; // ISO datetime
-  sku: string;
+  data: string; // ISO datetime (purchase date)
+  sku: string; // seller SKU
+  asin?: string; // Amazon's own identifier for the listing
   titulo: string;
   quantidade: number;
   valorUnitario: number;
   valorTotal: number;
+  /** Shipping charged to the buyer, as reported by the API. Not the freight *you* paid. */
   frete?: number;
-  cliente?: string;
-  cidade?: string;
-  uf?: string;
+  /** Country of the marketplace, not of the buyer — derived, so it is not restricted data. */
   pais?: string;
   status: VendaStatus;
+};
+
+/**
+ * One product's advertising figures for a period, as the **Ads API** reports them.
+ * A different API from the orders above, which is why it arrives through its own connection.
+ */
+export type RelatorioAds = {
+  /** Identity for de-duplication: one report row per campaign per period. */
+  campanhaId: string;
+  campanha: string;
+  data: string; // ISO date — the period the figures cover
+  sku: string;
+  titulo: string;
+  custo: number;
+  faturamentoAds: number;
+  unidadesAds: number;
+  cliques?: number;
+  impressoes?: number;
 };
 
 /** Why a customer returned the order (idea #1). Drives the "por motivo" breakdown. */
@@ -222,10 +245,27 @@ export type StatusConexao =
   | "revogada"; // acesso removido do lado do marketplace
 
 /**
+ * Amazon exposes selling data and advertising data through **two different APIs**, with separate
+ * applications, separate approvals and separate OAuth. Linking "an Amazon account" is therefore
+ * two authorizations, and a seller can perfectly well have one without the other.
+ */
+export type ServicoAmazon =
+  | "sp-api" // Selling Partner API — pedidos, taxas, estoque, anúncios (listings)
+  | "ads-api"; // Amazon Ads API — campanhas, investimento, ACOS
+
+/** One authorized service on one seller account. */
+export type ConexaoServico = {
+  servico: ServicoAmazon;
+  status: StatusConexao;
+  conectadaEm: string; // ISO datetime
+  ultimaSync?: string; // ISO datetime
+};
+
+/**
  * A linked Amazon Seller account (idea #15).
  *
  * ⚠️ Today every connection is **simulated** — there is no backend and no real OAuth. The shape
- * is deliberately what a real authorization would return, so swapping the mock for the live flow
+ * is deliberately what real authorizations would produce, so swapping the mock for the live flow
  * is a substitution rather than a rewrite: only `simulada` flips to false and the tokens land
  * server-side. Nothing in the UI reads a token, by design.
  */
@@ -239,9 +279,8 @@ export type ContaAmazon = {
   marketplace: string;
   /** Amazon's region grouping for the SP-API endpoint: BR/NA/EU/FE. */
   regiao: string;
-  status: StatusConexao;
-  conectadaEm: string; // ISO datetime
-  ultimaSync?: string; // ISO datetime
+  /** One entry per authorized API. Empty is possible: an account can be added and not authorized. */
+  conexoes: ConexaoServico[];
   /** true = ligação de demonstração. The real backend will write false. */
   simulada: boolean;
 };
@@ -271,6 +310,12 @@ export type AnuncioAds = {
   /** Ad clicks, if known. Only used for the conversion rate. */
   cliques?: number;
   observacao?: string;
+  /** Absent = typed in by hand. Set when the row came from the Ads API. */
+  origem?: OrigemDado;
+  /** Which linked account imported it. */
+  contaId?: string;
+  /** Ads API campaign this row came from — the de-duplication key on re-sync. */
+  campanhaId?: string;
 };
 
 /** A product research entry — the "TabPesquisa" log. Mirrors the sheet's columns. */

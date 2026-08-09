@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, Loader2, Lock, ShieldCheck, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { ContaAmazon } from "../calc/types";
+import type { ConexaoServico, ContaAmazon, ServicoAmazon } from "../calc/types";
 import { Field, inputClass, TextInput } from "./Field";
 import { EASE } from "../theme/tokens";
 
@@ -20,12 +20,41 @@ const MARKETPLACES = [
   { id: "Amazon.es", regiao: "EU", label: "Amazon.es (Espanha)" },
 ];
 
-/** What the app would ask Amazon for. Shown so the consent screen isn't a black box. */
-const PERMISSOES = [
-  "Ler pedidos e itens vendidos",
-  "Ler taxas, comissões e reembolsos",
-  "Ler inventário e anúncios",
-  "Ler relatórios de anúncios (Ads)",
+/**
+ * The two APIs, spelled out. Amazon keeps selling data and advertising data behind **separate
+ * applications with separate approvals**, so this is genuinely two authorizations — and a seller
+ * can have one without the other. Presenting it as a single "connect Amazon" would be a lie the
+ * real integration could not honour.
+ */
+const SERVICOS: {
+  id: ServicoAmazon;
+  nome: string;
+  api: string;
+  permissoes: string[];
+  naoInclui?: string;
+}[] = [
+  {
+    id: "sp-api",
+    nome: "Vendas e estoque",
+    api: "Selling Partner API",
+    permissoes: [
+      "Ler pedidos e itens vendidos",
+      "Ler taxas, comissões e reembolsos",
+      "Ler inventário (FBA e próprio)",
+      "Ler seus anúncios publicados",
+    ],
+    naoInclui: "Não inclui nome nem endereço do comprador — isso exige uma autorização à parte.",
+  },
+  {
+    id: "ads-api",
+    nome: "Anúncios",
+    api: "Amazon Ads API",
+    permissoes: [
+      "Ler campanhas e investimento",
+      "Ler vendas atribuídas aos anúncios",
+      "Ler cliques, impressões e ACOS",
+    ],
+  },
 ];
 
 const ETAPAS = [
@@ -54,52 +83,74 @@ export function ConectarConta({
 }) {
   const [apelido, setApelido] = useState("");
   const [marketplace, setMarketplace] = useState(MARKETPLACES[0].id);
+  const [escolhidos, setEscolhidos] = useState<ServicoAmazon[]>(["sp-api", "ads-api"]);
   const [etapa, setEtapa] = useState(-1); // -1 = still on the consent screen
+  const [autorizando, setAutorizando] = useState(0); // index into `escolhidos`
 
   const rodando = etapa >= 0;
+  const servicoAtual = SERVICOS.find((s) => s.id === escolhidos[autorizando]);
+
+  const alternar = (id: ServicoAmazon) =>
+    setEscolhidos((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   // Latest values without making them effect dependencies. The handshake below must run exactly
   // once per authorization: `onConectada` is a fresh closure on every parent render, so depending
   // on it would restart the sequence each time a connection is added — and add another, forever.
-  const dados = useRef({ apelido, marketplace, onConectada });
-  dados.current = { apelido, marketplace, onConectada };
+  const dados = useRef({ apelido, marketplace, escolhidos, onConectada });
+  dados.current = { apelido, marketplace, escolhidos, onConectada };
 
   // reset whenever the modal is reopened, so a second connection starts clean
   useEffect(() => {
     if (aberto) {
       setApelido("");
       setMarketplace(MARKETPLACES[0].id);
+      setEscolhidos(["sp-api", "ads-api"]);
       setEtapa(-1);
+      setAutorizando(0);
     }
   }, [aberto]);
 
-  // the simulated handshake — one cancellable sequence, keyed only on whether it is running
+  // The simulated handshake, run once per chosen service — because Amazon really does hand out
+  // one authorization per API. One cancellable sequence, keyed only on whether it is running.
   useEffect(() => {
     if (!rodando) return;
     let cancelado = false;
     const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
     (async () => {
-      for (let i = 0; i < ETAPAS.length; i++) {
-        await espera(i === 0 ? 900 : 650);
+      const { escolhidos: servicos } = dados.current;
+      const agora = new Date().toISOString();
+      const conexoes: ConexaoServico[] = [];
+
+      for (let s = 0; s < servicos.length; s++) {
         if (cancelado) return;
-        setEtapa(i + 1);
+        setAutorizando(s);
+        setEtapa(0);
+        for (let i = 0; i < ETAPAS.length; i++) {
+          await espera(i === 0 ? 800 : 520);
+          if (cancelado) return;
+          setEtapa(i + 1);
+        }
+        conexoes.push({
+          servico: servicos[s],
+          status: "conectada",
+          conectadaEm: agora,
+          // never synced yet — the account is linked, no data has been pulled
+        });
       }
-      await espera(450);
+
+      await espera(400);
       if (cancelado) return;
 
       const { apelido: nome, marketplace: mkId, onConectada: entregar } = dados.current;
       const mkt = MARKETPLACES.find((m) => m.id === mkId)!;
-      const agora = new Date().toISOString();
       entregar({
         id: crypto.randomUUID(),
         apelido: nome.trim() || "Conta Amazon",
         sellerId: sellerIdFalso(),
         marketplace: mkt.id,
         regiao: mkt.regiao,
-        status: "conectada",
-        conectadaEm: agora,
-        ultimaSync: agora,
+        conexoes,
         simulada: true,
       });
     })();
@@ -137,7 +188,7 @@ export function ConectarConta({
                 </span>
                 <div>
                   <p className="font-display text-base text-txt">Conectar conta Amazon</p>
-                  <p className="font-mono text-[11px] text-txtFaint">Vendedor · SP-API</p>
+                  <p className="font-mono text-[11px] text-txtFaint">Conta de vendedor</p>
                 </div>
               </div>
               {!rodando && (
@@ -178,23 +229,56 @@ export function ConectarConta({
                   </Field>
                 </div>
 
-                <div className="mt-5 rounded-card border border-line bg-bgRaise/40 p-4">
-                  <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-txtFaint">
-                    O Painel J vai poder
-                  </span>
-                  <ul className="mt-2.5 flex flex-col gap-1.5">
-                    {PERMISSOES.map((p) => (
-                      <li key={p} className="flex items-center gap-2 text-sm text-txtDim">
-                        <Check size={14} className="shrink-0 text-green" />
-                        {p}
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="mt-3 flex items-start gap-2 font-mono text-[11px] leading-relaxed text-txtFaint">
-                    <Lock size={12} className="mt-0.5 shrink-0" />
-                    Somente leitura. O Painel J nunca altera preços, estoque ou pedidos na Amazon.
-                  </p>
+                <p className="mt-5 font-mono text-[11px] uppercase tracking-[0.1em] text-txtFaint">
+                  Autorizações · {escolhidos.length} de {SERVICOS.length}
+                </p>
+                <p className="mt-1 font-mono text-[11px] leading-relaxed text-txtFaint">
+                  A Amazon separa dados de venda e de anúncio em duas APIs, com aprovações
+                  distintas. Cada uma é uma autorização própria — dá para ter só uma.
+                </p>
+
+                <div className="mt-3 flex flex-col gap-2.5">
+                  {SERVICOS.map((sv) => {
+                    const ativo = escolhidos.includes(sv.id);
+                    return (
+                      <label
+                        key={sv.id}
+                        className={`cursor-pointer rounded-card border p-4 transition-colors ${
+                          ativo ? "border-lineStrong bg-bgRaise/40" : "border-line opacity-60"
+                        }`}
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <input
+                            type="checkbox"
+                            checked={ativo}
+                            onChange={() => alternar(sv.id)}
+                            className="h-4 w-4 accent-green"
+                          />
+                          <span className="font-display text-sm text-txt">{sv.nome}</span>
+                          <span className="font-mono text-[10px] text-txtFaint">{sv.api}</span>
+                        </span>
+                        <ul className="mt-2.5 flex flex-col gap-1.5 pl-7">
+                          {sv.permissoes.map((p) => (
+                            <li key={p} className="flex items-center gap-2 text-sm text-txtDim">
+                              <Check size={14} className="shrink-0 text-green" />
+                              {p}
+                            </li>
+                          ))}
+                        </ul>
+                        {sv.naoInclui && (
+                          <p className="mt-2 pl-7 font-mono text-[11px] leading-relaxed text-amber">
+                            {sv.naoInclui}
+                          </p>
+                        )}
+                      </label>
+                    );
+                  })}
                 </div>
+
+                <p className="mt-3 flex items-start gap-2 font-mono text-[11px] leading-relaxed text-txtFaint">
+                  <Lock size={12} className="mt-0.5 shrink-0" />
+                  Somente leitura. O Painel J nunca altera preços, estoque ou pedidos na Amazon.
+                </p>
 
                 <div className="mt-5 flex justify-end gap-2">
                   <button
@@ -205,14 +289,20 @@ export function ConectarConta({
                   </button>
                   <button
                     onClick={() => setEtapa(0)}
-                    className="rounded-chip border border-lineStrong bg-greenSoft px-4 py-2 font-mono text-xs text-txt transition-opacity hover:opacity-90"
+                    disabled={escolhidos.length === 0}
+                    className="rounded-chip border border-lineStrong bg-greenSoft px-4 py-2 font-mono text-xs text-txt transition-opacity hover:opacity-90 disabled:opacity-40"
                   >
                     Autorizar na Amazon
                   </button>
                 </div>
               </>
             ) : (
-              <ul className="flex flex-col gap-3 py-2">
+              <>
+                <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.1em] text-txtDim">
+                  Autorizando {autorizando + 1}/{escolhidos.length} · {servicoAtual?.nome}
+                  <span className="ml-2 text-txtFaint">{servicoAtual?.api}</span>
+                </p>
+                <ul className="flex flex-col gap-3 py-2">
                 {ETAPAS.map((label, i) => {
                   const feita = etapa > i;
                   const atual = etapa === i;
@@ -239,7 +329,8 @@ export function ConectarConta({
                     </li>
                   );
                 })}
-              </ul>
+                </ul>
+              </>
             )}
           </motion.div>
         </motion.div>
