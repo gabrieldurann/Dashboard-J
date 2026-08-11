@@ -4,6 +4,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import {
   calcularMetricas,
+  dre,
+  mesesComVendas,
   preencherMeses,
   resultadoVendas,
   resumoDevolucoes,
@@ -108,18 +110,20 @@ export function Painel() {
     { id: "painel.margem", peso: 5, visivel: visivel("painel.margem") },
     { id: "painel.lucroLiquido", peso: 7, visivel: visivel("painel.lucroLiquido") },
   ]);
+  const linhaVendas = distribuir([
+    { id: "painel.vendas", peso: 6, visivel: visivel("painel.vendas") },
+    { id: "painel.capital", peso: 6, visivel: visivel("painel.capital") },
+  ]);
   const linhaTempo = distribuir([
-    { id: "painel.vendas", peso: 4, visivel: visivel("painel.vendas") },
     { id: "painel.amazon", peso: 8, visivel: visivel("painel.amazon") },
+    { id: "painel.contadores", peso: 4, visivel: visivel("painel.contadores") },
   ]);
   const linhaGlobal = distribuir([
     { id: "painel.globo", peso: 6, visivel: visivel("painel.globo") },
     { id: "painel.porPais", peso: 6, visivel: visivel("painel.porPais") },
   ]);
   const linhaFinal = distribuir([
-    { id: "painel.capital", peso: 4, visivel: visivel("painel.capital") },
-    { id: "painel.contadores", peso: 4, visivel: visivel("painel.contadores") },
-    { id: "painel.reavaliar", peso: 4, visivel: visivel("painel.reavaliar") },
+    { id: "painel.reavaliar", peso: 12, visivel: visivel("painel.reavaliar") },
   ]);
 
   // sales-per-country (globe markers + table)
@@ -181,10 +185,27 @@ export function Painel() {
   );
   // advertising spend for the same month — the last deduction before "money in pocket" (idea #14)
   const gastoAds = useMemo(() => custoAds(anunciosAds, mesChave), [anunciosAds, mesChave]);
+
+  // Last month's bottom line, for the comparison on the profit card. Taken from `dre` rather than
+  // recomputed here so the Painel and the DRE page can never drift apart on what "líquido" means.
+  const lucroMesAnterior = useMemo(() => {
+    if (!mesChave) return null;
+    const meses = mesesComVendas(vendas);
+    const anterior = meses[meses.indexOf(mesChave) + 1];
+    if (!anterior) return null;
+    return dre({ vendas, produtos, devolucoes, custosOperacionais, anuncios: anunciosAds }, anterior, cfg)
+      .lucroLiquido;
+  }, [vendas, produtos, devolucoes, custosOperacionais, anunciosAds, mesChave, cfg]);
   // two headline figures: profit before company overhead (all sale costs + returns), and the
   // true net "money in pocket" after overhead too.
   const lucroSemOperacional = resMes.lucro - reembolsoMes;
   const lucroLiquidoTotal = lucroSemOperacional - totalOp - gastoAds;
+  // what share of the month's revenue actually survived to the bottom line
+  const margemLiquidaMes = resMes.bruto > 0 ? lucroLiquidoTotal / resMes.bruto : 0;
+  const variacaoLucro =
+    lucroMesAnterior !== null && lucroMesAnterior !== 0
+      ? (lucroLiquidoTotal - lucroMesAnterior) / Math.abs(lucroMesAnterior)
+      : null;
 
   // company-wide realized margin (blended profit ÷ gross over ALL sales) — not a per-product average
   const resTotal = useMemo(() => resultadoVendas(vendas, produtos, cfg), [vendas, produtos, cfg]);
@@ -249,6 +270,18 @@ export function Painel() {
               />
             </div>
 
+            {/* the three things that make the number above mean something: what it came out of,
+                how much of it survived, and whether that is better than last month */}
+            <div className="mt-4 grid grid-cols-3 gap-3 border-t border-line pt-3">
+              <Resumo rotulo="Faturamento do mês" valor={money(resMes.bruto)} />
+              <Resumo rotulo="Margem líquida" valor={percent(margemLiquidaMes)} />
+              <Resumo
+                rotulo="vs. mês anterior"
+                valor={variacaoLucro === null ? "—" : `${variacaoLucro >= 0 ? "+" : "−"}${percent(Math.abs(variacaoLucro))}`}
+                cor={variacaoLucro === null ? undefined : variacaoLucro >= 0 ? "text-green" : "text-danger"}
+              />
+            </div>
+
             <button
               onClick={() => setDetalhes((v) => !v)}
               className="mt-3 flex items-center gap-1.5 self-start font-mono text-[11px] uppercase tracking-[0.1em] text-txtDim transition-colors hover:text-txt"
@@ -297,29 +330,32 @@ export function Painel() {
           )}
         </AnimatePresence>
 
-        {/* one sales card; the selector picks the timeframe */}
-        <Ocultavel id="painel.vendas" label="Vendas no período" className={`col-span-12 ${spanClass(linhaTempo, "painel.vendas")}`}>
+        {/* one sales card; the dropdown picks the timeframe. Shares the row with the stock
+            capital, so both get half the width instead of the sales card being squeezed. */}
+        <Ocultavel id="painel.vendas" label="Vendas no período" className={`col-span-12 ${spanClass(linhaVendas, "painel.vendas")}`}>
           <PeriodCard
             label={PERIODOS.find((p) => p.id === periodo)!.label}
             periodo={periodoAtivo}
             sublabel={periodoAtivo.atual ? rotuloPeriodo(periodoAtivo.atual.chave) : undefined}
             delay={0.15}
             acoes={
-              <span className="flex rounded-chip border border-line p-0.5">
+              <select
+                value={periodo}
+                onChange={(e) => setPeriodo(e.target.value as PeriodoId)}
+                className="rounded-chip border border-line bg-panel px-2 py-1 font-mono text-[11px] text-txt outline-none"
+              >
                 {PERIODOS.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => setPeriodo(p.id)}
-                    className={`rounded-chip px-2 py-1 font-mono text-[10px] transition-colors ${
-                      periodo === p.id ? "bg-greenSoft text-txt" : "text-txtDim hover:text-txt"
-                    }`}
-                  >
+                  <option key={p.id} value={p.id}>
                     {p.rotulo}
-                  </button>
+                  </option>
                 ))}
-              </span>
+              </select>
             }
           />
+        </Ocultavel>
+
+        <Ocultavel id="painel.capital" label="Capital em estoque" className={`col-span-12 ${spanClass(linhaVendas, "painel.capital")}`}>
+          <MetricTile label="Capital em estoque" value={t.capitalEstoque} format={money} icon={Wallet} accent="gold" footnote="Capital travado p/ manter 1 caixa de cada produto" delay={0.2} className="h-full" />
         </Ocultavel>
 
         {/* sales over time (Amazon) */}
@@ -346,6 +382,14 @@ export function Painel() {
         </GlowCard>
         </Ocultavel>
 
+        <Ocultavel id="painel.contadores" label="Produtos e países" className={`col-span-12 ${spanClass(linhaTempo, "painel.contadores")}`}>
+          <GlowCard className="flex h-full flex-col justify-center gap-4" delay={0.25}>
+            <Counter icon={Package} label="Total de produtos" value={produtos.length} accent="green" />
+            <div className="border-t border-line" />
+            <Counter icon={MapPin} label="Locais de venda · países" value={porPais.length} accent="gold" />
+          </GlowCard>
+        </Ocultavel>
+
         {/* global reach: globe + sales by country */}
         <Ocultavel id="painel.globo" label="Alcance global" className={`col-span-12 ${spanClass(linhaGlobal, "painel.globo")}`}>
         <GlowCard accent="green" grid className="h-full" delay={0.3}>
@@ -368,19 +412,8 @@ export function Painel() {
           <SalesByCountry dados={porPais} delay={0.35} />
         </Ocultavel>
 
-        {/* capital + counters + re-avaliar. The revenue projection used to sit here; it lives on
-            Relatórios now, in its own "Projetado" mode, next to the real figures. */}
-        <Ocultavel id="painel.capital" label="Capital em estoque" className={`col-span-12 ${spanClass(linhaFinal, "painel.capital")}`}>
-          <MetricTile label="Capital em estoque" value={t.capitalEstoque} format={money} icon={Wallet} accent="gold" footnote="Capital travado p/ manter 1 caixa de cada produto" delay={0.4} className="h-full" />
-        </Ocultavel>
-
-        <Ocultavel id="painel.contadores" label="Produtos e países" className={`col-span-12 ${spanClass(linhaFinal, "painel.contadores")}`}>
-          <GlowCard className="flex h-full flex-col justify-center gap-4" delay={0.42}>
-            <Counter icon={Package} label="Total de produtos" value={produtos.length} accent="green" />
-            <div className="border-t border-line" />
-            <Counter icon={MapPin} label="Locais de venda · países" value={porPais.length} accent="gold" />
-          </GlowCard>
-        </Ocultavel>
+        {/* the re-evaluation queue closes the page. The revenue projection used to sit on this
+            row; it lives on Relatórios now, in its own "Projetado" mode, beside the real figures. */}
 
         <Ocultavel id="painel.reavaliar" label="Fila de re-avaliação" className={`col-span-12 ${spanClass(linhaFinal, "painel.reavaliar")}`}>
         <GlowCard className="h-full" delay={0.45}>
@@ -425,6 +458,16 @@ export function Painel() {
         )}
       </div>
     </Screen>
+  );
+}
+
+/** One supporting figure under the profit headline. */
+function Resumo({ rotulo, valor, cor = "text-txt" }: { rotulo: string; valor: string; cor?: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="truncate font-mono text-[10px] uppercase tracking-[0.1em] text-txtFaint">{rotulo}</p>
+      <p className={`mt-0.5 font-mono text-sm tabular-nums ${cor}`}>{valor}</p>
+    </div>
   );
 }
 

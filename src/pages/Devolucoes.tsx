@@ -1,4 +1,4 @@
-import { Clock, Coins, PackageCheck, Pencil, Plus, RotateCcw, Save, Search, Trash2, Undo2, X } from "lucide-react";
+import { ChevronRight, Clock, Coins, PackageCheck, Pencil, Plus, RotateCcw, Save, Search, Trash2, Undo2, X } from "lucide-react";
 import { motion } from "framer-motion";
 import { useMemo, useState, type ReactNode } from "react";
 import { devolucoesPorMotivo, devolucoesPorProduto, resumoDevolucoes, taxaDevolucao } from "../calc/engine";
@@ -35,6 +35,19 @@ const STATUS: Record<DevolucaoStatus, { label: string; cls: string }> = {
 const STATUS_KEYS = Object.keys(STATUS) as DevolucaoStatus[];
 /** A return counts as "open" until it is concluded or rejected. */
 const emAberto = (s: DevolucaoStatus) => s !== "concluida" && s !== "recusada";
+
+/**
+ * The next stage in the normal lifecycle, for the one-click advance in the table.
+ *
+ * Only the happy path: `concluida` is the end, and `recusada` is a decision rather than a step,
+ * so neither offers a next stage and both are reached through the form. The button exists to
+ * catch the app up on a return already processed elsewhere, not to replace editing.
+ */
+const PROXIMO: Partial<Record<DevolucaoStatus, DevolucaoStatus>> = {
+  solicitada: "em_analise",
+  em_analise: "aprovada",
+  aprovada: "concluida",
+};
 
 const nowLocal = () => {
   const d = new Date();
@@ -180,6 +193,14 @@ export function Devolucoes() {
       codigoProduto: p.codigoProduto ?? "",
       valorReembolsado: prev.valorReembolsado || +(p.precoVenda * (prev.quantidade || 1)).toFixed(2),
     }));
+  };
+
+  /** Move a return one stage on, straight from the table. */
+  const avancarStatus = (r: Devolucao) => {
+    const proximo = PROXIMO[r.status];
+    if (!proximo) return;
+    updateDevolucao(r.id, { status: proximo });
+    toast.success(`"${r.produtoNome}" → ${STATUS[proximo].label}`);
   };
 
   const abrirNovo = () => {
@@ -521,10 +542,25 @@ export function Devolucoes() {
                           {MOTIVO_LABEL[r.motivo]}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className={`whitespace-nowrap rounded-full border px-2.5 py-1 font-mono text-[10px] ${STATUS[r.status].cls}`}>
-                          {STATUS[r.status].label}
-                        </span>
+                      {/* px-3 like every other cell: the advance button widened this column
+                          enough to push the ledger past its box at 1024 */}
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`whitespace-nowrap rounded-full border px-2.5 py-1 font-mono text-[10px] ${STATUS[r.status].cls}`}>
+                            {STATUS[r.status].label}
+                          </span>
+                          {/* one click moves the return one stage on, for when it was already
+                              handled on the marketplace and the app just has to catch up */}
+                          {PROXIMO[r.status] && (
+                            <button
+                              onClick={() => avancarStatus(r)}
+                              title={`Avançar para "${STATUS[PROXIMO[r.status]!].label}"`}
+                              className="shrink-0 rounded-full border border-line p-1 text-txtDim transition-colors hover:border-green/50 hover:text-green"
+                            >
+                              <ChevronRight size={12} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td className="whitespace-nowrap px-3 py-3 font-mono text-sm tabular-nums text-gold">{money(r.valorReembolsado)}</td>
                       <td className="px-3 py-3">

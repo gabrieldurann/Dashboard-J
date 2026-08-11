@@ -105,9 +105,10 @@ export function MultiAreaChart({
               x2="100"
               y1={yPct(c.valor)}
               y2={yPct(c.valor)}
-              stroke="var(--c-line-strong)"
+              stroke="var(--c-txt-faint)"
               strokeWidth="1"
-              strokeDasharray="3 3"
+              strokeDasharray="4 4"
+              strokeOpacity="0.5"
               vectorEffect="non-scaling-stroke"
             />
           ))}
@@ -141,10 +142,15 @@ export function MultiAreaChart({
           })}
         </svg>
 
+        {/*
+          The cut labels sit on top of the chart, so they need to carry their own background:
+          previously they were faint grey text drawn straight over the series and were unreadable
+          wherever a line or its fill passed behind them.
+        */}
         {cortes.map((c) => (
           <span
             key={c.label}
-            className="pointer-events-none absolute right-0 -translate-y-full pr-0.5 font-mono text-[10px] text-txtFaint"
+            className="pointer-events-none absolute right-0 -translate-y-1/2 rounded-chip border border-line bg-bgRaise px-1.5 py-0.5 font-mono text-[10px] text-txtDim"
             style={{ top: `${yPct(c.valor)}%` }}
           >
             {c.label}

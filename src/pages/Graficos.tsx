@@ -199,7 +199,7 @@ export function Graficos() {
         {/* evolution over time — the headline story */}
         <Grafico
           titulo="Evolução mensal"
-          legenda="Faturamento, custo e lucro mês a mês · clique na legenda para isolar"
+          legenda="Clique na legenda para isolar"
           className="col-span-12 xl:col-span-8"
           delay={0}
         >
@@ -220,7 +220,6 @@ export function Graficos() {
         {/* composition */}
         <Grafico
           titulo="Para onde vai o faturamento"
-          legenda="Como cada real se divide entre custos e lucro"
           className="col-span-12 lg:col-span-6"
           delay={0.1}
         >
@@ -229,7 +228,6 @@ export function Graficos() {
 
         <Grafico
           titulo="Quem carrega o faturamento"
-          legenda="Participação de cada produto na receita"
           className="col-span-12 lg:col-span-6"
           delay={0.15}
         >
@@ -239,7 +237,6 @@ export function Graficos() {
         {/* comparison */}
         <Grafico
           titulo="Lucro por produto"
-          legenda="Barras na cor da faixa · % = margem realizada"
           className="col-span-12 lg:col-span-7"
           delay={0.2}
         >
@@ -295,7 +292,7 @@ export function Graficos() {
         {/* ABC — how concentrated the business is */}
         <Grafico
           titulo="Curva ABC"
-          legenda="Produtos do maior para o menor · onde o acumulado cruza 80% termina a classe A"
+          legenda="Clique na legenda para isolar"
           className="col-span-12 lg:col-span-7"
           delay={0.28}
         >
@@ -314,7 +311,6 @@ export function Graficos() {
 
         <Grafico
           titulo="Dependência por classe"
-          legenda="Quantos produtos sustentam quanto do faturamento"
           className="col-span-12 lg:col-span-5"
           delay={0.3}
         >
@@ -353,10 +349,6 @@ export function Graficos() {
                   </li>
                 ))}
               </ul>
-              <p className="mt-4 font-mono text-[11px] leading-relaxed text-txtFaint">
-                Classe <span className="text-txtDim">A</span> é dependência, não saúde: um produto pode carregar o
-                faturamento e ainda ter margem ruim. Cruze com “Lucro por produto”.
-              </p>
             </>
           ) : (
             <p className="py-8 text-center text-sm text-txtDim">Sem produtos para classificar.</p>
@@ -366,7 +358,6 @@ export function Graficos() {
         {/* channels & returns */}
         <Grafico
           titulo="Faturamento por canal"
-          legenda="Onde as vendas acontecem"
           className="col-span-12 lg:col-span-6"
           delay={0.3}
         >
@@ -375,7 +366,6 @@ export function Graficos() {
 
         <Grafico
           titulo="Devoluções por motivo"
-          legenda="Valor reembolsado por causa · todas as devoluções"
           className="col-span-12 lg:col-span-6"
           delay={0.35}
         >
