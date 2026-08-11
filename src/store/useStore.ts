@@ -54,6 +54,9 @@ type State = {
   /** per-page table/summary arrangement on the ledger pages, keyed by page id */
   layouts: Record<string, LayoutLedger>;
   setLayout: (pagina: string, l: LayoutLedger) => void;
+  /** whether the sidebar's "Contas conectadas" section is expanded (a display preference) */
+  contasAbertas: boolean;
+  setContasAbertas: (v: boolean) => void;
   /** ids of dashboard cards the user chose to hide (a display preference, not data) */
   cardsOcultos: string[];
   toggleCardOculto: (id: string) => void;
@@ -151,6 +154,9 @@ export const useStore = create<State>()(
         }),
       layouts: {},
       setLayout: (pagina, l) => set((s) => ({ layouts: { ...s.layouts, [pagina]: l } })),
+      // starts open: a collapsed section on first sight would hide the only thing in it
+      contasAbertas: true,
+      setContasAbertas: (v) => set({ contasAbertas: v }),
       cardsOcultos: [],
       toggleCardOculto: (id) =>
         set((s) => ({

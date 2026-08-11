@@ -1,6 +1,9 @@
 import {
-  Megaphone, BarChart3, Building2, ShoppingCart, Calculator, ClipboardList, FileText, LayoutDashboard, Package, Pencil, Plug, Receipt, RotateCcw, Settings, SlidersHorizontal } from "lucide-react";
-import { NavLink } from "react-router-dom";
+  ChevronDown, Megaphone, BarChart3, Building2, ShoppingCart, Calculator, ClipboardList, FileText, LayoutDashboard, Package, Pencil, Plug, Receipt, RotateCcw, Settings, SlidersHorizontal } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { useEffect } from "react";
+import { NavLink, useLocation } from "react-router-dom";
+import { EASE } from "../theme/tokens";
 import { useStore } from "../store/useStore";
 
 const NAV = [
@@ -26,6 +29,72 @@ const itemClass = ({ isActive }: { isActive: boolean }) =>
       ? "border border-lineStrong bg-greenSoft text-txt"
       : "border border-transparent text-txtDim hover:text-txt"
   }`;
+
+/** One item per linked platform. Mercado Livre and Shopify join this list, nothing else changes. */
+const CONTAS_NAV = [{ to: "/contas/amazon", label: "Amazon", icon: ShoppingCart }];
+
+/**
+ * Collapsible "Contas conectadas" group.
+ *
+ * These pages are for checking where a number came from, not for daily work, so the group folds
+ * away by default-choice rather than sitting open forever — and it is where every future
+ * marketplace lands, which is exactly why it needs to collapse at all.
+ */
+function ContasConectadas() {
+  const aberta = useStore((s) => s.contasAbertas);
+  const setAberta = useStore((s) => s.setContasAbertas);
+  const { pathname } = useLocation();
+  const naSecao = pathname.startsWith("/contas");
+
+  // Landing on one of these pages opens the group: an active item you cannot see reads as a bug.
+  useEffect(() => {
+    if (naSecao) setAberta(true);
+  }, [naSecao, setAberta]);
+
+  return (
+    <div className="mt-7">
+      <button
+        onClick={() => setAberta(!aberta)}
+        aria-expanded={aberta}
+        className="flex w-full items-center justify-between gap-2 rounded-chip px-3 py-2 transition-colors hover:bg-greenSoft/20"
+      >
+        {/* tighter than the default .eyebrow tracking: at 0.22em the label wraps to two lines
+            once the chevron takes its share of a 230px sidebar */}
+        <span className={`eyebrow whitespace-nowrap !tracking-[0.1em] ${naSecao ? "text-txtDim" : ""}`}>
+          Contas conectadas
+        </span>
+        <ChevronDown
+          size={14}
+          className={`shrink-0 text-txtFaint transition-transform duration-200 ${aberta ? "" : "-rotate-90"}`}
+        />
+      </button>
+
+      <AnimatePresence initial={false}>
+        {aberta && (
+          // keyed: an unkeyed conditional motion.div has left an invisible click-eating
+          // overlay behind before (see the connect-account modal)
+          <motion.div
+            key="contas-conectadas"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: EASE }}
+            className="overflow-hidden"
+          >
+            <nav className="flex flex-col gap-1 pt-1">
+              {CONTAS_NAV.map(({ to, label, icon: Icon }) => (
+                <NavLink key={to} to={to} className={itemClass}>
+                  <Icon size={17} strokeWidth={2} />
+                  {label}
+                </NavLink>
+              ))}
+            </nav>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 export function Sidebar() {
   // The section only exists once something is connected — an empty "Contas conectadas" heading
@@ -66,17 +135,7 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {temConta && (
-        <>
-          <p className="eyebrow mb-2 mt-7 px-3">Contas conectadas</p>
-          <nav className="flex flex-col gap-1">
-            <NavLink to="/contas/amazon" className={itemClass}>
-              <ShoppingCart size={17} strokeWidth={2} />
-              Amazon
-            </NavLink>
-          </nav>
-        </>
-      )}
+      {temConta && <ContasConectadas />}
 
       <div className="mt-auto flex flex-col gap-1 pt-6">
         <NavLink
