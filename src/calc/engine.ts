@@ -377,6 +377,12 @@ export type ResultadoVendas = {
   imposto: number; // imposto sobre a receita
   comissao: number; // comissão do canal
   frete: number; // frete absorvido
+  /** packaging — `detalharVenda` always subtracted this from `lucro`; it is tracked here so the
+   *  deduction lines actually add up to `lucro` (they silently did not before the DRE needed it) */
+  embalagem: number;
+  /** gross from sales with no product behind them: revenue counted, cost unknown, so `lucro`
+   *  is overstated by whatever those items really cost. The DRE says so out loud. */
+  semAtribuicao: number;
   lucro: number; // líquido — o que sobra no bolso
 };
 
@@ -497,7 +503,9 @@ export function resultadoVendas(
   produtos: Produto[],
   cfg: Configuracoes = CONFIG_PADRAO,
 ): ResultadoVendas {
-  const r: ResultadoVendas = { bruto: 0, custo: 0, imposto: 0, comissao: 0, frete: 0, lucro: 0 };
+  const r: ResultadoVendas = {
+    bruto: 0, custo: 0, imposto: 0, comissao: 0, frete: 0, embalagem: 0, semAtribuicao: 0, lucro: 0,
+  };
   for (const v of vendas) {
     if (v.status === "cancelado") continue;
     const d = detalharVenda(v, produtos, cfg);
@@ -506,6 +514,8 @@ export function resultadoVendas(
     r.comissao += d.comissao;
     r.custo += d.custo;
     r.frete += d.frete;
+    r.embalagem += d.embalagem;
+    if (!d.atribuido) r.semAtribuicao += d.bruto;
     r.lucro += d.lucro;
   }
   return r;
@@ -1013,6 +1023,143 @@ export function importarAnuncios(
     });
   }
   return novos;
+}
+
+// ─── DRE — demonstração do resultado do exercício ────────────────────────────
+
+/** What a DRE line is doing to the running total. `resultado` lines carry their own sign. */
+export type TipoLinhaDRE = "receita" | "deducao" | "custo" | "despesa" | "ganho" | "resultado";
+
+export type LinhaDRE = {
+  chave: string;
+  label: string;
+  /** Always the magnitude; `tipo` says whether it adds or subtracts. `resultado` lines are signed. */
+  valor: number;
+  tipo: TipoLinhaDRE;
+  /** Análise vertical: this line as a share of gross revenue — how every DRE is actually read. */
+  vertical: number;
+  nota?: string;
+  /** 1 = a component of the group above it, 0 = a headline or subtotal. */
+  nivel: 0 | 1;
+};
+
+export type DRE = {
+  mes: string;
+  receitaBruta: number;
+  impostos: number;
+  comissoes: number;
+  devolucoes: number;
+  deducoes: number;
+  receitaLiquida: number;
+  cmv: number;
+  embalagem: number;
+  /** Revenue whose product is unknown, carried as cost so its profit is treated as zero. */
+  custoSemCadastro: number;
+  lucroBruto: number;
+  margemBruta: number;
+  frete: number;
+  ads: number;
+  despesasOperacionais: number;
+  receitasOperacionais: number;
+  lucroLiquido: number;
+  margemLiquida: number;
+  /** Gross revenue with no product behind it, so no cost was deducted for it. */
+  receitaSemCusto: number;
+  pedidos: number;
+  linhas: LinhaDRE[];
+};
+
+export type FontesDRE = {
+  vendas: Venda[];
+  produtos: Produto[];
+  devolucoes: Devolucao[];
+  custosOperacionais: CustoOperacional[];
+  anuncios: AnuncioAds[];
+};
+
+/**
+ * A month's income statement, top to bottom.
+ *
+ * **The bottom line is the same number the Painel shows**, by construction: this reorganises the
+ * exact deductions `detalharVenda` already applies, rather than adding a second opinion. A DRE
+ * that disagreed with the dashboard would make both untrustworthy — which is precisely the
+ * problem the old projected Relatórios page created.
+ *
+ * `mes` is required. A DRE is always for a period, and the operating-cost helpers read an absent
+ * month as "recurring run-rate", which is a different question entirely.
+ *
+ * Freight sits below gross profit, with advertising and overhead, rather than inside CMV: it is a
+ * cost of *selling* the item, not of *acquiring* it, so gross margin stays comparable between
+ * products whose freight differs.
+ */
+export function dre(fontes: FontesDRE, mes: string, cfg: Configuracoes = CONFIG_PADRAO): DRE {
+  const { vendas, produtos, devolucoes, custosOperacionais, anuncios } = fontes;
+  const doMes = vendas.filter((v) => v.data.slice(0, 7) === mes);
+  const r = resultadoVendas(doMes, produtos, cfg);
+  const reembolso = resumoDevolucoes(devolucoes.filter((d) => d.data.slice(0, 7) === mes)).reembolso;
+  const op = resumoOperacional(custosOperacionais, mes);
+  const ads = custoAds(anuncios, mes);
+
+  const deducoes = r.imposto + r.comissao + reembolso;
+  const receitaLiquida = r.bruto - deducoes;
+  // A sale with no product behind it has an unknowable cost, and `detalharVenda` already treats
+  // it as breaking even rather than inventing a margin. The statement has to say the same thing
+  // or it would show that revenue as pure profit — and disagree with every other screen. Booking
+  // it as cost keeps the gross line honest (the money did arrive) and the result reconciled.
+  const lucroBruto = receitaLiquida - r.custo - r.embalagem - r.semAtribuicao;
+  const lucroLiquido = lucroBruto - r.frete - ads - op.liquido;
+
+  const v = (n: number) => (r.bruto > 0 ? n / r.bruto : 0);
+  const pct = (n: number) => `${(n * 100).toFixed(1).replace(".", ",")}%`;
+
+  const linhas: LinhaDRE[] = [
+    { chave: "receitaBruta", label: "Receita bruta de vendas", valor: r.bruto, tipo: "receita", vertical: v(r.bruto), nivel: 0, nota: `${doMes.filter((x) => x.status !== "cancelado").length} pedidos` },
+    { chave: "impostos", label: "Impostos sobre vendas", valor: r.imposto, tipo: "deducao", vertical: v(r.imposto), nivel: 1 },
+    { chave: "comissoes", label: "Comissões de marketplace", valor: r.comissao, tipo: "deducao", vertical: v(r.comissao), nivel: 1 },
+    { chave: "devolucoes", label: "Devoluções e reembolsos", valor: reembolso, tipo: "deducao", vertical: v(reembolso), nivel: 1 },
+    { chave: "receitaLiquida", label: "Receita líquida", valor: receitaLiquida, tipo: "resultado", vertical: v(receitaLiquida), nivel: 0 },
+    { chave: "cmv", label: "Custo das mercadorias vendidas", valor: r.custo, tipo: "custo", vertical: v(r.custo), nivel: 1 },
+    { chave: "embalagem", label: "Embalagem", valor: r.embalagem, tipo: "custo", vertical: v(r.embalagem), nivel: 1 },
+    { chave: "semCadastro", label: "Itens sem produto cadastrado", valor: r.semAtribuicao, tipo: "custo", vertical: v(r.semAtribuicao), nivel: 1, nota: "custo desconhecido — lucro tratado como zero" },
+    { chave: "lucroBruto", label: "Lucro bruto", valor: lucroBruto, tipo: "resultado", vertical: v(lucroBruto), nivel: 0, nota: `margem bruta ${pct(r.bruto > 0 ? lucroBruto / r.bruto : 0)}` },
+    { chave: "frete", label: "Frete", valor: r.frete, tipo: "despesa", vertical: v(r.frete), nivel: 1 },
+    { chave: "ads", label: "Anúncios", valor: ads, tipo: "despesa", vertical: v(ads), nivel: 1 },
+    { chave: "operacionais", label: "Despesas operacionais", valor: op.despesas, tipo: "despesa", vertical: v(op.despesas), nivel: 1 },
+    { chave: "receitasOperacionais", label: "Receitas operacionais", valor: op.receitas, tipo: "ganho", vertical: v(op.receitas), nivel: 1 },
+    { chave: "lucroLiquido", label: "Lucro líquido", valor: lucroLiquido, tipo: "resultado", vertical: v(lucroLiquido), nivel: 0, nota: `margem líquida ${pct(r.bruto > 0 ? lucroLiquido / r.bruto : 0)}` },
+  ];
+
+  return {
+    mes,
+    receitaBruta: r.bruto,
+    impostos: r.imposto,
+    comissoes: r.comissao,
+    devolucoes: reembolso,
+    deducoes,
+    receitaLiquida,
+    cmv: r.custo,
+    embalagem: r.embalagem,
+    custoSemCadastro: r.semAtribuicao,
+    lucroBruto,
+    margemBruta: r.bruto > 0 ? lucroBruto / r.bruto : 0,
+    frete: r.frete,
+    ads,
+    despesasOperacionais: op.despesas,
+    receitasOperacionais: op.receitas,
+    lucroLiquido,
+    margemLiquida: r.bruto > 0 ? lucroLiquido / r.bruto : 0,
+    receitaSemCusto: r.semAtribuicao,
+    pedidos: doMes.filter((x) => x.status !== "cancelado").length,
+    // a line worth zero is noise on a statement; the headline and the subtotals always stay
+    linhas: linhas.filter((l) => l.tipo === "resultado" || l.valor !== 0),
+  };
+}
+
+/** Months present in the sales ledger, most recent first. Drives the period pickers. */
+export function mesesComVendas(vendas: Venda[]): string[] {
+  return [...new Set(vendas.filter((v) => v.status !== "cancelado").map((v) => v.data.slice(0, 7)))]
+    .sort()
+    .reverse();
 }
 
 // ─── Sync history & import provenance (Amazon page) ─────────────────────────

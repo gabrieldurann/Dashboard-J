@@ -1,5 +1,5 @@
 import {
-  ChevronDown, Megaphone, BarChart3, Building2, ShoppingCart, Calculator, ClipboardList, FileText, LayoutDashboard, Package, Pencil, Plug, Receipt, RotateCcw, Settings, SlidersHorizontal } from "lucide-react";
+  ChevronDown, Megaphone, BarChart3, Building2, ShoppingCart, Calculator, ClipboardList, FileText, LayoutDashboard, Package, Pencil, Plug, Receipt, RotateCcw, Scale, Settings, SlidersHorizontal } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
@@ -19,6 +19,7 @@ const NAV = [
   { to: "/graficos", label: "Gráficos", icon: BarChart3, end: false },
   { to: "/ads", label: "Ads", icon: Megaphone, end: false },
   { to: "/custos-operacionais", label: "Custos op.", icon: Building2, end: false },
+  { to: "/dre", label: "DRE", icon: Scale, end: false },
   { to: "/relatorios", label: "Relatórios", icon: FileText, end: false },
 ];
 

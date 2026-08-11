@@ -4,6 +4,9 @@ import {
   aplicarRetencao,
   calcularMetricas,
   custoAds,
+  dre,
+  mesesComVendas,
+  type FontesDRE,
   pendenciasImportacao,
   resumoImportacao,
   vincularImportados,
@@ -782,6 +785,170 @@ describe("importarPedidos (marketplace order import, idea #15)", () => {
       };
       expect(importarAnuncios([rel({})], [manual], [prod], conta)).toHaveLength(1);
     });
+  });
+});
+
+describe("DRE (demonstração do resultado)", () => {
+  const prod: Produto = { ...base, id: "p1", nome: "Projetor", precoVenda: 100, custoUnit: 40, imposto: 0.04, comissao: 0.15 };
+  const fontes = (over: Partial<FontesDRE> = {}): FontesDRE => ({
+    vendas: [venda({ produtoId: "p1", data: "2026-06-10T10:00", quantidade: 1, valorTotal: 100, frete: 5 })],
+    produtos: [prod],
+    devolucoes: [],
+    custosOperacionais: [],
+    anuncios: [],
+    ...over,
+  });
+
+  it("lays the statement out from gross revenue down to net profit", () => {
+    const d = dre(fontes(), "2026-06");
+    expect(d.receitaBruta).toBe(100);
+    expect(d.impostos).toBe(4);
+    expect(d.comissoes).toBe(15);
+    expect(d.receitaLiquida).toBe(81); // 100 − 4 − 15
+    expect(d.cmv).toBe(40);
+    expect(d.lucroBruto).toBe(41); // 81 − 40
+    expect(d.frete).toBe(5);
+    expect(d.lucroLiquido).toBe(36); // 41 − 5
+  });
+
+  // The property that matters: a statement that disagreed with the dashboard would make both
+  // untrustworthy, which is exactly the trap the old projected Relatórios page fell into.
+  it("lands on the same net profit the Painel computes, the same way", () => {
+    const f = fontes({
+      devolucoes: [devolucao({ data: "2026-06-15T10:00", valorReembolsado: 12 })],
+      custosOperacionais: [
+        { id: "o1", nome: "Aluguel", categoria: "aluguel", valorMensal: 20 },
+        { id: "o2", nome: "Juros", categoria: "juros", valorMensal: 5, tipo: "receita" },
+      ],
+      anuncios: [{ id: "a1", produtoNome: "Projetor", canal: "Amazon", data: "2026-06-30", custo: 7, faturamentoAds: 0, unidadesAds: 0 }],
+    });
+    const d = dre(f, "2026-06");
+
+    const doMes = f.vendas.filter((v) => v.data.slice(0, 7) === "2026-06");
+    const comoOPainel =
+      resultadoVendas(doMes, f.produtos).lucro -
+      resumoDevolucoes(f.devolucoes).reembolso -
+      totalOperacional(f.custosOperacionais, "2026-06") -
+      custoAds(f.anuncios, "2026-06");
+
+    expect(d.lucroLiquido).toBeCloseTo(comoOPainel, 10);
+  });
+
+  it("reconciles line by line — the deductions really do add up to the bottom line", () => {
+    const d = dre(fontes({
+      custosOperacionais: [{ id: "o1", nome: "Aluguel", categoria: "aluguel", valorMensal: 20 }],
+      anuncios: [{ id: "a1", produtoNome: "P", canal: "Amazon", data: "2026-06-30", custo: 7, faturamentoAds: 0, unidadesAds: 0 }],
+    }), "2026-06");
+    const somado =
+      d.receitaBruta - d.impostos - d.comissoes - d.devolucoes - d.cmv - d.embalagem -
+      d.custoSemCadastro - d.frete - d.ads - d.despesasOperacionais + d.receitasOperacionais;
+    expect(somado).toBeCloseTo(d.lucroLiquido, 10);
+  });
+
+  it("counts packaging, which used to fall out of the totals silently", () => {
+    const comEmbalagem: Produto = { ...prod, custoEmbalagem: 3 };
+    const d = dre(fontes({ produtos: [comEmbalagem] }), "2026-06");
+    expect(d.embalagem).toBe(3);
+    expect(d.lucroBruto).toBe(38); // 81 − 40 − 3
+    // and it still reconciles, which is the whole reason the field was added
+    expect(d.receitaBruta - d.impostos - d.comissoes - d.cmv - d.embalagem - d.frete).toBeCloseTo(d.lucroLiquido, 10);
+  });
+
+  it("ignores other months entirely", () => {
+    const d = dre(fontes({
+      vendas: [
+        venda({ produtoId: "p1", data: "2026-06-10T10:00", valorTotal: 100, frete: 0 }),
+        venda({ produtoId: "p1", data: "2026-05-10T10:00", valorTotal: 999, frete: 0 }),
+      ],
+    }), "2026-06");
+    expect(d.receitaBruta).toBe(100);
+  });
+
+  it("leaves cancelled orders out", () => {
+    const d = dre(fontes({
+      vendas: [
+        venda({ produtoId: "p1", data: "2026-06-10T10:00", valorTotal: 100, frete: 0 }),
+        venda({ produtoId: "p1", data: "2026-06-11T10:00", valorTotal: 500, status: "cancelado" }),
+      ],
+    }), "2026-06");
+    expect(d.receitaBruta).toBe(100);
+    expect(d.pedidos).toBe(1);
+  });
+
+  // An unattributed sale is the case that broke the first version of this: its revenue landed in
+  // gross with nothing deducted against it, so the statement claimed R$249 of profit the Painel
+  // did not — the exact "two screens, two numbers" failure the DRE exists to end.
+  describe("sales with no product behind them", () => {
+    const semProduto = () =>
+      fontes({ vendas: [venda({ data: "2026-06-10T10:00", valorTotal: 100, produtoNome: "Desconhecido" })] });
+
+    it("keeps the revenue on the gross line — the money really did arrive", () => {
+      expect(dre(semProduto(), "2026-06").receitaBruta).toBe(100);
+    });
+
+    it("books it as cost so the result is zero, not pure profit", () => {
+      const d = dre(semProduto(), "2026-06");
+      expect(d.custoSemCadastro).toBe(100);
+      expect(d.cmv).toBe(0); // no real cost is known
+      expect(d.lucroBruto).toBe(0);
+      expect(d.lucroLiquido).toBe(0);
+    });
+
+    it("still reconciles with the Painel, which is why it is booked that way", () => {
+      const f = semProduto();
+      const doMes = f.vendas.filter((v) => v.data.slice(0, 7) === "2026-06");
+      expect(dre(f, "2026-06").lucroLiquido).toBeCloseTo(resultadoVendas(doMes, f.produtos).lucro, 10);
+    });
+
+    it("surfaces the amount so it can be fixed rather than hidden", () => {
+      expect(dre(semProduto(), "2026-06").receitaSemCusto).toBe(100);
+    });
+
+    it("reconciles when attributed and unattributed sales are mixed", () => {
+      const f = fontes({
+        vendas: [
+          venda({ produtoId: "p1", data: "2026-06-10T10:00", valorTotal: 100, frete: 5 }),
+          venda({ data: "2026-06-11T10:00", valorTotal: 249, produtoNome: "Cabo" }),
+        ],
+      });
+      const doMes = f.vendas.filter((v) => v.data.slice(0, 7) === "2026-06");
+      const d = dre(f, "2026-06");
+      expect(d.receitaBruta).toBe(349);
+      expect(d.lucroLiquido).toBeCloseTo(resultadoVendas(doMes, f.produtos).lucro, 10);
+    });
+  });
+
+  it("lets operational income lift the result, rather than only costs dragging it", () => {
+    const d = dre(fontes({
+      custosOperacionais: [{ id: "o1", nome: "Reembolso de frete", categoria: "reembolso", valorMensal: 30, tipo: "receita" }],
+    }), "2026-06");
+    expect(d.receitasOperacionais).toBe(30);
+    expect(d.lucroLiquido).toBe(66); // 36 + 30
+  });
+
+  it("reads every line as a share of gross revenue", () => {
+    const d = dre(fontes(), "2026-06");
+    expect(d.linhas.find((l) => l.chave === "impostos")!.vertical).toBeCloseTo(0.04, 10);
+    expect(d.linhas.find((l) => l.chave === "lucroLiquido")!.vertical).toBeCloseTo(0.36, 10);
+  });
+
+  it("drops zero lines but never a subtotal — an empty month is still a statement", () => {
+    const d = dre(fontes({ vendas: [] }), "2026-06");
+    expect(d.receitaBruta).toBe(0);
+    expect(d.lucroLiquido).toBe(0);
+    expect(d.margemLiquida).toBe(0); // not NaN
+    expect(d.linhas.map((l) => l.chave)).toContain("lucroLiquido");
+    expect(d.linhas.map((l) => l.chave)).not.toContain("frete");
+  });
+
+  it("mesesComVendas lists the ledger's months, newest first, ignoring cancelled", () => {
+    const vendas = [
+      venda({ data: "2026-05-02T10:00" }),
+      venda({ data: "2026-06-02T10:00" }),
+      venda({ data: "2026-06-20T10:00" }),
+      venda({ data: "2026-07-01T10:00", status: "cancelado" }),
+    ];
+    expect(mesesComVendas(vendas)).toEqual(["2026-06", "2026-05"]);
   });
 });
 

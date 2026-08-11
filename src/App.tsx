@@ -12,6 +12,7 @@ import { Compras } from "./pages/Compras";
 import { Conexoes } from "./pages/Conexoes";
 import { Configuracoes } from "./pages/Configuracoes";
 import { CustosOperacionais } from "./pages/CustosOperacionais";
+import { DRE } from "./pages/DRE";
 import { Devolucoes } from "./pages/Devolucoes";
 import { Ads } from "./pages/Ads";
 import { Graficos } from "./pages/Graficos";
@@ -51,6 +52,7 @@ function AnimatedRoutes() {
           <Route path="/graficos" element={<Graficos />} />
           <Route path="/ads" element={<Ads />} />
           <Route path="/custos-operacionais" element={<CustosOperacionais />} />
+          <Route path="/dre" element={<DRE />} />
           <Route path="/relatorios" element={<Relatorios />} />
           <Route path="/configuracoes" element={<Configuracoes />} />
           <Route path="/conexoes" element={<Conexoes />} />
