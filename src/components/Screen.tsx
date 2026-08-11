@@ -1,16 +1,19 @@
 import type { ReactNode } from "react";
 
-/** Page wrapper: eyebrow + title + subtitle + content area (DESIGN.md §3). */
+/**
+ * Page wrapper: eyebrow + title + content area (DESIGN.md §3).
+ *
+ * No subtitle by design — the page titles are specific enough that a line of prose under each
+ * one only restates them.
+ */
 export function Screen({
   eyebrow,
   title,
-  subtitle,
   actions,
   children,
 }: {
   eyebrow: string;
   title: ReactNode;
-  subtitle?: string;
   actions?: ReactNode;
   children: ReactNode;
 }) {
@@ -20,7 +23,6 @@ export function Screen({
         <div>
           <div className="eyebrow mb-2">{eyebrow}</div>
           <h1 className="font-display text-3xl font-semibold tracking-tight text-txt">{title}</h1>
-          {subtitle && <p className="mt-1.5 max-w-xl text-sm text-txtDim">{subtitle}</p>}
         </div>
         {actions}
       </header>

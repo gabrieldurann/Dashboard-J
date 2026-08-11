@@ -178,7 +178,6 @@ function ConteudoAmazon({
     <Screen
       eyebrow="Contas conectadas"
       title="Amazon"
-      subtitle="O que a Amazon entregou, o que virou linha no Painel J e o que ficou pelo caminho."
       actions={
         contas.length > 1 && (
           <label className="flex items-center gap-2 rounded-chip border border-line bg-panel px-3 py-2">

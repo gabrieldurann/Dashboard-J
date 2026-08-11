@@ -179,7 +179,6 @@ export function Graficos() {
     <Screen
       eyebrow="Análise"
       title="Gráficos"
-      subtitle="O retrato visual do negócio — para bater o olho ou apresentar."
       actions={
         canais.length > 0 && (
           <label className="flex items-center gap-2">

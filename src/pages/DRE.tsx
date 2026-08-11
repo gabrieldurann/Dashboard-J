@@ -73,7 +73,6 @@ export function DRE() {
     <Screen
       eyebrow="Financeiro"
       title="DRE"
-      subtitle="Demonstração do resultado do mês, do faturamento bruto ao lucro líquido."
       actions={
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 rounded-chip border border-line bg-panel px-3 py-2">

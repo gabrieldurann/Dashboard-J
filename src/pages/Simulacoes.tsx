@@ -40,7 +40,7 @@ export function Simulacoes() {
 
   if (!base) {
     return (
-      <Screen eyebrow="Projeções" title="Simulações" subtitle="Modele cenários de preço, custo e volume para qualquer produto.">
+      <Screen eyebrow="Projeções" title="Simulações">
         <GlowCard>
           <div className="flex flex-col items-center gap-3 py-16 text-center">
             <PackageOpen size={28} className="text-txtFaint" />
@@ -99,7 +99,6 @@ export function Simulacoes() {
     <Screen
       eyebrow="Projeções"
       title="Simulações"
-      subtitle="Arraste preço, custo e volume para ver toda a conta do mês — sem alterar seus produtos."
     >
       <div className="grid grid-cols-12 gap-4">
         {/* controls */}

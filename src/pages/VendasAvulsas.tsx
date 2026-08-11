@@ -76,7 +76,6 @@ export function VendasAvulsas() {
     <Screen
       eyebrow="Manual"
       title="Vendas avulsas"
-      subtitle="Entrada rápida de vendas fora do padrão (preço, custo e frete manuais) — aquelas que não seguem o catálogo."
     >
       <div className="grid grid-cols-12 gap-4">
         <MetricTile label="Total vendido (avulso)" value={totais.totalVendido} format={money} icon={Receipt} accent="gold" className="col-span-6 lg:col-span-3" />

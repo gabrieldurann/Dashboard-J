@@ -327,8 +327,22 @@ function agruparPorChave(vendas: Venda[], chaveDe: (d: Date) => string): AggPeri
     .sort((a, b) => a.chave.localeCompare(b.chave));
 }
 
-/** Sales grouped by day (`YYYY-MM-DD`), month (`YYYY-MM`) and year (`YYYY`), chronologically. */
+/**
+ * Monday of the week a date falls in, as a local `YYYY-MM-DD` key.
+ *
+ * Keyed on the date rather than a week number so it sorts chronologically as a plain string and
+ * survives weeks that straddle a month or a year — `2026-W01` would not.
+ */
+const segundaDaSemana = (d: Date) => {
+  const seg = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  // getDay(): 0 = Sunday. Weeks start on Monday here, so Sunday counts back six days.
+  seg.setDate(seg.getDate() - ((seg.getDay() + 6) % 7));
+  return ymd(seg);
+};
+
+/** Sales grouped by day (`YYYY-MM-DD`), week (its Monday), month (`YYYY-MM`) and year (`YYYY`). */
 export const vendasPorDia = (vendas: Venda[]) => agruparPorChave(vendas, ymd);
+export const vendasPorSemana = (vendas: Venda[]) => agruparPorChave(vendas, segundaDaSemana);
 export const vendasPorMes = (vendas: Venda[]) => agruparPorChave(vendas, (d) => ymd(d).slice(0, 7));
 export const vendasPorAno = (vendas: Venda[]) =>
   agruparPorChave(vendas, (d) => String(d.getFullYear()));

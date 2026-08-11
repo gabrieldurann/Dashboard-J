@@ -264,7 +264,6 @@ export function Vendas() {
     <Screen
       eyebrow="Registros"
       title="Vendas"
-      subtitle="Histórico de todas as vendas individuais — produto, valor, entrega e status, com filtros."
       actions={
         <button
           onClick={() => (showForm ? setShowForm(false) : novaVenda())}

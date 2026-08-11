@@ -186,7 +186,6 @@ export function Pesquisa() {
     <Screen
       eyebrow="Sourcing"
       title="Pesquisa de Produtos"
-      subtitle="Registro das pesquisas de produtos (TabPesquisa) — com cálculo de taxas e veredito automático."
       actions={
         <button
           onClick={() => (showForm ? setShowForm(false) : novaPesquisa())}

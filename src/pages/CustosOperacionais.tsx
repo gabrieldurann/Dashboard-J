@@ -178,7 +178,6 @@ export function CustosOperacionais() {
     <Screen
       eyebrow="Empresa"
       title="Custos Operacionais"
-      subtitle="Despesas e receitas da empresa que não pertencem a nenhum produto — e o lucro líquido depois delas."
       actions={
         <button
           onClick={abrirNovo}

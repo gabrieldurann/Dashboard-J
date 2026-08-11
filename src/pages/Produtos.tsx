@@ -90,7 +90,6 @@ export function Produtos() {
     <Screen
       eyebrow="Banco de Dados"
       title="Produtos"
-      subtitle="Todos os produtos pesquisados — preço, custo, margem, estoque e link da referência."
       actions={
         <button
           onClick={() => nav("/produtos/novo")}

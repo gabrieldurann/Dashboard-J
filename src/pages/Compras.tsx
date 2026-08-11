@@ -231,7 +231,6 @@ export function Compras() {
     <Screen
       eyebrow="Registros"
       title="Compras"
-      subtitle="Reposição de estoque — o que foi comprado, quanto custou e o que já chegou. As compras recebidas entram no estoque."
       actions={
         <div className="flex items-center gap-2">
           <ExibicaoMenu cards={CARDS} paginaLayout="compras" />

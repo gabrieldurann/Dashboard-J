@@ -48,6 +48,7 @@ import {
   totaisPortfolio,
   vendasPorAno,
   vendasPorDia,
+  vendasPorSemana,
   vendasPorMes,
   vendasPorPais,
 } from "./engine";
@@ -234,6 +235,45 @@ describe("time-bucket aggregations (Phase 2)", () => {
   });
   it("groups by year", () => {
     expect(vendasPorAno(vendas).map((a) => a.chave)).toEqual(["2026"]);
+  });
+
+  describe("vendasPorSemana", () => {
+    // 2026-06-15 is a Monday.
+    it("keys a week on its Monday", () => {
+      expect(vendasPorSemana([venda({ data: "2026-06-17T10:00" })]).map((s) => s.chave)).toEqual(["2026-06-15"]);
+    });
+
+    it("puts Monday and the following Sunday in the same bucket", () => {
+      const s = vendasPorSemana([
+        venda({ data: "2026-06-15T10:00", valorTotal: 100 }),
+        venda({ data: "2026-06-21T23:00", valorTotal: 50 }),
+      ]);
+      expect(s).toHaveLength(1);
+      expect(s[0].valor).toBe(150);
+    });
+
+    it("starts a new bucket on the next Monday", () => {
+      const s = vendasPorSemana([
+        venda({ data: "2026-06-21T10:00" }), // Sunday
+        venda({ data: "2026-06-22T10:00" }), // Monday
+      ]);
+      expect(s.map((x) => x.chave)).toEqual(["2026-06-15", "2026-06-22"]);
+    });
+
+    // The reason the key is a date and not a week number: these still sort and group correctly.
+    it("handles a week that straddles two months", () => {
+      const s = vendasPorSemana([
+        venda({ data: "2026-06-30T10:00", valorTotal: 10 }), // Tuesday
+        venda({ data: "2026-07-01T10:00", valorTotal: 20 }), // Wednesday, same week
+      ]);
+      expect(s).toHaveLength(1);
+      expect(s[0].chave).toBe("2026-06-29");
+      expect(s[0].valor).toBe(30);
+    });
+
+    it("excludes cancelled sales like the other buckets", () => {
+      expect(vendasPorSemana(vendas).reduce((t, s) => t + s.valor, 0)).toBe(350);
+    });
   });
 });
 

@@ -187,11 +187,6 @@ export function Relatorios() {
     <Screen
       eyebrow="Resumo"
       title="Relatórios"
-      subtitle={
-        modo === "realizado"
-          ? "O que aconteceu no mês, em números reais. Gere um PDF limpo com um clique."
-          : "Quanto o catálogo renderia no ritmo cadastrado — e o quanto isso difere do real."
-      }
       actions={
         <div className="flex flex-wrap items-center gap-2">
           {/* two documents, never one blended page */}
@@ -434,16 +429,6 @@ function Projecao({
 
   return (
     <>
-      <div className="mb-4 flex items-start gap-2.5 rounded-card border border-amber/40 bg-amberSoft px-4 py-3">
-        <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber" />
-        <p className="text-sm leading-relaxed text-txtDim">
-          <strong className="text-amber">Isto é uma projeção, não o que aconteceu.</strong> Supõe
-          que cada produto venda exatamente a quantidade cadastrada em “vendas/mês”, com o preço e o
-          custo do cadastro. Serve para comparar com o real e decidir o que ajustar — o resultado
-          de verdade está no modo <em>Realizado</em> e na DRE.
-        </p>
-      </div>
-
       <div className="grid grid-cols-12 gap-4">
         <GlowCard accent="gold" className="col-span-12">
           <span className="mb-3 block font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">

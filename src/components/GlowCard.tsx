@@ -17,12 +17,19 @@ export function GlowCard({
   grid = false,
   className = "",
   delay = 0,
+  preencher = false,
 }: {
   children: ReactNode;
   accent?: Accent;
   grid?: boolean;
   className?: string;
   delay?: number;
+  /**
+   * Make the content wrapper a full-height flex column. Needed because children otherwise sit
+   * inside a plain `<div>`, so `flex-1` on them has nothing to grow against and a stretched
+   * card (`h-full` in a grid row) ends up with its content bunched at the top.
+   */
+  preencher?: boolean;
 }) {
   return (
     <motion.div
@@ -32,7 +39,7 @@ export function GlowCard({
       className={`relative overflow-hidden rounded-card border border-line bg-panel p-5 backdrop-blur-sm ${glow[accent]} ${className}`}
     >
       {grid && <div className="hud-grid pointer-events-none absolute inset-0 opacity-60" />}
-      <div className="relative">{children}</div>
+      <div className={`relative ${preencher ? "flex h-full flex-col" : ""}`}>{children}</div>
     </motion.div>
   );
 }

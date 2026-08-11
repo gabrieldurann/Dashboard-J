@@ -90,7 +90,6 @@ export function ProdutoForm() {
     <Screen
       eyebrow={isEdit ? "Editar" : "Novo"}
       title={isEdit ? "Editar produto" : "Adicionar produto"}
-      subtitle="Preencha os dados da pesquisa — os indicadores à direita atualizam em tempo real."
       actions={
         <button
           onClick={() => nav("/produtos")}

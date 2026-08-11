@@ -124,7 +124,6 @@ export function Configuracoes() {
     <Screen
       eyebrow="Ajustes"
       title="Configurações"
-      subtitle="Taxas e regras do negócio. Mudou o imposto ou a comissão? Ajuste aqui e todo o app recalcula."
       actions={
         alterado.length > 0 && (
           <button

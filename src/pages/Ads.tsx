@@ -192,7 +192,6 @@ export function Ads() {
     <Screen
       eyebrow="Amazon"
       title="Ads"
-      subtitle="O que os anúncios custam e o que trazem de volta — ACOS, TACOS e o peso do tráfego pago em cada produto."
       actions={
         <div className="flex items-center gap-2">
           <ExibicaoMenu cards={CARDS} paginaLayout={PAGINA} />

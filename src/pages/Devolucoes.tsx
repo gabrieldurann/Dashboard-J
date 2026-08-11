@@ -258,7 +258,6 @@ export function Devolucoes() {
     <Screen
       eyebrow="Registros"
       title="Devoluções"
-      subtitle="Devoluções e reembolsos — motivo, valor devolvido e reposição ao estoque. Os reembolsos reduzem o lucro líquido do Painel."
       actions={
         <div className="flex items-center gap-2">
           <ExibicaoMenu cards={CARDS} paginaLayout="devolucoes" />

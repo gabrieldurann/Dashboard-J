@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
+import type { ReactNode } from "react";
 import type { ResumoPeriodo } from "../calc/engine";
 import { money, percent } from "../i18n/format";
 import { EASE } from "../theme/tokens";
@@ -14,13 +15,14 @@ export function PeriodCard({
   label,
   periodo,
   sublabel,
-  hint,
+  acoes,
   delay = 0,
 }: {
   label: string;
   periodo: ResumoPeriodo;
   sublabel?: string;
-  hint?: string;
+  /** Controls rendered in the card header, e.g. the period selector. */
+  acoes?: ReactNode;
   delay?: number;
 }) {
   const cores = useCores();
@@ -32,11 +34,13 @@ export function PeriodCard({
 
   return (
     <GlowCard delay={delay}>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">{label}</span>
-        {sublabel && <span className="font-mono text-[11px] text-txtFaint">{sublabel}</span>}
+        <span className="flex items-center gap-3">
+          {sublabel && <span className="font-mono text-[11px] text-txtFaint">{sublabel}</span>}
+          {acoes}
+        </span>
       </div>
-      {hint && <p className="mt-0.5 font-mono text-[10px] text-txtFaint">{hint}</p>}
 
       <div className="mt-3 flex items-end justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">

@@ -238,7 +238,6 @@ export function Calculadora() {
     <Screen
       eyebrow="Precificação"
       title="Calculadora de Margem"
-      subtitle="Calcule o preço a partir da margem, ou a margem a partir do preço. Não altera seus produtos."
     >
       <div className="grid grid-cols-12 gap-4">
         {/* inputs */}

@@ -171,7 +171,6 @@ export function Conexoes() {
     <Screen
       eyebrow="Integrações"
       title="Conexões"
-      subtitle="Conecte sua conta de vendedor para importar pedidos, taxas e anúncios sem digitar à mão."
       actions={
         <button
           onClick={() => setModal(true)}
