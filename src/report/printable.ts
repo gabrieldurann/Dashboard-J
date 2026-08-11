@@ -6,6 +6,7 @@
 // velocity: a document someone hands to a partner or an accountant has to survive being checked
 // against the bank, and a projection cannot.
 
+import type { StatusCor } from "../calc/constants";
 import type { AggCanal, AggMotivo, DesempenhoProduto, DRE, LinhaDRE } from "../calc/engine";
 import { money, percent } from "../i18n/format";
 import { MOTIVO_LABEL } from "../i18n/labels";
@@ -208,5 +209,113 @@ export function relatorioHTML(d: DadosRelatorio, anterior: DRE | null): string {
      ${motivos}
 
      <div class="foot">${RODAPE_DRE}</div>`,
+  );
+}
+
+// ─── Projeção do catálogo ────────────────────────────────────────────────────
+//
+// The old Relatórios, kept deliberately as a SEPARATE document rather than mixed into the one
+// above. It answers "what would a month look like if every product sold at the pace registered
+// on it?" — useful for spotting the gap against reality, ruinous if mistaken for reality. Every
+// label here says "projetado", and the comparison block makes the gap the point.
+
+export type LinhaProjecao = {
+  nome: string;
+  precoVenda: number;
+  margem: number;
+  lucroMensal: number;
+  statusCor: StatusCor;
+};
+
+export type DadosProjecao = {
+  geradoEm: Date;
+  /** the realized month the projection is being held up against */
+  mes: string;
+  receitaMensal: number;
+  lucroMensal: number;
+  custoMensal: number;
+  impostoMensal: number;
+  capitalEstoque: number;
+  margemMedia: number;
+  totalProdutos: number;
+  aprovados: number;
+  cores: { verde: number; amarelo: number; vermelho: number };
+  melhores: LinhaProjecao[];
+  reavaliar: LinhaProjecao[];
+  /** the same month's realized figures, so the two can be read side by side */
+  real: { receita: number; lucro: number; margem: number };
+};
+
+function tabelaProjecao(linhas: LinhaProjecao[], vazio: string): string {
+  if (linhas.length === 0) return `<p class="empty">${esc(vazio)}</p>`;
+  const rows = linhas
+    .map(
+      (l) => `<tr>
+        <td>${esc(l.nome)}</td>
+        <td class="num">${money(l.precoVenda)}</td>
+        <td class="num ${l.statusCor === "verde" ? "g" : l.statusCor === "vermelho" ? "r" : "y"}">${percent(l.margem)}</td>
+        <td class="num">${money(l.lucroMensal)}</td>
+      </tr>`,
+    )
+    .join("");
+  return `<table>
+    <thead><tr><th>Produto</th><th class="num">Preço</th><th class="num">Margem projetada</th><th class="num">Lucro projetado/mês</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+const comparativo = (d: DadosProjecao) => {
+  const linha = (rotulo: string, proj: number, real: number, fmt: (n: number) => string) => {
+    const dif = proj - real;
+    return `<tr>
+      <td>${esc(rotulo)}</td>
+      <td class="num">${fmt(proj)}</td>
+      <td class="num">${fmt(real)}</td>
+      <td class="num ${dif > 0 ? "r" : "g"}">${dif > 0 ? "−" : "+"}${fmt(Math.abs(dif))}</td>
+    </tr>`;
+  };
+  return `<table>
+    <thead><tr><th>&nbsp;</th><th class="num">Projetado</th><th class="num">Realizado em ${esc(nomeMes(d.mes))}</th><th class="num">Diferença</th></tr></thead>
+    <tbody>
+      ${linha("Receita", d.receitaMensal, d.real.receita, money)}
+      ${linha("Lucro", d.lucroMensal, d.real.lucro, money)}
+      ${linha("Margem", d.margemMedia, d.real.margem, percent)}
+    </tbody>
+  </table>`;
+};
+
+export function projecaoHTML(d: DadosProjecao): string {
+  return documento(
+    `Projeção do catálogo — Painel J`,
+    `${cabecalho("Projeção do catálogo · não é resultado realizado", d.geradoEm)}
+
+     <div class="aviso"><b>Isto é uma projeção, não o que aconteceu.</b> Os valores abaixo supõem
+     que cada produto venda exatamente a quantidade cadastrada em “vendas/mês”, com o preço e o
+     custo cadastrados. Servem para comparar com o real e decidir o que ajustar — nunca para
+     prestar contas. O resultado realizado está no relatório mensal e na DRE.</div>
+
+     <h2>Projetado × realizado</h2>
+     ${comparativo(d)}
+
+     <h2>Projeção mensal do catálogo</h2>
+     <div class="grid">
+       ${stat("Receita projetada / mês", money(d.receitaMensal))}
+       ${stat("Lucro projetado / mês", money(d.lucroMensal))}
+       ${stat("Custo projetado / mês", money(d.custoMensal))}
+       ${stat("Imposto projetado / mês", money(d.impostoMensal))}
+       ${stat("Capital em estoque (cadastro)", money(d.capitalEstoque))}
+       ${stat("Margem média projetada", percent(d.margemMedia))}
+       ${stat("Produtos", String(d.totalProdutos))}
+       ${stat("Aprovados", String(d.aprovados))}
+       ${stat("Ótimo / Melhorar / Re-avaliar", `${d.cores.verde} / ${d.cores.amarelo} / ${d.cores.vermelho}`)}
+     </div>
+
+     <h2>Melhores margens projetadas</h2>
+     ${tabelaProjecao(d.melhores, "Nenhum produto cadastrado.")}
+
+     <h2>Para re-avaliar (margem projetada abaixo da faixa)</h2>
+     ${tabelaProjecao(d.reavaliar, "Tudo dentro da meta.")}
+
+     <div class="foot">Painel J · uso interno · dados locais. Projeção calculada a partir do cadastro de produtos (preço × vendas/mês), não do livro de vendas.</div>`,
   );
 }

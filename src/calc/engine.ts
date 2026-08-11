@@ -1025,6 +1025,90 @@ export function importarAnuncios(
   return novos;
 }
 
+/** One product's returns, set against what that product actually earned. */
+export type DevolucaoProduto = {
+  produtoId?: string; // absent = avulsa / never matched to the catalog
+  nome: string;
+  registros: number;
+  unidades: number;
+  reembolso: number;
+  /** Units returned ÷ units sold for this product. */
+  taxa: number;
+  /** Realized profit before refunds — what the product looks like on the Gráficos page. */
+  lucro: number;
+  /** Realized margin before refunds. */
+  margem: number;
+  /** lucro − reembolso: what the product really left behind. */
+  lucroLiquido: number;
+  /** lucroLiquido ÷ gross — the number that can turn a "good" product bad. */
+  margemLiquida: number;
+};
+
+/**
+ * Returns grouped by product, costliest refund first.
+ *
+ * The point is the contrast between `margem` and `margemLiquida`: a product can carry a healthy
+ * margin on every sale and still lose money once a tenth of them come back, and nothing else in
+ * the app puts those two figures side by side. Refunds are matched to a product the same way
+ * sales are, and returns whose product was never in the catalog are grouped by normalised name
+ * rather than dropped — they cost real money too.
+ *
+ * Profit comes from `desempenhoProdutos`, so "lucro" keeps exactly one definition.
+ */
+export function devolucoesPorProduto(
+  devolucoes: Devolucao[],
+  vendas: Venda[],
+  produtos: Produto[],
+  cfg: Configuracoes = CONFIG_PADRAO,
+): DevolucaoProduto[] {
+  const desempenho = new Map(
+    desempenhoProdutos(vendas, produtos, cfg).map((d) => [d.produtoId, d]),
+  );
+  /** units sold per product, for the return rate */
+  const vendidas = new Map<string, number>();
+  for (const v of vendasRealizadas(vendas)) {
+    if (!v.produtoId) continue;
+    vendidas.set(v.produtoId, (vendidas.get(v.produtoId) ?? 0) + v.quantidade);
+  }
+
+  const grupos = new Map<string, DevolucaoProduto>();
+  for (const d of devolucoes) {
+    // an unmatched return still cost money, so it is grouped by name instead of discarded
+    const chave = d.produtoId ?? `nome:${normalizaNome(d.produtoNome)}`;
+    let g = grupos.get(chave);
+    if (!g) {
+      g = {
+        produtoId: d.produtoId,
+        nome: d.produtoNome,
+        registros: 0,
+        unidades: 0,
+        reembolso: 0,
+        taxa: 0,
+        lucro: 0,
+        margem: 0,
+        lucroLiquido: 0,
+        margemLiquida: 0,
+      };
+      grupos.set(chave, g);
+    }
+    g.registros += 1;
+    g.unidades += d.quantidade;
+    g.reembolso += d.valorReembolsado;
+  }
+
+  for (const g of grupos.values()) {
+    const perf = g.produtoId ? desempenho.get(g.produtoId) : undefined;
+    const vendeu = g.produtoId ? (vendidas.get(g.produtoId) ?? 0) : 0;
+    g.taxa = vendeu > 0 ? g.unidades / vendeu : 0;
+    g.lucro = perf?.lucro ?? 0;
+    g.margem = perf?.margem ?? 0;
+    g.lucroLiquido = g.lucro - g.reembolso;
+    g.margemLiquida = perf && perf.bruto > 0 ? g.lucroLiquido / perf.bruto : 0;
+  }
+
+  return [...grupos.values()].sort((a, b) => b.reembolso - a.reembolso);
+}
+
 // ─── DRE — demonstração do resultado do exercício ────────────────────────────
 
 /** What a DRE line is doing to the running total. `resultado` lines carry their own sign. */

@@ -22,6 +22,7 @@ import {
   desempenhoProdutos,
   estoqueProdutos,
   devolucoesPorMotivo,
+  devolucoesPorProduto,
   faixasDesempenho,
   freteUnitario,
   serieFinanceiraMensal,
@@ -785,6 +786,94 @@ describe("importarPedidos (marketplace order import, idea #15)", () => {
       };
       expect(importarAnuncios([rel({})], [manual], [prod], conta)).toHaveLength(1);
     });
+  });
+});
+
+describe("devolucoesPorProduto (refunds set against what the product earned)", () => {
+  const prod: Produto = { ...base, id: "p1", nome: "Projetor", precoVenda: 100, custoUnit: 40, imposto: 0.04, comissao: 0.15 };
+  const vendas = [
+    venda({ produtoId: "p1", produtoNome: "Projetor", quantidade: 10, valorTotal: 1000, frete: 0 }),
+  ];
+
+  it("groups refunds per product, costliest first", () => {
+    const r = devolucoesPorProduto(
+      [
+        devolucao({ produtoId: "p1", produtoNome: "Projetor", valorReembolsado: 100, quantidade: 1 }),
+        devolucao({ produtoId: "p2", produtoNome: "Outro", valorReembolsado: 500, quantidade: 2 }),
+      ],
+      vendas,
+      [prod],
+    );
+    expect(r.map((x) => x.nome)).toEqual(["Outro", "Projetor"]);
+    expect(r[1].registros).toBe(1);
+  });
+
+  it("adds up several returns of the same product", () => {
+    const r = devolucoesPorProduto(
+      [
+        devolucao({ produtoId: "p1", produtoNome: "Projetor", valorReembolsado: 100, quantidade: 1 }),
+        devolucao({ produtoId: "p1", produtoNome: "Projetor", valorReembolsado: 200, quantidade: 3 }),
+      ],
+      vendas,
+      [prod],
+    );
+    expect(r).toHaveLength(1);
+    expect(r[0].registros).toBe(2);
+    expect(r[0].unidades).toBe(4);
+    expect(r[0].reembolso).toBe(300);
+  });
+
+  it("computes the return rate against units actually sold", () => {
+    const r = devolucoesPorProduto(
+      [devolucao({ produtoId: "p1", produtoNome: "Projetor", quantidade: 2, valorReembolsado: 200 })],
+      vendas,
+      [prod],
+    );
+    expect(r[0].taxa).toBeCloseTo(0.2, 10); // 2 returned of 10 sold
+  });
+
+  // The reason this function exists: margin alone can hide a product that loses money on returns.
+  it("shows the margin before and after refunds, which is the whole point", () => {
+    const r = devolucoesPorProduto(
+      [devolucao({ produtoId: "p1", produtoNome: "Projetor", quantidade: 3, valorReembolsado: 300 })],
+      vendas,
+      [prod],
+    );
+    // 1000 gross − 40 tax − 150 commission − 400 cost = 410 profit, 41%
+    expect(r[0].lucro).toBeCloseTo(410, 10);
+    expect(r[0].margem).toBeCloseTo(0.41, 10);
+    // …and after R$300 of refunds it is only 110, or 11%
+    expect(r[0].lucroLiquido).toBeCloseTo(110, 10);
+    expect(r[0].margemLiquida).toBeCloseTo(0.11, 10);
+  });
+
+  it("can turn a profitable-looking product negative", () => {
+    const r = devolucoesPorProduto(
+      [devolucao({ produtoId: "p1", produtoNome: "Projetor", quantidade: 6, valorReembolsado: 600 })],
+      vendas,
+      [prod],
+    );
+    expect(r[0].margem).toBeGreaterThan(0);
+    expect(r[0].lucroLiquido).toBeLessThan(0);
+  });
+
+  it("keeps returns of products the catalog never had, grouped by name", () => {
+    const r = devolucoesPorProduto(
+      [
+        devolucao({ produtoNome: "Cabo USB-C", valorReembolsado: 50 }),
+        devolucao({ produtoNome: "cabo  usb-c", valorReembolsado: 30 }),
+      ],
+      vendas,
+      [prod],
+    );
+    expect(r).toHaveLength(1);
+    expect(r[0].reembolso).toBe(80);
+    expect(r[0].produtoId).toBeUndefined();
+    expect(r[0].taxa).toBe(0); // nothing sold under it that we can attribute
+  });
+
+  it("is empty when nothing came back", () => {
+    expect(devolucoesPorProduto([], vendas, [prod])).toEqual([]);
   });
 });
 

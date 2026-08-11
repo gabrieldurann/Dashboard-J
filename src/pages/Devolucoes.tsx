@@ -1,7 +1,7 @@
 import { Clock, Coins, PackageCheck, Pencil, Plus, RotateCcw, Save, Search, Trash2, Undo2, X } from "lucide-react";
 import { motion } from "framer-motion";
 import { useMemo, useState, type ReactNode } from "react";
-import { devolucoesPorMotivo, resumoDevolucoes, taxaDevolucao } from "../calc/engine";
+import { devolucoesPorMotivo, devolucoesPorProduto, resumoDevolucoes, taxaDevolucao } from "../calc/engine";
 import type { Devolucao, DevolucaoStatus, MotivoDevolucao } from "../calc/types";
 import { Field, inputClass, NumberInput, TextInput } from "../components/Field";
 import { GlowCard } from "../components/GlowCard";
@@ -15,12 +15,14 @@ import { EASE } from "../theme/tokens";
 import { confirmAction } from "../store/useConfirm";
 import { toast } from "../store/useToast";
 import { useStore } from "../store/useStore";
+import { useConfig } from "../store/useConfig";
 
 
 /** Blocks the user can hide to focus on the ledger alone. */
 const CARDS: CardRegistrado[] = [
   { id: "devolucoes.kpis", label: "Indicadores do topo" },
   { id: "devolucoes.resumo", label: "Resumo por motivo" },
+  { id: "devolucoes.produtos", label: "Impacto por produto" },
 ];
 
 const STATUS: Record<DevolucaoStatus, { label: string; cls: string }> = {
@@ -77,6 +79,7 @@ const emptyDraft = (): Draft => ({
 });
 
 export function Devolucoes() {
+  const cfg = useConfig();
   const devolucoes = useStore((s) => s.devolucoes);
   const vendas = useStore((s) => s.vendas);
   const produtos = useStore((s) => s.produtos);
@@ -124,6 +127,10 @@ export function Devolucoes() {
   const taxa = useMemo(() => taxaDevolucao(linhas, vendas), [linhas, vendas]);
   const porMotivo = useMemo(() => devolucoesPorMotivo(linhas), [linhas]);
   const maxShare = Math.max(...porMotivo.map((m) => m.share), 0.0001);
+  const porProduto = useMemo(
+    () => devolucoesPorProduto(linhas, vendas, produtos, cfg),
+    [linhas, vendas, produtos, cfg],
+  );
   const abertas = useMemo(() => linhas.filter((r) => emAberto(r.status)).length, [linhas]);
 
   const temFiltro = busca || fProduto !== "todos" || fMotivo !== "todos" || fStatus !== "todos" || dataDe || dataAte;
@@ -466,13 +473,17 @@ export function Devolucoes() {
               <thead>
                 <tr className="border-b border-line">
                   {/* secondary columns drop out when the window is narrow, so the ledger never
-                      needs a horizontal scroll — the data is still searchable and in the form */}
+                      needs a horizontal scroll — the data is still searchable and in the form.
+                      They return in STAGES: bringing both back at `xl` needed 1008px in a 934px
+                      box, so Motivo waits for `2xl`. It is the one already reachable another way
+                      — there is a Motivo filter and a whole "Por motivo" card on this page —
+                      while Pedido is how you find a specific return. */}
                   {[
                     { h: "Data", cls: "" },
                     { h: "Produto", cls: "" },
                     { h: "Pedido", cls: "hidden xl:table-cell" },
                     { h: "Qtd", cls: "" },
-                    { h: "Motivo", cls: "hidden xl:table-cell" },
+                    { h: "Motivo", cls: "hidden 2xl:table-cell" },
                     { h: "Status", cls: "" },
                     { h: "Reembolso", cls: "" },
                     { h: "Estoque", cls: "" },
@@ -506,7 +517,7 @@ export function Devolucoes() {
                       </td>
                       <td className="hidden whitespace-nowrap px-3 py-3 font-mono text-xs text-txtDim xl:table-cell">{r.numeroPedido ?? "—"}</td>
                       <td className="px-3 py-3 font-mono text-sm tabular-nums text-txtDim">{r.quantidade}</td>
-                      <td className="hidden px-3 py-3 xl:table-cell">
+                      <td className="hidden px-3 py-3 2xl:table-cell">
                         <span className="whitespace-nowrap rounded-full border border-line px-2.5 py-1 font-mono text-[10px] text-txtDim">
                           {MOTIVO_LABEL[r.motivo]}
                         </span>
@@ -579,6 +590,106 @@ export function Devolucoes() {
                 ))}
               </ul>
             )}
+          </GlowCard>
+        </Ocultavel>
+
+        {/*
+          The block that changes decisions: a product can carry a healthy margin on every sale and
+          still lose money once enough of them come back. "Por motivo" above says WHY things are
+          returned; this says WHICH products it is actually costing.
+        */}
+        <Ocultavel id="devolucoes.produtos" label="Impacto por produto" className="col-span-12">
+          <GlowCard className="h-full">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className="font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">
+                Impacto por produto
+              </span>
+              <span className="font-mono text-[11px] text-txtFaint">
+                margem antes → depois dos reembolsos
+              </span>
+            </div>
+            {porProduto.length === 0 ? (
+              <p className="py-8 text-center text-sm text-txtDim">Nenhuma devolução no filtro atual.</p>
+            ) : (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full border-collapse text-left">
+                  <thead>
+                    <tr className="border-b border-line">
+                      {[
+                        { k: "produto", l: "Produto" },
+                        { k: "reg", l: "Devol.", cls: "hidden xl:table-cell" },
+                        { k: "un", l: "Un." },
+                        { k: "taxa", l: "Taxa" },
+                        { k: "reemb", l: "Reembolso" },
+                        { k: "lucro", l: "Lucro", cls: "hidden xl:table-cell" },
+                        { k: "depois", l: "Lucro após" },
+                        { k: "margens", l: "Margem" },
+                      ].map((c) => (
+                        <th
+                          key={c.k}
+                          className={`whitespace-nowrap px-2 py-2.5 font-mono text-[10px] uppercase tracking-[0.12em] text-txtFaint xl:px-3 ${c.cls ?? ""}`}
+                        >
+                          {c.l}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {porProduto.map((p) => {
+                      const semVendas = p.lucro === 0 && p.margem === 0;
+                      return (
+                        <tr key={p.produtoId ?? p.nome} className="border-b border-line/60">
+                          <td className="max-w-[150px] truncate px-2 py-2.5 text-sm text-txt xl:px-3" title={p.nome}>
+                            {p.nome}
+                            {!p.produtoId && (
+                              <span className="ml-2 rounded-full border border-line px-1.5 py-0.5 font-mono text-[9px] text-txtFaint">
+                                sem cadastro
+                              </span>
+                            )}
+                          </td>
+                          <td className="hidden px-2 py-2.5 font-mono text-xs text-txtDim xl:table-cell xl:px-3">{p.registros}</td>
+                          <td className="px-2 py-2.5 font-mono text-xs text-txtDim xl:px-3">{p.unidades}</td>
+                          <td className={`px-2 py-2.5 font-mono text-xs tabular-nums xl:px-3 ${p.taxa > 0.1 ? "text-danger" : "text-txtDim"}`}>
+                            {p.taxa > 0 ? percent(p.taxa) : "—"}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-2.5 font-mono text-sm tabular-nums text-gold xl:px-3">
+                            {money(p.reembolso)}
+                          </td>
+                          <td className="hidden whitespace-nowrap px-2 py-2.5 font-mono text-xs tabular-nums text-txtDim xl:table-cell xl:px-3">
+                            {semVendas ? "—" : money(p.lucro)}
+                          </td>
+                          <td
+                            className={`whitespace-nowrap px-2 py-2.5 font-mono text-sm tabular-nums xl:px-3 ${
+                              semVendas ? "text-txtFaint" : p.lucroLiquido < 0 ? "text-danger" : "text-txt"
+                            }`}
+                          >
+                            {semVendas ? "—" : money(p.lucroLiquido)}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-2.5 font-mono text-xs tabular-nums xl:px-3">
+                            {semVendas ? (
+                              <span className="text-txtFaint">—</span>
+                            ) : (
+                              <>
+                                <span className="text-txtDim">{percent(p.margem)}</span>
+                                <span className="mx-1 text-txtFaint">→</span>
+                                <span className={p.margemLiquida < 0 ? "text-danger" : p.margemLiquida < p.margem ? "text-amber" : "text-green"}>
+                                  {percent(p.margemLiquida)}
+                                </span>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="mt-3 font-mono text-[11px] leading-relaxed text-txtFaint">
+              O lucro é o realizado do produto em todo o período (não só no filtro), e o reembolso é
+              o das devoluções filtradas. Produtos sem venda atribuída aparecem com “—”: houve
+              reembolso, mas não há lucro registrado para descontar.
+            </p>
           </GlowCard>
         </Ocultavel>
       </div>
