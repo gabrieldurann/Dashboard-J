@@ -52,6 +52,7 @@ export function Conexoes() {
   const anuncios = useStore((s) => s.anunciosAds);
   const importarVendas = useStore((s) => s.importarVendas);
   const importarAds = useStore((s) => s.importarAnunciosAds);
+  const registrarExecucao = useStore((s) => s.registrarExecucaoSync);
 
   const [modal, setModal] = useState(false);
   const [sincronizando, setSincronizando] = useState<string | null>(null);
@@ -66,24 +67,62 @@ export function Conexoes() {
    * Simulated refresh of ONE service. `pedidosDaConta` / `relatoriosAdsDaConta` stand in for the
    * two API calls; everything after them — matching by SKU, skipping what's already there,
    * writing to the ledgers — is the real logic and stays untouched when the APIs arrive.
+   *
+   * Every run also leaves an `ExecucaoSync` behind. That record, not the ledger rows, is what
+   * makes an odd figure traceable later on the Amazon page.
    */
   const sincronizar = (c: ContaAmazon, servico: ServicoAmazon) => {
     const chave = `${c.id}·${servico}`;
+    const iniciadaEm = new Date().toISOString();
     setSincronizando(chave);
     setTimeout(() => {
       let quantos = 0;
       let oQue = "";
+      let recebidos = 0;
+      let semCorrespondencia = 0;
+      let payload: unknown[] = [];
+
       if (servico === "sp-api") {
-        const novas = importarPedidos(pedidosDaConta(c), vendas, produtos, c);
+        const pedidos = pedidosDaConta(c);
+        const novas = importarPedidos(pedidos, vendas, produtos, c);
         if (novas.length > 0) importarVendas(novas);
+        payload = pedidos;
+        recebidos = pedidos.length;
         quantos = novas.length;
+        // counted over what actually went in: a re-sync that imports nothing has nothing new
+        // left uncosted, and reporting it again would double-count the same problem
+        semCorrespondencia = novas.filter((v) => !v.produtoId).length;
         oQue = quantos === 1 ? "pedido importado" : "pedidos importados";
       } else {
-        const novos = importarAnuncios(relatoriosAdsDaConta(c), anuncios, produtos, c);
+        const relatorios = relatoriosAdsDaConta(c);
+        const novos = importarAnuncios(relatorios, anuncios, produtos, c);
         if (novos.length > 0) importarAds(novos);
+        payload = relatorios;
+        recebidos = relatorios.length;
         quantos = novos.length;
+        semCorrespondencia = novos.filter((a) => !a.produtoId).length;
         oQue = quantos === 1 ? "campanha importada" : "campanhas importadas";
       }
+
+      const datas = payload.map((r) => (r as { data: string }).data).sort();
+      registrarExecucao({
+        id: crypto.randomUUID(),
+        contaId: c.id,
+        servico,
+        iniciadaEm,
+        concluidaEm: new Date().toISOString(),
+        status: "sucesso",
+        // the window the returned records cover — with a mock this is the honest version of
+        // "what did we ask for", since there is no real query range to report
+        periodoDe: datas[0],
+        periodoAte: datas[datas.length - 1],
+        recebidos,
+        importados: quantos,
+        duplicados: recebidos - quantos,
+        semCorrespondencia,
+        payload,
+      });
+
       atualizarConexao(c, servico, { ultimaSync: new Date().toISOString(), status: "conectada" });
       setSincronizando(null);
       toast.success(quantos === 0 ? "Nada novo para importar" : `${quantos} ${oQue}`);

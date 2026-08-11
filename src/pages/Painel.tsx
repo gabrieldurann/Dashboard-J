@@ -19,6 +19,7 @@ import {
 } from "../calc/engine";
 import { EASE } from "../theme/tokens";
 import { AreaChart } from "../components/AreaChart";
+import { AvisoSkuSemCusto } from "../components/AvisoSkuSemCusto";
 import { ExibicaoMenu } from "../components/ExibicaoMenu";
 import { Ocultavel, type CardRegistrado } from "../components/Ocultavel";
 import { distribuir, spanClass } from "../components/gridSpans";
@@ -191,6 +192,9 @@ export function Painel() {
       subtitle="Totais do portfólio, desempenho de vendas no tempo e alcance global."
       actions={<ExibicaoMenu cards={CARDS} />}
     >
+      {/* temporary (see AvisoSkuSemCusto) — delete this line and the file to remove it */}
+      <AvisoSkuSemCusto />
+
       <div className="grid grid-cols-12 gap-4">
         {/* hero: gauge + health counts */}
         <Ocultavel id="painel.margem" label="Margem realizada" className={`col-span-12 ${spanClass(linhaHero, "painel.margem")}`}>

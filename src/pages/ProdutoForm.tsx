@@ -1,6 +1,6 @@
 import { ArrowLeft, ImagePlus, Save, Trash2, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { Configuracoes } from "../calc/constants";
 import { calcularMetricas } from "../calc/engine";
 import type { Produto } from "../calc/types";
@@ -32,6 +32,7 @@ export function ProdutoForm() {
   const statusCores = useStatusCores();
   const cfg = useConfig();
   const { id } = useParams();
+  const [params] = useSearchParams();
   const nav = useNavigate();
   const produtos = useStore((s) => s.produtos);
   const addProduto = useStore((s) => s.addProduto);
@@ -40,7 +41,18 @@ export function ProdutoForm() {
 
   const existente = id ? produtos.find((p) => p.id === id) : undefined;
   const isEdit = !!existente;
-  const [draft, setDraft] = useState<Produto>(() => existente ?? novoProduto(cfg));
+  // A new product can arrive pre-filled from the Amazon page, where an imported SKU the catalog
+  // doesn't know is exactly the thing that needs registering. Everything else stays blank —
+  // the cost, which is the whole point, is the one figure no marketplace can hand us.
+  const [draft, setDraft] = useState<Produto>(() => {
+    if (existente) return existente;
+    const nome = params.get("nome");
+    const sku = params.get("sku");
+    const novo = novoProduto(cfg);
+    return nome || sku
+      ? { ...novo, nome: nome ?? "", codigoProduto: sku ?? undefined }
+      : novo;
+  });
   const fileRef = useRef<HTMLInputElement>(null);
 
   const m = useMemo(() => calcularMetricas(draft, cfg), [draft, cfg]);

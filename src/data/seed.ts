@@ -1,5 +1,6 @@
 import { COMISSAO_PADRAO, IMPOSTO_PADRAO } from "../calc/constants";
 import type { AnuncioAds, ContaAmazon, Compra, CustoOperacional, Devolucao, Pesquisa, Produto, Venda } from "../calc/types";
+import { idCampanhaAmazon } from "./amazonMock";
 
 // ⚠️ SAMPLE DATA ONLY — safe to be public.
 // This file ships in the repo so the build/demo isn't empty for reviewers. It intentionally
@@ -862,7 +863,17 @@ export const CONTAS_AMAZON_SEED: ContaAmazon[] = [
 ];
 
 export const ANUNCIOS_ADS_SEED: AnuncioAds[] = [
-  // June — the month the Painel shows
+  // June — the month the Painel shows.
+  //
+  // These three rows ARE the three campaigns the Ads API mock reports, so they carry the same
+  // `campanhaId` it generates (via the shared `idCampanhaAmazon`) and are marked as having come
+  // from the connection. Without that identity the importer reads them as hand-typed rows,
+  // correctly refuses to let them block an import, and syncing Ads adds June's spend a second
+  // time — R$ 752 becoming R$ 1.432 and the Painel's profit turning negative.
+  //
+  // `unidadesOrganicas` stays filled in even though the Ads API never reports it: the API knows
+  // what the ads sold, not what sold without them, so that half is always completed by hand
+  // afterwards. These rows show that finished state.
   {
     id: "ads-1",
     produtoId: "demo-1",
@@ -875,6 +886,9 @@ export const ANUNCIOS_ADS_SEED: AnuncioAds[] = [
     unidadesAds: 12,
     unidadesOrganicas: 24,
     cliques: 470,
+    origem: "amazon",
+    contaId: "conta-1",
+    campanhaId: idCampanhaAmazon("conta-1", 1),
   },
   {
     id: "ads-2",
@@ -888,6 +902,9 @@ export const ANUNCIOS_ADS_SEED: AnuncioAds[] = [
     unidadesAds: 10,
     unidadesOrganicas: 26,
     cliques: 310,
+    origem: "amazon",
+    contaId: "conta-1",
+    campanhaId: idCampanhaAmazon("conta-1", 2),
   },
   {
     id: "ads-3",
@@ -902,6 +919,9 @@ export const ANUNCIOS_ADS_SEED: AnuncioAds[] = [
     unidadesOrganicas: 30,
     cliques: 360,
     observacao: "ACOS alto — campanha em revisão",
+    origem: "amazon",
+    contaId: "conta-1",
+    campanhaId: idCampanhaAmazon("conta-1", 3),
   },
   {
     id: "ads-4",

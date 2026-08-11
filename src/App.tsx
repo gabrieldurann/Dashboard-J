@@ -6,6 +6,7 @@ import { Sidebar } from "./components/Sidebar";
 import { Toaster } from "./components/Toaster";
 import { EASE } from "./theme/tokens";
 import { useAplicarTema } from "./theme/useCores";
+import { Amazon } from "./pages/Amazon";
 import { Calculadora } from "./pages/Calculadora";
 import { Compras } from "./pages/Compras";
 import { Conexoes } from "./pages/Conexoes";
@@ -53,6 +54,8 @@ function AnimatedRoutes() {
           <Route path="/relatorios" element={<Relatorios />} />
           <Route path="/configuracoes" element={<Configuracoes />} />
           <Route path="/conexoes" element={<Conexoes />} />
+          {/* one page per platform — Mercado Livre / Shopify become sibling routes */}
+          <Route path="/contas/amazon" element={<Amazon />} />
         </Routes>
       </motion.div>
     </AnimatePresence>

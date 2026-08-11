@@ -104,20 +104,32 @@ const PEDIDOS_INTERNACIONAIS: Omit<PedidoAmazon, "numeroPedido">[] = [
   },
 ];
 
-/**
- * What a sync would find for this account.
- *
- * Order numbers are derived from the account id so two linked accounts never collide — and so
- * they stay stable across syncs, which is what makes re-syncing idempotent rather than a
- * duplicate factory.
- */
+// ─── Identifiers ────────────────────────────────────────────────────────────
+//
+// Both ids are derived from the account id, so two linked accounts never collide and — more
+// importantly — an id stays the same on every sync, which is what makes re-importing idempotent
+// instead of a duplicate factory.
+//
+// They are EXPORTED because the demo seed has to produce exactly the same ids: the seeded June
+// campaigns describe the same campaigns `relatoriosAdsDaConta` reports, so if the two halves ever
+// drift apart a sync silently re-imports spend that was already in the ledger. One function,
+// two callers — that is the guarantee they cannot drift.
+
+const prefixoConta = (contaId: string) =>
+  contaId.replace(/[^a-z0-9]/gi, "").slice(0, 4).toUpperCase() || "AMZN";
+
+/** Amazon Order ID for the nth order of an account (1-based). */
+export const numeroPedidoAmazon = (contaId: string, indice: number) =>
+  `701-${prefixoConta(contaId)}-${String(indice).padStart(4, "0")}`;
+
+/** Ads API campaign id for the nth campaign of an account (1-based). */
+export const idCampanhaAmazon = (contaId: string, indice: number) =>
+  `CAMP-${prefixoConta(contaId)}-${String(indice).padStart(3, "0")}`;
+
+/** What a sync would find for this account. */
 export function pedidosDaConta(conta: ContaAmazon): PedidoAmazon[] {
   const base = conta.regiao === "BR" ? PEDIDOS_BR : PEDIDOS_INTERNACIONAIS;
-  const prefixo = conta.id.replace(/[^a-z0-9]/gi, "").slice(0, 4).toUpperCase() || "AMZN";
-  return base.map((p, i) => ({
-    ...p,
-    numeroPedido: `701-${prefixo}-${String(i + 1).padStart(4, "0")}`,
-  }));
+  return base.map((p, i) => ({ ...p, numeroPedido: numeroPedidoAmazon(conta.id, i + 1) }));
 }
 
 /**
@@ -181,6 +193,5 @@ const RELATORIOS_INTERNACIONAIS: Omit<RelatorioAds, "campanhaId">[] = [
 /** What an Ads API report pull would return for this account. */
 export function relatoriosAdsDaConta(conta: ContaAmazon): RelatorioAds[] {
   const base = conta.regiao === "BR" ? RELATORIOS_BR : RELATORIOS_INTERNACIONAIS;
-  const prefixo = conta.id.replace(/[^a-z0-9]/gi, "").slice(0, 4).toUpperCase() || "AMZN";
-  return base.map((r, i) => ({ ...r, campanhaId: `CAMP-${prefixo}-${String(i + 1).padStart(3, "0")}` }));
+  return base.map((r, i) => ({ ...r, campanhaId: idCampanhaAmazon(conta.id, i + 1) }));
 }

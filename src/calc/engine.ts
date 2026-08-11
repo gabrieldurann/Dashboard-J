@@ -12,6 +12,8 @@ import {
 import type {
   AnuncioAds,
   ContaAmazon,
+  ExecucaoSync,
+  OrigemDado,
   PedidoAmazon,
   RelatorioAds,
   CategoriaOperacional,
@@ -890,8 +892,14 @@ export function gruposDuplicados<T extends { nome: string }>(itens: T[]): T[][] 
 /** Total recurring monthly operating cost. */
 // ─── Importing marketplace orders (idea #15) ───
 
-/** Identity of an imported line: one order can carry several SKUs, each its own sale. */
-const chavePedido = (numeroPedido: string, sku: string) =>
+/**
+ * Identity of an imported line: one order can carry several SKUs, each its own sale.
+ *
+ * Exported because the Amazon page has to pair a stored sale back up with the raw record that
+ * produced it, and it must use the *same* identity the importer used — two notions of "the same
+ * order" would show the wrong payload next to a row.
+ */
+export const chavePedido = (numeroPedido: string, sku: string) =>
   `${numeroPedido.trim().toLowerCase()}·${sku.trim().toLowerCase()}`;
 
 /**
@@ -949,8 +957,9 @@ export function importarPedidos(
   return novas;
 }
 
-/** Identity of an imported ads row: one report line per campaign per period per SKU. */
-const chaveAds = (campanhaId: string, data: string, sku: string) =>
+/** Identity of an imported ads row: one report line per campaign per period per SKU. Exported
+ *  for the same reason as `chavePedido`. */
+export const chaveAds = (campanhaId: string, data: string, sku: string) =>
   `${campanhaId.trim().toLowerCase()}·${data.slice(0, 7)}·${sku.trim().toLowerCase()}`;
 
 /**
@@ -1004,6 +1013,194 @@ export function importarAnuncios(
     });
   }
   return novos;
+}
+
+// ─── Sync history & import provenance (Amazon page) ─────────────────────────
+
+/** Runs that keep their raw payload, per account. */
+export const RETENCAO_PAYLOAD = 10;
+/** Runs kept at all, per account. Older ones are forgotten entirely. */
+export const RETENCAO_EXECUCOES = 50;
+
+/**
+ * Trim the sync history so localStorage cannot grow without bound.
+ *
+ * Two different limits, because the two things cost very different amounts: the counters are a
+ * handful of numbers and are worth keeping for a long trail, while the raw payload is the whole
+ * API response and is only ever inspected on recent runs. So recent runs keep everything, older
+ * ones survive as counters, and the oldest are dropped.
+ */
+export function aplicarRetencao(
+  execucoes: ExecucaoSync[],
+  comPayload = RETENCAO_PAYLOAD,
+  porConta = RETENCAO_EXECUCOES,
+): ExecucaoSync[] {
+  const recentesPrimeiro = [...execucoes].sort((a, b) => b.iniciadaEm.localeCompare(a.iniciadaEm));
+  const vistas = new Map<string, number>();
+  const mantidas: ExecucaoSync[] = [];
+  for (const e of recentesPrimeiro) {
+    const n = (vistas.get(e.contaId) ?? 0) + 1;
+    vistas.set(e.contaId, n);
+    if (n > porConta) continue;
+    if (n > comPayload && e.payload) {
+      const { payload: _descartado, ...semPayload } = e;
+      mantidas.push(semPayload);
+    } else {
+      mantidas.push(e);
+    }
+  }
+  return mantidas;
+}
+
+/** What one account's connection has actually brought in. Imported records only, by design. */
+export type ResumoImportacao = {
+  pedidos: number;
+  faturamento: number;
+  campanhas: number;
+  investimento: number;
+};
+
+/**
+ * Totals for the imported half of the ledgers.
+ *
+ * Deliberately ignores hand-entered rows: the Amazon page answers "what came from the
+ * connection?", and mixing the two would make it a second, drifting copy of Vendas and Ads.
+ */
+export function resumoImportacao(
+  vendas: Venda[],
+  anuncios: AnuncioAds[],
+  contaId?: string,
+): ResumoImportacao {
+  const daConta = <T extends { origem?: OrigemDado; contaId?: string }>(itens: T[]) =>
+    itens.filter((i) => i.origem === "amazon" && (!contaId || i.contaId === contaId));
+  const v = daConta(vendas).filter((x) => x.status !== "cancelado");
+  const a = daConta(anuncios);
+  return {
+    pedidos: v.length,
+    faturamento: v.reduce((t, x) => t + x.valorTotal, 0),
+    campanhas: a.length,
+    investimento: a.reduce((t, x) => t + x.custo, 0),
+  };
+}
+
+/** Why an imported SKU still has no usable cost. Both endings are the same: margin overstated. */
+export type MotivoPendencia =
+  | "sem_produto" // the catalog has never heard of this SKU — it came in as an avulsa
+  | "sem_custo"; // linked to a product, but that product has no unit cost registered
+
+/** One imported SKU the app cannot cost, and how much money is riding on it. */
+export type PendenciaImportacao = {
+  sku: string;
+  /** Name as it arrived from the marketplace. */
+  titulo: string;
+  motivo: MotivoPendencia;
+  /** Set when the SKU did match a product (i.e. `motivo === "sem_custo"`). */
+  produtoId?: string;
+  /** Imported sale lines carrying this SKU. */
+  pedidos: number;
+  unidades: number;
+  /** Imported revenue booked under this SKU — the figure whose profit is overstated. */
+  valor: number;
+  /** Imported ad rows carrying this SKU. */
+  anuncios: number;
+};
+
+/**
+ * Imported SKUs the app cannot put a cost against — the page's most valuable output.
+ *
+ * Both cases have the same consequence and it is invisible today: the sale's revenue lands in the
+ * month while its cost does not, so the margin reads better than it is. Sorted by the money at
+ * stake, because that is the order in which they are worth fixing.
+ *
+ * Only imported records are considered (scope rule): a hand-entered product with no cost is the
+ * catalog's business, not this page's.
+ */
+export function pendenciasImportacao(
+  vendas: Venda[],
+  anuncios: AnuncioAds[],
+  produtos: Produto[],
+  contaId?: string,
+): PendenciaImportacao[] {
+  const daConta = <T extends { origem?: OrigemDado; contaId?: string }>(itens: T[]) =>
+    itens.filter((i) => i.origem === "amazon" && (!contaId || i.contaId === contaId));
+  const porId = new Map(produtos.map((p) => [p.id, p]));
+
+  const mapa = new Map<string, PendenciaImportacao>();
+  const registrar = (sku: string, titulo: string, produtoId?: string) => {
+    const produto = produtoId ? porId.get(produtoId) : undefined;
+    if (produto && produto.custoUnit > 0) return undefined; // costed and linked — nothing pending
+    const chave = sku.trim().toLowerCase();
+    let p = mapa.get(chave);
+    if (!p) {
+      p = {
+        sku,
+        titulo,
+        motivo: produto ? "sem_custo" : "sem_produto",
+        produtoId: produto?.id,
+        pedidos: 0,
+        unidades: 0,
+        valor: 0,
+        anuncios: 0,
+      };
+      mapa.set(chave, p);
+    }
+    return p;
+  };
+
+  for (const v of daConta(vendas)) {
+    if (!v.codigoProduto || v.status === "cancelado") continue;
+    const p = registrar(v.codigoProduto, v.produtoNome, v.produtoId);
+    if (!p) continue;
+    p.pedidos += 1;
+    p.unidades += v.quantidade;
+    p.valor += v.valorTotal;
+  }
+  for (const a of daConta(anuncios)) {
+    if (!a.sku) continue;
+    const p = registrar(a.sku, a.produtoNome, a.produtoId);
+    if (!p) continue;
+    p.anuncios += 1;
+  }
+
+  return [...mapa.values()].sort((a, b) => b.valor - a.valor);
+}
+
+/**
+ * Point every imported row carrying `sku` at a product the user just matched by hand.
+ *
+ * **Only imported rows are touched.** A hand-typed sale that happens to carry the same code is
+ * the user's own record and stays exactly as they wrote it — the page's whole promise is that it
+ * acts on connection data and nothing else.
+ *
+ * Returns fresh arrays plus how many rows moved, so the caller can say what it did.
+ */
+export function vincularImportados(
+  sku: string,
+  produto: Produto,
+  vendas: Venda[],
+  anuncios: AnuncioAds[],
+  contaId?: string,
+): { vendas: Venda[]; anuncios: AnuncioAds[]; alteradas: number } {
+  const alvo = sku.trim().toLowerCase();
+  const importado = (origem?: OrigemDado, conta?: string) =>
+    origem === "amazon" && (!contaId || conta === contaId);
+  let alteradas = 0;
+
+  const novasVendas = vendas.map((v) => {
+    if (!importado(v.origem, v.contaId)) return v;
+    if (v.codigoProduto?.trim().toLowerCase() !== alvo) return v;
+    alteradas += 1;
+    return { ...v, produtoId: produto.id, produtoNome: produto.nome };
+  });
+
+  const novosAnuncios = anuncios.map((a) => {
+    if (!importado(a.origem, a.contaId)) return a;
+    if (a.sku?.trim().toLowerCase() !== alvo) return a;
+    alteradas += 1;
+    return { ...a, produtoId: produto.id, produtoNome: produto.nome };
+  });
+
+  return { vendas: novasVendas, anuncios: novosAnuncios, alteradas };
 }
 
 // ─── Amazon Ads (idea #12, Phase 11a) ───

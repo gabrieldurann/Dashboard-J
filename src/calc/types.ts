@@ -285,6 +285,43 @@ export type ContaAmazon = {
   simulada: boolean;
 };
 
+/** How a sync run ended. `parcial` = some records came in, some failed. */
+export type StatusExecucao = "sucesso" | "erro" | "parcial";
+
+/**
+ * One run of one sync, kept as history.
+ *
+ * `ConexaoServico.ultimaSync` is a stamp — it says *when*, never *what*. This is the record that
+ * lets an odd figure be traced back to the response that produced it, which is the whole point of
+ * the Amazon page: without it that page would just be a filtered copy of Vendas.
+ */
+export type ExecucaoSync = {
+  id: string;
+  contaId: string;
+  servico: ServicoAmazon;
+  iniciadaEm: string; // ISO datetime
+  concluidaEm?: string; // ISO datetime
+  status: StatusExecucao;
+  /** Window the records cover — a real sync re-reads a date range on every run. */
+  periodoDe?: string;
+  periodoAte?: string;
+  /** How many records the API handed over. */
+  recebidos: number;
+  /** How many became a new row. */
+  importados: number;
+  /** Already in the ledger. Expected on a re-sync — not an error. */
+  duplicados: number;
+  /** Imported without a catalog match, so their cost is unknown and the margin is overstated. */
+  semCorrespondencia: number;
+  erro?: string;
+  /**
+   * The response exactly as it arrived. **Optional on purpose:** it is the heavy field, so
+   * retention keeps it only on the most recent runs and older entries survive as counters alone
+   * (see `aplicarRetencao`).
+   */
+  payload?: unknown[];
+};
+
 /**
  * One month of advertising for one product on one channel (idea #12, Amazon Ads and friends).
  *

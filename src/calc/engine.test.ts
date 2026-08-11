@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   acos,
+  aplicarRetencao,
   calcularMetricas,
   custoAds,
+  pendenciasImportacao,
+  resumoImportacao,
+  vincularImportados,
   desempenhoAds,
   importarAnuncios,
   importarPedidos,
@@ -44,7 +48,9 @@ import {
   vendasPorPais,
 } from "./engine";
 import { CONFIG_PADRAO } from "./constants";
-import type { AnuncioAds, Compra, ContaAmazon, CustoOperacional, Devolucao, PedidoAmazon, Produto, RelatorioAds, Venda } from "./types";
+import { ANUNCIOS_ADS_SEED, CONTAS_AMAZON_SEED, PRODUTOS_SEED, VENDAS_SEED } from "../data/seed";
+import { pedidosDaConta, relatoriosAdsDaConta } from "../data/amazonMock";
+import type { AnuncioAds, Compra, ContaAmazon, CustoOperacional, Devolucao, ExecucaoSync, PedidoAmazon, Produto, RelatorioAds, Venda } from "./types";
 
 const base: Produto = {
   id: "1",
@@ -776,6 +782,245 @@ describe("importarPedidos (marketplace order import, idea #15)", () => {
       };
       expect(importarAnuncios([rel({})], [manual], [prod], conta)).toHaveLength(1);
     });
+  });
+});
+
+describe("sync history & import provenance (Amazon page)", () => {
+  const exec = (over: Partial<ExecucaoSync>): ExecucaoSync => ({
+    id: crypto.randomUUID(),
+    contaId: "c1",
+    servico: "sp-api",
+    iniciadaEm: "2026-06-01T10:00:00.000Z",
+    status: "sucesso",
+    recebidos: 5,
+    importados: 5,
+    duplicados: 0,
+    semCorrespondencia: 0,
+    payload: [{ a: 1 }],
+    ...over,
+  });
+  /** n runs of one account, oldest first, one minute apart. */
+  const serie = (n: number, contaId = "c1") =>
+    Array.from({ length: n }, (_, i) =>
+      exec({ contaId, iniciadaEm: `2026-06-01T10:${String(i).padStart(2, "0")}:00.000Z` }),
+    );
+
+  describe("aplicarRetencao", () => {
+    it("keeps everything while under both limits", () => {
+      const r = aplicarRetencao(serie(3));
+      expect(r).toHaveLength(3);
+      expect(r.every((e) => e.payload)).toBe(true);
+    });
+
+    it("returns newest first, whatever order it was handed", () => {
+      const r = aplicarRetencao(serie(4));
+      expect(r.map((e) => e.iniciadaEm)).toEqual([
+        "2026-06-01T10:03:00.000Z",
+        "2026-06-01T10:02:00.000Z",
+        "2026-06-01T10:01:00.000Z",
+        "2026-06-01T10:00:00.000Z",
+      ]);
+    });
+
+    it("drops the payload from older runs but keeps their counters", () => {
+      const r = aplicarRetencao(serie(14), 10, 50);
+      expect(r).toHaveLength(14);
+      expect(r.filter((e) => e.payload)).toHaveLength(10);
+      // the ones that lost it are still readable as a record
+      expect(r[13].recebidos).toBe(5);
+      expect(r[13].payload).toBeUndefined();
+    });
+
+    it("forgets runs past the hard limit entirely", () => {
+      expect(aplicarRetencao(serie(60), 10, 50)).toHaveLength(50);
+    });
+
+    it("counts limits per account — a busy account cannot evict a quiet one", () => {
+      const r = aplicarRetencao([...serie(12, "c1"), ...serie(3, "c2")], 10, 50);
+      expect(r.filter((e) => e.contaId === "c2")).toHaveLength(3);
+      expect(r.filter((e) => e.contaId === "c2" && e.payload)).toHaveLength(3);
+      expect(r.filter((e) => e.contaId === "c1" && e.payload)).toHaveLength(10);
+    });
+  });
+
+  describe("resumoImportacao", () => {
+    const imp = (over: Partial<Venda>) =>
+      venda({ origem: "amazon", contaId: "c1", valorTotal: 100, ...over });
+
+    it("counts only what came from the connection", () => {
+      const r = resumoImportacao([imp({}), venda({ valorTotal: 999 })], [], "c1");
+      expect(r.pedidos).toBe(1);
+      expect(r.faturamento).toBe(100);
+    });
+
+    it("separates accounts", () => {
+      const r = resumoImportacao([imp({}), imp({ contaId: "c2" })], [], "c1");
+      expect(r.pedidos).toBe(1);
+    });
+
+    it("leaves cancelled orders out of the imported revenue", () => {
+      const r = resumoImportacao([imp({}), imp({ status: "cancelado", valorTotal: 500 })], [], "c1");
+      expect(r.faturamento).toBe(100);
+    });
+
+    it("sums imported campaigns separately from orders", () => {
+      const ad: AnuncioAds = {
+        id: "a1", produtoNome: "X", canal: "Amazon", data: "2026-06-30",
+        custo: 80, faturamentoAds: 300, unidadesAds: 3, origem: "amazon", contaId: "c1",
+      };
+      const r = resumoImportacao([imp({})], [ad, { ...ad, id: "a2", origem: undefined, custo: 999 }], "c1");
+      expect(r.campanhas).toBe(1);
+      expect(r.investimento).toBe(80);
+    });
+  });
+
+  describe("pendenciasImportacao", () => {
+    const comCusto: Produto = { ...base, id: "p1", codigoProduto: "SKU-1", custoUnit: 40 };
+    const semCusto: Produto = { ...base, id: "p2", codigoProduto: "SKU-2", custoUnit: 0 };
+    const imp = (over: Partial<Venda>) =>
+      venda({ origem: "amazon", contaId: "c1", quantidade: 2, valorTotal: 200, ...over });
+
+    it("flags an imported SKU the catalog has never seen", () => {
+      const r = pendenciasImportacao([imp({ codigoProduto: "SKU-9", produtoNome: "Cabo" })], [], [comCusto], "c1");
+      expect(r).toHaveLength(1);
+      expect(r[0].motivo).toBe("sem_produto");
+      expect(r[0].titulo).toBe("Cabo");
+      expect(r[0].produtoId).toBeUndefined();
+    });
+
+    it("flags a matched product that has no cost registered — same overstated margin", () => {
+      const r = pendenciasImportacao([imp({ codigoProduto: "SKU-2", produtoId: "p2" })], [], [semCusto], "c1");
+      expect(r[0].motivo).toBe("sem_custo");
+      expect(r[0].produtoId).toBe("p2");
+    });
+
+    it("says nothing about a properly costed import", () => {
+      expect(pendenciasImportacao([imp({ codigoProduto: "SKU-1", produtoId: "p1" })], [], [comCusto], "c1")).toEqual([]);
+    });
+
+    it("ignores hand-entered rows — an uncosted product of your own is not this page's business", () => {
+      const manual = venda({ codigoProduto: "SKU-9", produtoNome: "Cabo" });
+      expect(pendenciasImportacao([manual], [], [comCusto], "c1")).toEqual([]);
+    });
+
+    it("groups repeats of one SKU and adds up the money at stake", () => {
+      const r = pendenciasImportacao(
+        [imp({ codigoProduto: "SKU-9" }), imp({ codigoProduto: "SKU-9", valorTotal: 50, quantidade: 1 })],
+        [],
+        [comCusto],
+        "c1",
+      );
+      expect(r).toHaveLength(1);
+      expect(r[0].pedidos).toBe(2);
+      expect(r[0].unidades).toBe(3);
+      expect(r[0].valor).toBe(250);
+    });
+
+    it("ranks by the money riding on it, because that is the order worth fixing", () => {
+      const r = pendenciasImportacao(
+        [imp({ codigoProduto: "SKU-8", valorTotal: 90 }), imp({ codigoProduto: "SKU-9", valorTotal: 900 })],
+        [],
+        [comCusto],
+        "c1",
+      );
+      expect(r.map((p) => p.sku)).toEqual(["SKU-9", "SKU-8"]);
+    });
+
+    it("stops flagging the SKU once it is linked to a costed product", () => {
+      const antes = pendenciasImportacao([imp({ codigoProduto: "SKU-1" })], [], [comCusto], "c1");
+      expect(antes).toHaveLength(1); // arrived as an avulsa: no produtoId yet
+      const { vendas } = vincularImportados("SKU-1", comCusto, [imp({ codigoProduto: "SKU-1" })], [], "c1");
+      expect(pendenciasImportacao(vendas, [], [comCusto], "c1")).toEqual([]);
+    });
+
+    it("counts an unknown SKU that arrived through Ads too, on the same line", () => {
+      const ad: AnuncioAds = {
+        id: "a1", produtoNome: "Cabo", sku: "SKU-9", canal: "Amazon", data: "2026-06-30",
+        custo: 10, faturamentoAds: 0, unidadesAds: 0, origem: "amazon", contaId: "c1",
+      };
+      const r = pendenciasImportacao([imp({ codigoProduto: "SKU-9" })], [ad], [comCusto], "c1");
+      expect(r).toHaveLength(1);
+      expect(r[0].pedidos).toBe(1);
+      expect(r[0].anuncios).toBe(1);
+    });
+  });
+});
+
+describe("vincularImportados (matching an imported SKU by hand)", () => {
+  const produto: Produto = { ...base, id: "p1", nome: "Cabo USB-C", codigoProduto: "SKU-1", custoUnit: 9 };
+  const imp = (over: Partial<Venda>) =>
+    venda({ origem: "amazon", contaId: "c1", codigoProduto: "SKU-9", produtoNome: "Cabo", ...over });
+
+  it("points matching imported sales at the product", () => {
+    const r = vincularImportados("SKU-9", produto, [imp({})], [], "c1");
+    expect(r.vendas[0].produtoId).toBe("p1");
+    expect(r.vendas[0].produtoNome).toBe("Cabo USB-C");
+    expect(r.alteradas).toBe(1);
+  });
+
+  it("leaves a hand-typed sale with the same code completely alone", () => {
+    const manual = venda({ codigoProduto: "SKU-9", produtoNome: "Meu registro" });
+    const r = vincularImportados("SKU-9", produto, [manual], [], "c1");
+    expect(r.vendas[0]).toBe(manual); // same object — untouched
+    expect(r.alteradas).toBe(0);
+  });
+
+  it("does not reach into another account's imports", () => {
+    const r = vincularImportados("SKU-9", produto, [imp({ contaId: "c2" })], [], "c1");
+    expect(r.alteradas).toBe(0);
+  });
+
+  it("ignores a different SKU", () => {
+    const r = vincularImportados("SKU-9", produto, [imp({ codigoProduto: "SKU-8" })], [], "c1");
+    expect(r.alteradas).toBe(0);
+  });
+
+  it("relinks imported ad rows on the same SKU, and counts them together", () => {
+    const ad: AnuncioAds = {
+      id: "a1", produtoNome: "Cabo", sku: "SKU-9", canal: "Amazon", data: "2026-06-30",
+      custo: 10, faturamentoAds: 40, unidadesAds: 1, origem: "amazon", contaId: "c1",
+    };
+    const r = vincularImportados("SKU-9", produto, [imp({})], [ad], "c1");
+    expect(r.anuncios[0].produtoId).toBe("p1");
+    expect(r.alteradas).toBe(2);
+  });
+
+  it("matches the code case-insensitively, as the importer does", () => {
+    const r = vincularImportados("sku-9", produto, [imp({ codigoProduto: "SKU-9" })], [], "c1");
+    expect(r.alteradas).toBe(1);
+  });
+});
+
+// Guards the demo data itself, not the engine. The seeded June campaigns and the Ads mock
+// describe the SAME three campaigns, so if their ids ever drift apart a sync re-imports spend
+// that was already in the ledger — which is exactly what once turned the Painel's profit
+// negative. The importer was never wrong; the data was.
+describe("demo seed ⇄ marketplace mock agree on identity", () => {
+  const conta = CONTAS_AMAZON_SEED[0];
+
+  it("re-syncing Ads on a fresh install imports nothing — the seed already holds those campaigns", () => {
+    expect(importarAnuncios(relatoriosAdsDaConta(conta), ANUNCIOS_ADS_SEED, PRODUTOS_SEED, conta)).toHaveLength(0);
+  });
+
+  it("June's advertising spend stays at the seeded total after a sync", () => {
+    const novos = importarAnuncios(relatoriosAdsDaConta(conta), ANUNCIOS_ADS_SEED, PRODUTOS_SEED, conta);
+    expect(custoAds([...novos, ...ANUNCIOS_ADS_SEED], "2026-06")).toBe(custoAds(ANUNCIOS_ADS_SEED, "2026-06"));
+  });
+
+  it("orders are the opposite case: the seed's are hand-typed, so a first sync genuinely imports", () => {
+    const novas = importarPedidos(pedidosDaConta(conta), VENDAS_SEED, PRODUTOS_SEED, conta);
+    expect(novas.length).toBe(pedidosDaConta(conta).length);
+    // …and only once — the second sync is a no-op, which is the property that matters
+    expect(importarPedidos(pedidosDaConta(conta), [...novas, ...VENDAS_SEED], PRODUTOS_SEED, conta)).toHaveLength(0);
+  });
+
+  it("syncing BOTH services from a clean install settles, rather than growing on every run", () => {
+    const vendas1 = importarPedidos(pedidosDaConta(conta), VENDAS_SEED, PRODUTOS_SEED, conta);
+    const ads1 = importarAnuncios(relatoriosAdsDaConta(conta), ANUNCIOS_ADS_SEED, PRODUTOS_SEED, conta);
+    const vendas = [...vendas1, ...VENDAS_SEED];
+    const anuncios = [...ads1, ...ANUNCIOS_ADS_SEED];
+    expect(importarPedidos(pedidosDaConta(conta), vendas, PRODUTOS_SEED, conta)).toHaveLength(0);
+    expect(importarAnuncios(relatoriosAdsDaConta(conta), anuncios, PRODUTOS_SEED, conta)).toHaveLength(0);
   });
 });
 

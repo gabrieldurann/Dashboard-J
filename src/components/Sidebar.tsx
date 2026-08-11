@@ -1,6 +1,7 @@
 import {
   Megaphone, BarChart3, Building2, ShoppingCart, Calculator, ClipboardList, FileText, LayoutDashboard, Package, Pencil, Plug, Receipt, RotateCcw, Settings, SlidersHorizontal } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { useStore } from "../store/useStore";
 
 const NAV = [
   { to: "/", label: "Painel", icon: LayoutDashboard, end: true },
@@ -18,7 +19,19 @@ const NAV = [
   { to: "/relatorios", label: "Relatórios", icon: FileText, end: false },
 ];
 
+/** Same shape as a NAV entry, so both lists render through one styling rule. */
+const itemClass = ({ isActive }: { isActive: boolean }) =>
+  `flex items-center gap-3 rounded-chip px-3 py-2.5 font-mono text-[13px] tracking-wide transition-colors ${
+    isActive
+      ? "border border-lineStrong bg-greenSoft text-txt"
+      : "border border-transparent text-txtDim hover:text-txt"
+  }`;
+
 export function Sidebar() {
+  // The section only exists once something is connected — an empty "Contas conectadas" heading
+  // would promise a place that has nothing to show.
+  const temConta = useStore((s) => s.contasAmazon.length > 0);
+
   return (
     <aside className="sticky top-0 flex h-screen w-[230px] shrink-0 flex-col overflow-y-auto border-r border-line bg-bgRaise/60 px-4 py-6">
       <div className="mb-9 flex items-center gap-2.5 px-2">
@@ -52,6 +65,18 @@ export function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      {temConta && (
+        <>
+          <p className="eyebrow mb-2 mt-7 px-3">Contas conectadas</p>
+          <nav className="flex flex-col gap-1">
+            <NavLink to="/contas/amazon" className={itemClass}>
+              <ShoppingCart size={17} strokeWidth={2} />
+              Amazon
+            </NavLink>
+          </nav>
+        </>
+      )}
 
       <div className="mt-auto flex flex-col gap-1 pt-6">
         <NavLink
