@@ -1,10 +1,11 @@
 import {
-  Megaphone, Building2, ChevronDown, EyeOff, Globe as GlobeIcon, Landmark, LineChart, MapPin, Package, Percent, RotateCcw, Wallet, type LucideIcon } from "lucide-react";
+  Megaphone, Building2, ChevronDown, Coins, EyeOff, Globe as GlobeIcon, Landmark, LineChart, MapPin, Package, Percent, RotateCcw, Wallet, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import {
   calcularMetricas,
   dre,
+  maisVendidos,
   mesesComVendas,
   preencherMeses,
   resultadoVendas,
@@ -19,7 +20,10 @@ import {
   vendasPorMes,
   vendasPorPais,
   vendasPorSemana,
+  variacaoSemanalPorProduto,
 } from "../calc/engine";
+import type { MaisVendido } from "../calc/engine";
+import type { Venda } from "../calc/types";
 import { EASE } from "../theme/tokens";
 import { AreaChart } from "../components/AreaChart";
 import { AvisoSkuSemCusto } from "../components/AvisoSkuSemCusto";
@@ -46,6 +50,7 @@ const CARDS: CardRegistrado[] = [
   { id: "painel.margem", label: "Margem realizada + saúde", essencial: true },
   { id: "painel.lucroLiquido", label: "Lucro líquido / mês", essencial: true },
   { id: "painel.vendas", label: "Vendas no período", essencial: true },
+  { id: "painel.lucroSemOp", label: "Lucro s/ operacional" },
   { id: "painel.amazon", label: "Vendas no tempo · Amazon" },
   { id: "painel.contadores", label: "Produtos e países", essencial: true },
   { id: "painel.globo", label: "Alcance global (globo)" },
@@ -91,8 +96,10 @@ export function Painel() {
 
   // reveal/hide the deduction cascade + the secondary metric cards
   const [detalhes, setDetalhes] = useState(false);
-  // which timeframe the single sales card is showing
-  const [periodo, setPeriodo] = useState<PeriodoId>("mes");
+  // which timeframe the single sales card is showing — the day is what gets checked daily
+  const [periodo, setPeriodo] = useState<PeriodoId>("dia");
+  // the best-sellers list folded into that card
+  const [maisVendidosAberto, setMaisVendidosAberto] = useState(false);
 
   // per-card visibility (the eye control) — a display preference, persisted per browser
   const cardsOcultos = useStore((s) => s.cardsOcultos);
@@ -116,14 +123,15 @@ export function Painel() {
   ]);
   const linhaTempo = distribuir([
     { id: "painel.amazon", peso: 8, visivel: visivel("painel.amazon") },
-    { id: "painel.contadores", peso: 4, visivel: visivel("painel.contadores") },
+    { id: "painel.lucroSemOp", peso: 4, visivel: visivel("painel.lucroSemOp") },
   ]);
   const linhaGlobal = distribuir([
     { id: "painel.globo", peso: 6, visivel: visivel("painel.globo") },
     { id: "painel.porPais", peso: 6, visivel: visivel("painel.porPais") },
   ]);
   const linhaFinal = distribuir([
-    { id: "painel.reavaliar", peso: 12, visivel: visivel("painel.reavaliar") },
+    { id: "painel.reavaliar", peso: 8, visivel: visivel("painel.reavaliar") },
+    { id: "painel.contadores", peso: 4, visivel: visivel("painel.contadores") },
   ]);
 
   // sales-per-country (globe markers + table)
@@ -164,6 +172,28 @@ export function Painel() {
   const periodoAtivo = porPeriodo[periodo];
   const rotuloPeriodo = (chave: string) =>
     periodo === "dia" ? labelDia(chave) : periodo === "semana" ? labelSemana(chave) : periodo === "mes" ? labelMes(chave) : chave;
+
+  /** Does this sale fall in the period the card is currently showing? */
+  const noPeriodo = (v: Venda, chave: string) => {
+    const d = new Date(v.data);
+    const dia = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (periodo === "dia") return dia === chave;
+    if (periodo === "mes") return dia.slice(0, 7) === chave;
+    if (periodo === "ano") return dia.slice(0, 4) === chave;
+    // week: the key IS the Monday, so compare against the same window the aggregation used
+    const seg = new Date(chave);
+    const fim = new Date(seg.getFullYear(), seg.getMonth(), seg.getDate() + 7);
+    return d >= seg && d < fim;
+  };
+
+  // best sellers of whatever period is on screen, plus each one's week-over-week move
+  const topVendidos = useMemo(() => {
+    const chave = periodoAtivo.atual?.chave;
+    if (!chave) return [];
+    return maisVendidos(vendas.filter((v) => noPeriodo(v, chave)), produtos, cfg, 15);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vendas, produtos, cfg, periodo, periodoAtivo.atual?.chave]);
+  const variacaoSemanal = useMemo(() => variacaoSemanalPorProduto(vendas), [vendas]);
 
   // realized financials for the latest month (joins ledger → products): real lucro/custo/imposto/comissão
   const mesChave = mensal.atual?.chave;
@@ -206,6 +236,8 @@ export function Painel() {
     lucroMesAnterior !== null && lucroMesAnterior !== 0
       ? (lucroLiquidoTotal - lucroMesAnterior) / Math.abs(lucroMesAnterior)
       : null;
+  // week over week on REVENUE — the weekly buckets already carry it
+  const variacaoSemanaReceita = porPeriodo.semana.variacao;
 
   // company-wide realized margin (blended profit ÷ gross over ALL sales) — not a per-product average
   const resTotal = useMemo(() => resultadoVendas(vendas, produtos, cfg), [vendas, produtos, cfg]);
@@ -270,15 +302,32 @@ export function Painel() {
               />
             </div>
 
-            {/* the three things that make the number above mean something: what it came out of,
-                how much of it survived, and whether that is better than last month */}
-            <div className="mt-4 grid grid-cols-3 gap-3 border-t border-line pt-3">
+            {/* what the number came out of, how much survived, and whether it is moving. The two
+                comparisons name their subject: the monthly one is profit, the weekly one is
+                revenue — a weekly profit would need the month's overhead pro-rated, which would
+                be an allocation rather than something that happened that week. */}
+            <div className="mt-4 grid grid-cols-2 gap-3 border-t border-line pt-3 sm:grid-cols-4">
               <Resumo rotulo="Faturamento do mês" valor={money(resMes.bruto)} />
               <Resumo rotulo="Margem líquida" valor={percent(margemLiquidaMes)} />
               <Resumo
-                rotulo="vs. mês anterior"
+                rotulo="Lucro vs. mês ant."
                 valor={variacaoLucro === null ? "—" : `${variacaoLucro >= 0 ? "+" : "−"}${percent(Math.abs(variacaoLucro))}`}
                 cor={variacaoLucro === null ? undefined : variacaoLucro >= 0 ? "text-green" : "text-danger"}
+              />
+              <Resumo
+                rotulo="Receita vs. sem. ant."
+                valor={
+                  variacaoSemanaReceita === null
+                    ? "—"
+                    : `${variacaoSemanaReceita >= 0 ? "+" : "−"}${percent(Math.abs(variacaoSemanaReceita))}`
+                }
+                cor={
+                  variacaoSemanaReceita === null
+                    ? undefined
+                    : variacaoSemanaReceita >= 0
+                      ? "text-green"
+                      : "text-danger"
+                }
               />
             </div>
 
@@ -351,6 +400,14 @@ export function Painel() {
                 ))}
               </select>
             }
+            rodape={
+              <MaisVendidosDoPeriodo
+                linhas={topVendidos}
+                variacao={variacaoSemanal}
+                aberto={maisVendidosAberto}
+                onAlternar={() => setMaisVendidosAberto((v) => !v)}
+              />
+            }
           />
         </Ocultavel>
 
@@ -382,12 +439,18 @@ export function Painel() {
         </GlowCard>
         </Ocultavel>
 
-        <Ocultavel id="painel.contadores" label="Produtos e países" className={`col-span-12 ${spanClass(linhaTempo, "painel.contadores")}`}>
-          <GlowCard className="flex h-full flex-col justify-center gap-4" delay={0.25}>
-            <Counter icon={Package} label="Total de produtos" value={produtos.length} accent="green" />
-            <div className="border-t border-line" />
-            <Counter icon={MapPin} label="Locais de venda · países" value={porPais.length} accent="gold" />
-          </GlowCard>
+        {/* profit before the company's own overhead — the sale-level result on its own */}
+        <Ocultavel id="painel.lucroSemOp" label="Lucro s/ operacional" className={`col-span-12 ${spanClass(linhaTempo, "painel.lucroSemOp")}`}>
+          <MetricTile
+            label="Lucro s/ operacional"
+            value={lucroSemOperacional}
+            format={money}
+            icon={Coins}
+            accent="green"
+            footnote="Após custos, impostos, comissão e devoluções — antes do overhead da empresa"
+            delay={0.25}
+            className="h-full"
+          />
         </Ocultavel>
 
         {/* global reach: globe + sales by country */}
@@ -441,6 +504,14 @@ export function Painel() {
         </GlowCard>
         </Ocultavel>
 
+        <Ocultavel id="painel.contadores" label="Produtos e países" className={`col-span-12 ${spanClass(linhaFinal, "painel.contadores")}`}>
+          <GlowCard className="flex h-full flex-col justify-center gap-4" delay={0.45}>
+            <Counter icon={Package} label="Total de produtos" value={produtos.length} accent="green" />
+            <div className="border-t border-line" />
+            <Counter icon={MapPin} label="Locais de venda · países" value={porPais.length} accent="gold" />
+          </GlowCard>
+        </Ocultavel>
+
         {/* nothing left visible — never leave the user on a blank page */}
         {todosOcultos && (
           <GlowCard className="col-span-12">
@@ -460,6 +531,115 @@ export function Painel() {
     </Screen>
   );
 }
+
+/**
+ * Best sellers of the period the card is showing, folded away like "Mais métricas".
+ *
+ * Answers "which products are actually carrying this number", so it lives inside the sales card
+ * rather than somewhere else on the page — the list only means anything against the total right
+ * above it, and it re-reads whenever the timeframe changes.
+ */
+function MaisVendidosDoPeriodo({
+  linhas,
+  variacao,
+  aberto,
+  onAlternar,
+}: {
+  linhas: MaisVendido[];
+  variacao: Map<string, number | null>;
+  aberto: boolean;
+  onAlternar: () => void;
+}) {
+  return (
+    <>
+      <button
+        onClick={onAlternar}
+        className="mt-3 flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.1em] text-txtDim transition-colors hover:text-txt"
+      >
+        Mais vendidos
+        <span className="rounded-full bg-bgRaise px-1.5 py-0.5 text-[10px] text-txtFaint">{linhas.length}</span>
+        <ChevronDown size={13} className={`transition-transform ${aberto ? "rotate-180" : ""}`} />
+      </button>
+
+      <AnimatePresence initial={false}>
+        {aberto && (
+          <motion.div
+            key="mais-vendidos"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: EASE }}
+            className="overflow-hidden"
+          >
+            {linhas.length === 0 ? (
+              <p className="py-6 text-center text-sm text-txtDim">Nenhuma venda atribuída a produto no período.</p>
+            ) : (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full border-collapse text-left">
+                  <thead>
+                    <tr className="border-b border-line">
+                      {["Produto", "Canal", "Qtd", "Faturamento", "Margem", "Lucro", "vs. sem."].map((h, i) => (
+                        <th
+                          key={h}
+                          className={`whitespace-nowrap px-2 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-txtFaint ${i > 1 ? "text-right" : ""}`}
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {linhas.map((l) => {
+                      const v = variacao.get(l.produtoId) ?? null;
+                      return (
+                        <tr key={l.produtoId} className="border-b border-line/60 last:border-0">
+                          <td className="max-w-[150px] truncate px-2 py-2 text-sm text-txt" title={l.nome}>
+                            {l.nome}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-2 font-mono text-[11px] text-txtDim">{l.canal}</td>
+                          <td className="px-2 py-2 text-right font-mono text-xs tabular-nums text-txtDim">{l.unidades}</td>
+                          <td className="whitespace-nowrap px-2 py-2 text-right font-mono text-sm tabular-nums text-txt">
+                            {money(l.bruto)}
+                          </td>
+                          <td className="px-2 py-2 text-right">
+                            <span
+                              className="rounded-full px-1.5 py-0.5 font-mono text-[10px] tabular-nums"
+                              style={{ color: STATUS_TEXTO[l.statusCor] }}
+                            >
+                              {percent(l.margem)}
+                            </span>
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-2 text-right font-mono text-xs tabular-nums text-txtDim">
+                            {money(l.lucro)}
+                          </td>
+                          <td
+                            className={`whitespace-nowrap px-2 py-2 text-right font-mono text-xs tabular-nums ${
+                              v === null ? "text-txtFaint" : v >= 0 ? "text-green" : "text-danger"
+                            }`}
+                            title="Receita desta semana contra a semana anterior"
+                          >
+                            {v === null ? "—" : `${v >= 0 ? "+" : "−"}${percent(Math.abs(v))}`}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
+
+/** Health-band text colours for the margin badge (Tailwind can't see interpolated names). */
+const STATUS_TEXTO: Record<string, string> = {
+  verde: "var(--c-green)",
+  amarelo: "var(--c-amber)",
+  vermelho: "var(--c-danger)",
+};
 
 /** One supporting figure under the profit headline. */
 function Resumo({ rotulo, valor, cor = "text-txt" }: { rotulo: string; valor: string; cor?: string }) {

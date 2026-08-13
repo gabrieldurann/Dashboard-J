@@ -22,7 +22,10 @@ import {
   desempenhoProdutos,
   estoqueProdutos,
   devolucoesPorMotivo,
+  coberturaEstoque,
   devolucoesPorProduto,
+  maisVendidos,
+  variacaoSemanalPorProduto,
   faixasDesempenho,
   freteUnitario,
   serieFinanceiraMensal,
@@ -826,6 +829,148 @@ describe("importarPedidos (marketplace order import, idea #15)", () => {
       };
       expect(importarAnuncios([rel({})], [manual], [prod], conta)).toHaveLength(1);
     });
+  });
+});
+
+describe("maisVendidos (best sellers of a period)", () => {
+  const p1: Produto = { ...base, id: "p1", nome: "Projetor", custoUnit: 40, imposto: 0.04, comissao: 0.15 };
+  const p2: Produto = { ...base, id: "p2", nome: "Garrafa", custoUnit: 10, imposto: 0.04, comissao: 0.15 };
+
+  it("ranks by revenue and reports orders and average price", () => {
+    const r = maisVendidos(
+      [
+        venda({ produtoId: "p1", quantidade: 2, valorTotal: 200, canal: "Amazon", frete: 0 }),
+        venda({ produtoId: "p1", quantidade: 1, valorTotal: 100, canal: "Amazon", frete: 0 }),
+        venda({ produtoId: "p2", quantidade: 1, valorTotal: 50, canal: "Shopee", frete: 0 }),
+      ],
+      [p1, p2],
+    );
+    expect(r.map((x) => x.nome)).toEqual(["Projetor", "Garrafa"]);
+    expect(r[0].pedidos).toBe(2);
+    expect(r[0].unidades).toBe(3);
+    expect(r[0].precoMedio).toBeCloseTo(100, 10);
+  });
+
+  it("names the channel, and flags when a product sells on more than one", () => {
+    const r = maisVendidos(
+      [
+        venda({ produtoId: "p1", valorTotal: 300, canal: "Amazon", frete: 0 }),
+        venda({ produtoId: "p1", valorTotal: 100, canal: "Shopee", frete: 0 }),
+        venda({ produtoId: "p2", valorTotal: 50, canal: "Shopee", frete: 0 }),
+      ],
+      [p1, p2],
+    );
+    expect(r[0].canal).toBe("Amazon +1"); // Amazon brought the most
+    expect(r[1].canal).toBe("Shopee");
+  });
+
+  it("honours the limit", () => {
+    const muitas = Array.from({ length: 20 }, (_, i) =>
+      venda({ produtoId: "p1", valorTotal: 10, canal: "Amazon", frete: 0, id: String(i) }),
+    );
+    expect(maisVendidos(muitas, [p1], CONFIG_PADRAO, 15).length).toBeLessThanOrEqual(15);
+  });
+
+  it("leaves out cancelled sales", () => {
+    const r = maisVendidos(
+      [
+        venda({ produtoId: "p1", valorTotal: 100, canal: "Amazon", frete: 0 }),
+        venda({ produtoId: "p1", valorTotal: 900, canal: "Amazon", status: "cancelado" }),
+      ],
+      [p1],
+    );
+    expect(r[0].bruto).toBe(100);
+    expect(r[0].pedidos).toBe(1);
+  });
+});
+
+describe("variacaoSemanalPorProduto", () => {
+  // 2026-06-15 and 2026-06-22 are consecutive Mondays.
+  it("compares each product's revenue across the last two weeks in the ledger", () => {
+    const r = variacaoSemanalPorProduto([
+      venda({ produtoId: "p1", data: "2026-06-16T10:00", valorTotal: 100 }),
+      venda({ produtoId: "p1", data: "2026-06-23T10:00", valorTotal: 150 }),
+    ]);
+    expect(r.get("p1")).toBeCloseTo(0.5, 10);
+  });
+
+  it("reports null when the product did not sell the week before", () => {
+    const r = variacaoSemanalPorProduto([
+      venda({ produtoId: "p1", data: "2026-06-16T10:00", valorTotal: 100 }),
+      venda({ produtoId: "p2", data: "2026-06-23T10:00", valorTotal: 150 }),
+    ]);
+    expect(r.get("p2")).toBeNull();
+  });
+
+  it("shows a drop as a negative", () => {
+    const r = variacaoSemanalPorProduto([
+      venda({ produtoId: "p1", data: "2026-06-16T10:00", valorTotal: 200 }),
+      venda({ produtoId: "p1", data: "2026-06-23T10:00", valorTotal: 50 }),
+    ]);
+    expect(r.get("p1")).toBeCloseTo(-0.75, 10);
+  });
+
+  it("is empty when there is only one week of data to compare", () => {
+    const r = variacaoSemanalPorProduto([venda({ produtoId: "p1", data: "2026-06-16T10:00", valorTotal: 100 })]);
+    expect(r.get("p1")).toBeNull();
+  });
+});
+
+describe("coberturaEstoque (how long the shelf lasts)", () => {
+  const prod: Produto = { ...base, id: "p1", nome: "Projetor", estoqueInicial: 60 };
+  // 30 units over the window → 1/day. Dates sit inside one window ending at the latest sale.
+  const trinta = [
+    venda({ produtoId: "p1", data: "2026-06-10T10:00", quantidade: 15 }),
+    venda({ produtoId: "p1", data: "2026-06-20T10:00", quantidade: 15 }),
+  ];
+
+  it("turns the recent sales rate into days of stock left", () => {
+    const c = coberturaEstoque([prod], [], trinta, [])!.get("p1")!;
+    expect(c.estoque).toBe(30); // 60 opening − 30 sold
+    expect(c.vendidas).toBe(30);
+    expect(c.vendaDiaria).toBeCloseTo(1, 10);
+    expect(c.diasRestantes).toBeCloseTo(30, 10);
+  });
+
+  it("says nothing rather than guessing when a product is not selling", () => {
+    const c = coberturaEstoque([prod], [], [], [])!.get("p1")!;
+    expect(c.diasRestantes).toBeNull();
+    expect(c.diasParaPedir).toBeNull();
+    expect(c.pedirAgora).toBe(false);
+  });
+
+  it("subtracts the lead time to say when to ORDER, not when to run out", () => {
+    const comPrazo: Produto = { ...prod, prazoReposicaoDias: 20 };
+    const c = coberturaEstoque([comPrazo], [], trinta, [])!.get("p1")!;
+    expect(c.diasRestantes).toBeCloseTo(30, 10);
+    expect(c.diasParaPedir).toBeCloseTo(10, 10); // 30 days of cover, 20 to restock
+    expect(c.pedirAgora).toBe(false);
+  });
+
+  it("flags a product whose stock runs out before a reorder could land", () => {
+    const apertado: Produto = { ...prod, prazoReposicaoDias: 45 };
+    const c = coberturaEstoque([apertado], [], trinta, [])!.get("p1")!;
+    expect(c.diasParaPedir).toBeLessThan(0);
+    expect(c.pedirAgora).toBe(true);
+  });
+
+  // Anchoring to the wall clock would report "not selling" for every product in a demo, or any
+  // time the ledger is a few weeks behind — precisely when someone is looking at this.
+  it("measures the window from the last sale in the ledger, not from today", () => {
+    const antigas = [venda({ produtoId: "p1", data: "2020-01-10T10:00", quantidade: 30 })];
+    const c = coberturaEstoque([prod], [], antigas, [])!.get("p1")!;
+    expect(c.vendidas).toBe(30);
+    expect(c.diasRestantes).toBeCloseTo(30, 10);
+  });
+
+  it("counts restocked returns and received purchases through the derived stock", () => {
+    const c = coberturaEstoque(
+      [prod],
+      [],
+      trinta,
+      [devolucao({ produtoId: "p1", quantidade: 5, reestocado: true })],
+    )!.get("p1")!;
+    expect(c.estoque).toBe(35); // 60 − 30 sold + 5 back on the shelf
   });
 });
 

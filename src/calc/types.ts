@@ -18,6 +18,11 @@ export type Produto = {
   imposto: number; // I — default 0.04
   comissao: number; // J — default 0.15
   custoEmbalagem?: number; // optional packaging/branding cost per unit (idea #7)
+  /**
+   * Days between placing a supplier order and the stock arriving. Optional: without it the
+   * stock cover still says how long the shelf lasts, it just can't say when to order.
+   */
+  prazoReposicaoDias?: number;
   /** Opening balance in units. Real stock is DERIVED from here plus the ledgers
    *  (see `estoqueProdutos`): inicial + compras recebidas − vendidas + devoluções reestocadas. */
   estoqueInicial?: number;

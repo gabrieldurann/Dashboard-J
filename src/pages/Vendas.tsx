@@ -1,4 +1,4 @@
-import { ChevronDown, Coins, Package, Pencil, Plus, Receipt, Save, Search, Trash2, X } from "lucide-react";
+import { CalendarDays, ChevronDown, Coins, Eye, EyeOff, Package, Pencil, Plus, Receipt, Save, Search, Trash2, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { detalharVenda } from "../calc/engine";
@@ -97,11 +97,19 @@ export function Vendas() {
   const cfg = useConfig();
   const vendas = useStore((s) => s.vendas);
   const produtos = useStore((s) => s.produtos);
+  const contas = useStore((s) => s.contasAmazon);
   const addVenda = useStore((s) => s.addVenda);
   const updateVenda = useStore((s) => s.updateVenda);
   const removeVenda = useStore((s) => s.removeVenda);
 
   const [showForm, setShowForm] = useState(false);
+  /**
+   * Screen-recording mode: keeps every row and every number, hides only what identifies the
+   * business. Deliberately NOT persisted — it is about the current recording, and a toggle that
+   * survived a reload would leave someone wondering why their products vanished.
+   */
+  const [privado, setPrivado] = useState(false);
+  const oculto = (texto?: string) => (privado ? "••••••••" : texto);
   const [editId, setEditId] = useState<string | null>(null);
   const [aberta, setAberta] = useState<string | null>(null); // expanded order (one at a time)
   const [d, setD] = useState<Draft>(emptyDraft);
@@ -149,7 +157,23 @@ export function Vendas() {
   const totais = useMemo(() => {
     const receita = linhas.reduce((s, v) => s + v.valorTotal, 0);
     const itens = linhas.reduce((s, v) => s + v.quantidade, 0);
-    return { receita, itens, qtd: linhas.length };
+
+    // Revenue of the most recent day in view. Anchored to the ledger rather than to the wall
+    // clock, like every other period figure here — otherwise the tile reads R$ 0,00 whenever
+    // the last sale was yesterday, which is most mornings.
+    const porDia = new Map<string, number>();
+    for (const v of linhas) {
+      if (v.status === "cancelado") continue;
+      porDia.set(v.data.slice(0, 10), (porDia.get(v.data.slice(0, 10)) ?? 0) + v.valorTotal);
+    }
+    const ultimoDia = [...porDia.keys()].sort().pop();
+    return {
+      receita,
+      itens,
+      qtd: linhas.length,
+      diaChave: ultimoDia,
+      receitaDia: ultimoDia ? porDia.get(ultimoDia)! : 0,
+    };
   }, [linhas]);
 
   const temFiltro = busca || fProduto !== "todos" || fStatus !== "todos" || fCanal !== "todos" || dataDe || dataAte;
@@ -265,12 +289,27 @@ export function Vendas() {
       eyebrow="Registros"
       title="Vendas"
       actions={
-        <button
-          onClick={() => (showForm ? setShowForm(false) : novaVenda())}
-          className="flex items-center gap-2 rounded-chip border border-lineStrong bg-greenSoft px-4 py-2.5 font-mono text-sm text-txt transition-opacity hover:opacity-90"
-        >
-          {showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? "Fechar" : "Registrar venda"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* every row and every figure stays; only the two things that identify the business
+              are covered, for recording the screen */}
+          <button
+            onClick={() => setPrivado((v) => !v)}
+            title={privado ? "Mostrar produto e conta" : "Ocultar produto e conta (para gravação)"}
+            aria-pressed={privado}
+            className={`flex items-center gap-2 rounded-chip border px-3 py-2.5 font-mono text-sm transition-colors ${
+              privado ? "border-lineStrong bg-amberSoft text-amber" : "border-line text-txtDim hover:text-txt"
+            }`}
+          >
+            {privado ? <EyeOff size={16} /> : <Eye size={16} />}
+            {privado ? "Oculto" : "Ocultar"}
+          </button>
+          <button
+            onClick={() => (showForm ? setShowForm(false) : novaVenda())}
+            className="flex items-center gap-2 rounded-chip border border-lineStrong bg-greenSoft px-4 py-2.5 font-mono text-sm text-txt transition-opacity hover:opacity-90"
+          >
+            {showForm ? <X size={16} /> : <Plus size={16} />} {showForm ? "Fechar" : "Registrar venda"}
+          </button>
+        </div>
       }
     >
       {showForm && (
@@ -380,9 +419,19 @@ export function Vendas() {
 
       {/* summary (reflects current filters) */}
       <div className="mb-4 grid grid-cols-12 gap-4">
-        <MetricTile label="Vendas" value={totais.qtd} format={(v) => String(Math.round(v))} icon={Receipt} className="col-span-6 lg:col-span-4" />
-        <MetricTile label="Receita" value={totais.receita} format={money} icon={Coins} accent="gold" className="col-span-6 lg:col-span-4" delay={0.05} />
-        <MetricTile label="Itens vendidos" value={totais.itens} format={(v) => String(Math.round(v))} icon={Package} className="col-span-6 lg:col-span-4" delay={0.1} />
+        <MetricTile label="Vendas" value={totais.qtd} format={(v) => String(Math.round(v))} icon={Receipt} className="col-span-6 lg:col-span-3" />
+        <MetricTile label="Receita" value={totais.receita} format={money} icon={Coins} accent="gold" className="col-span-6 lg:col-span-3" delay={0.05} />
+        <MetricTile
+          label="Receita no dia"
+          value={totais.receitaDia}
+          format={money}
+          icon={CalendarDays}
+          accent="gold"
+          footnote={totais.diaChave ? date(totais.diaChave) : "sem vendas no filtro"}
+          className="col-span-6 lg:col-span-3"
+          delay={0.1}
+        />
+        <MetricTile label="Itens vendidos" value={totais.itens} format={(v) => String(Math.round(v))} icon={Package} className="col-span-6 lg:col-span-3" delay={0.15} />
       </div>
 
       {/* filters */}
@@ -498,8 +547,11 @@ export function Vendas() {
                         <td className="max-w-[105px] truncate px-2 py-3 font-mono text-xs text-txtDim xl:px-3" title={v.numeroPedido}>
                           {v.numeroPedido ?? "—"}
                         </td>
-                        <td className="max-w-[110px] truncate px-2 py-3 text-sm text-txt xl:max-w-[135px] xl:px-3" title={v.produtoNome}>
-                          {v.produtoNome}
+                        <td
+                          className="max-w-[110px] truncate px-2 py-3 text-sm text-txt xl:max-w-[135px] xl:px-3"
+                          title={privado ? undefined : v.produtoNome}
+                        >
+                          {oculto(v.produtoNome)}
                           {!v.produtoId && <span className="ml-2 font-mono text-[10px] text-gold">avulsa</span>}
                           {v.origem === "amazon" && (
                             <span
@@ -565,7 +617,18 @@ export function Vendas() {
                                       <Dado termo="Canal" valor={v.canal} />
                                       <Dado
                                         termo="Origem"
-                                        valor={v.origem === "amazon" ? "Importada da Amazon" : undefined}
+                                        valor={
+                                          v.origem === "amazon"
+                                            ? oculto(
+                                                [
+                                                  "Importada da Amazon",
+                                                  contas.find((c) => c.id === v.contaId)?.apelido,
+                                                ]
+                                                  .filter(Boolean)
+                                                  .join(" · "),
+                                              )
+                                            : undefined
+                                        }
                                       />
                                       <Dado termo="Código" valor={v.codigoProduto} />
                                       <Dado termo="ASIN" valor={produto?.asin} />

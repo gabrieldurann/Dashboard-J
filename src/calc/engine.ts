@@ -1039,6 +1039,157 @@ export function importarAnuncios(
   return novos;
 }
 
+// ─── Top sellers, weekly movement and stock cover ───────────────────────────
+
+/** A product's realized performance in a period, with the bits a "best sellers" list needs. */
+export type MaisVendido = DesempenhoProduto & {
+  pedidos: number;
+  /** average realized unit price — what it actually sold for, not the catalog price */
+  precoMedio: number;
+  /** the channel that brought the most revenue; suffixed when the product sells on several */
+  canal: string;
+};
+
+/**
+ * The best-selling products of whatever set of sales it is handed, richest first.
+ *
+ * Takes an already-filtered ledger rather than a period, so the caller decides what "the period"
+ * means and this stays a pure rollup. Delegates the money to `desempenhoProdutos`, so "lucro"
+ * keeps its single definition.
+ */
+export function maisVendidos(
+  vendas: Venda[],
+  produtos: Produto[],
+  cfg: Configuracoes = CONFIG_PADRAO,
+  limite = 15,
+): MaisVendido[] {
+  const extras = new Map<string, { pedidos: number; canais: Map<string, number> }>();
+  for (const v of vendasRealizadas(vendas)) {
+    if (!v.produtoId) continue;
+    let e = extras.get(v.produtoId);
+    if (!e) {
+      e = { pedidos: 0, canais: new Map() };
+      extras.set(v.produtoId, e);
+    }
+    e.pedidos += 1;
+    const canal = v.canal ?? "Sem canal";
+    e.canais.set(canal, (e.canais.get(canal) ?? 0) + v.valorTotal);
+  }
+
+  return desempenhoProdutos(vendas, produtos, cfg)
+    .slice(0, limite)
+    .map((d) => {
+      const e = extras.get(d.produtoId);
+      const canais = [...(e?.canais ?? new Map<string, number>())].sort((a, b) => b[1] - a[1]);
+      return {
+        ...d,
+        pedidos: e?.pedidos ?? 0,
+        precoMedio: d.unidades > 0 ? d.bruto / d.unidades : 0,
+        canal:
+          canais.length === 0 ? "—" : canais.length === 1 ? canais[0][0] : `${canais[0][0]} +${canais.length - 1}`,
+      };
+    });
+}
+
+/**
+ * Per-product revenue change between the two most recent weeks *present in the ledger*.
+ *
+ * Anchored to the data, not the wall clock, like every other period figure in the app — a demo
+ * or a quiet fortnight would otherwise compare two empty weeks and report nothing.
+ * `null` means there is no comparison to make: the product sold nothing the week before.
+ */
+export function variacaoSemanalPorProduto(vendas: Venda[]): Map<string, number | null> {
+  const semanas = vendasPorSemana(vendas);
+  const receitaDaSemana = (chave?: string) => {
+    const m = new Map<string, number>();
+    if (!chave) return m;
+    for (const v of vendasRealizadas(vendas)) {
+      if (!v.produtoId || segundaDaSemana(new Date(v.data)) !== chave) continue;
+      m.set(v.produtoId, (m.get(v.produtoId) ?? 0) + v.valorTotal);
+    }
+    return m;
+  };
+  const agora = receitaDaSemana(semanas[semanas.length - 1]?.chave);
+  const antes = receitaDaSemana(semanas[semanas.length - 2]?.chave);
+
+  const out = new Map<string, number | null>();
+  for (const id of new Set([...agora.keys(), ...antes.keys()])) {
+    const base = antes.get(id) ?? 0;
+    out.set(id, base === 0 ? null : ((agora.get(id) ?? 0) - base) / base);
+  }
+  return out;
+}
+
+/** How long a product's shelf lasts at the rate it has been selling. */
+export type CoberturaEstoque = {
+  produtoId: string;
+  estoque: number;
+  /** units sold inside the window */
+  vendidas: number;
+  /** units per day over the window */
+  vendaDiaria: number;
+  /** how many days the current stock covers. `null` = nothing sold, so there is no rate */
+  diasRestantes: number | null;
+  /** days left before an order must be placed to arrive in time. `null` without a lead time */
+  diasParaPedir: number | null;
+  /** true when the stock will run out before a new order could arrive */
+  pedirAgora: boolean;
+};
+
+/** Default window for the sales rate — the same 30 days Amazon's own inventory view uses. */
+export const JANELA_COBERTURA = 30;
+
+/**
+ * Days of stock remaining per product, from the recent sales rate and the derived stock.
+ *
+ * The window ends at the **latest sale in the ledger**, not today. Anchoring to the wall clock
+ * would report "sem vendas" for every product whenever the data is not perfectly current, which
+ * is exactly when someone is looking at a demo or coming back from a quiet spell.
+ *
+ * With `prazoReposicaoDias` set on the product, it also answers the question that actually
+ * matters — not "when do I run out" but "when do I have to order".
+ */
+export function coberturaEstoque(
+  produtos: Produto[],
+  compras: Compra[],
+  vendas: Venda[],
+  devolucoes: Devolucao[],
+  janelaDias = JANELA_COBERTURA,
+): Map<string, CoberturaEstoque> {
+  const estoques = estoqueProdutos(produtos, compras, vendas, devolucoes);
+  const realizadas = vendasRealizadas(vendas);
+  const ultima = realizadas.reduce<number>((max, v) => Math.max(max, new Date(v.data).getTime()), 0);
+  const inicio = ultima - janelaDias * 24 * 60 * 60 * 1000;
+
+  const vendidas = new Map<string, number>();
+  for (const v of realizadas) {
+    if (!v.produtoId) continue;
+    if (new Date(v.data).getTime() < inicio) continue;
+    vendidas.set(v.produtoId, (vendidas.get(v.produtoId) ?? 0) + v.quantidade);
+  }
+
+  const out = new Map<string, CoberturaEstoque>();
+  for (const p of produtos) {
+    const estoque = estoques.get(p.id)?.atual ?? 0;
+    const un = vendidas.get(p.id) ?? 0;
+    const vendaDiaria = un / janelaDias;
+    const diasRestantes = vendaDiaria > 0 ? estoque / vendaDiaria : null;
+    const prazo = p.prazoReposicaoDias;
+    const diasParaPedir =
+      diasRestantes !== null && prazo !== undefined ? diasRestantes - prazo : null;
+    out.set(p.id, {
+      produtoId: p.id,
+      estoque,
+      vendidas: un,
+      vendaDiaria,
+      diasRestantes,
+      diasParaPedir,
+      pedirAgora: diasParaPedir !== null && diasParaPedir <= 0,
+    });
+  }
+  return out;
+}
+
 /** One product's returns, set against what that product actually earned. */
 export type DevolucaoProduto = {
   produtoId?: string; // absent = avulsa / never matched to the catalog

@@ -190,6 +190,14 @@ export function ProdutoForm() {
               <Field label="Estoque inicial" hint="saldo de partida — o atual é calculado com compras, vendas e devoluções">
                 <NumberInput value={draft.estoqueInicial} onValue={(v) => set("estoqueInicial", v)} allowEmpty />
               </Field>
+              <Field label="Prazo de reposição (dias)" hint="opcional — quanto o fornecedor leva para entregar; com isso o Produtos avisa quando pedir">
+                <NumberInput
+                  value={draft.prazoReposicaoDias ?? 0}
+                  onValue={(v) => set("prazoReposicaoDias", v && v > 0 ? v : undefined)}
+                  allowEmpty
+                  placeholder="Ex.: 30"
+                />
+              </Field>
               <Field label="Data da pesquisa">
                 <input
                   type="date"

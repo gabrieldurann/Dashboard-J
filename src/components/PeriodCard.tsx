@@ -16,6 +16,7 @@ export function PeriodCard({
   periodo,
   sublabel,
   acoes,
+  rodape,
   delay = 0,
 }: {
   label: string;
@@ -23,6 +24,8 @@ export function PeriodCard({
   sublabel?: string;
   /** Controls rendered in the card header, e.g. the period selector. */
   acoes?: ReactNode;
+  /** Anything that belongs under the figures, e.g. an expandable breakdown. */
+  rodape?: ReactNode;
   delay?: number;
 }) {
   const cores = useCores();
@@ -75,6 +78,8 @@ export function PeriodCard({
       <p className="mt-2 font-mono text-[11px] text-txtFaint">
         {periodo.anterior ? `anterior: ${money(ant)}` : "sem período anterior"}
       </p>
+
+      {rodape}
     </GlowCard>
   );
 }

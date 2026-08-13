@@ -28,6 +28,8 @@ export const PRODUTOS_SEED: Produto[] = [
     imposto: d,
     comissao: 0.15,
     estoqueInicial: 24,
+    // importado: o fornecedor leva ~45 dias, o que torna a reposição o gargalo
+    prazoReposicaoDias: 45,
     aprovadoManual: null,
   },
   {
@@ -43,6 +45,7 @@ export const PRODUTOS_SEED: Produto[] = [
     imposto: d,
     comissao: 0.13,
     estoqueInicial: 70,
+    prazoReposicaoDias: 15,
     aprovadoManual: null,
   },
   {

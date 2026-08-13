@@ -1,7 +1,7 @@
 import { ExternalLink, PackageOpen, Pencil, Plus, Search, SearchX, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { calcularMetricas, estoqueProdutos, gruposDuplicados } from "../calc/engine";
+import { calcularMetricas, coberturaEstoque, estoqueProdutos, gruposDuplicados, JANELA_COBERTURA } from "../calc/engine";
 import type { StatusCor } from "../calc/constants";
 import { DuplicateBanner } from "../components/DuplicateBanner";
 import { GlowCard } from "../components/GlowCard";
@@ -15,6 +15,26 @@ import { useConfig } from "../store/useConfig";
 import { useStatusCores } from "../theme/useCores";
 
 type Filtro = "todos" | StatusCor;
+
+/**
+ * Column budget for the catalog table. `Screen` caps content at ~1074px, so this is a FIXED
+ * budget — a breakpoint cannot buy width that never arrives. Fornecedor and Lucro/caixa were
+ * dropped for that reason: the first is still searchable, the second lives in the product's own
+ * form. `cls` stages what remains as the window narrows.
+ */
+const COLUNAS: { k: string; label: string; cls?: string }[] = [
+  { k: "dot", label: "" },
+  { k: "codigo", label: "Código" },
+  { k: "produto", label: "Produto" },
+  { k: "custo", label: "Custo/un" },
+  { k: "preco", label: "Preço" },
+  { k: "margem", label: "Margem" },
+  { k: "lucroUn", label: "Lucro/un", cls: "hidden xl:table-cell" },
+  { k: "lucroMes", label: "Lucro/mês", cls: "hidden xl:table-cell" },
+  { k: "estoque", label: "Estoque" },
+  { k: "link", label: "Link", cls: "hidden xl:table-cell" },
+  { k: "acoes", label: "Ações" },
+];
 
 const FILTROS: { key: Filtro; label: string }[] = [
   { key: "todos", label: "Todos" },
@@ -39,6 +59,11 @@ export function Produtos() {
   // stock is derived from the ledgers, never stored (idea #3)
   const estoque = useMemo(
     () => estoqueProdutos(produtos, compras, vendasLedger, devolucoes),
+    [produtos, compras, vendasLedger, devolucoes],
+  );
+  // how long that stock lasts at the recent sales rate, and whether it is already time to order
+  const cobertura = useMemo(
+    () => coberturaEstoque(produtos, compras, vendasLedger, devolucoes),
     [produtos, compras, vendasLedger, devolucoes],
   );
 
@@ -134,22 +159,23 @@ export function Produtos() {
           <table className="w-full border-collapse text-left">
             <thead>
               <tr className="border-b border-line">
-                {["", "Código", "Produto", "Fornecedor", "Custo/un", "Preço", "Margem", "Lucro/un", "Lucro/caixa", "Lucro/mês", "Estoque", "Link", "Ações"].map(
-                  (h, i) => (
-                    <th
-                      key={i}
-                      className="px-4 py-3 font-mono text-[10px] uppercase tracking-[0.12em] text-txtFaint"
-                    >
-                      {h}
-                    </th>
-                  ),
-                )}
+                {/* 13 columns do not fit the ~1074px content box, so the secondary ones drop out
+                    below xl — the same staging Vendas and Compras use. Everything hidden is still
+                    searchable and present in the product's own form. */}
+                {COLUNAS.map((c) => (
+                  <th
+                    key={c.k}
+                    className={`px-3 py-3 font-mono text-[10px] uppercase tracking-[0.12em] text-txtFaint xl:px-4 ${c.cls ?? ""}`}
+                  >
+                    {c.label}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {linhas.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="px-4 py-16">
+                  <td colSpan={11} className="px-4 py-16">
                     <div className="flex flex-col items-center gap-3 text-center">
                       {filtrosAtivos ? (
                         <>
@@ -192,15 +218,13 @@ export function Produtos() {
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-txtDim">{p.codigoProduto ?? "—"}</td>
                   <td className="px-4 py-3 text-sm text-txt">{p.nome}</td>
-                  <td className="px-4 py-3 text-sm text-txtDim">{p.fornecedor ?? "—"}</td>
                   <td className="px-4 py-3 font-mono text-sm tabular-nums text-txtDim">{money(p.custoUnit)}</td>
                   <td className="px-4 py-3 font-mono text-sm tabular-nums text-txt">{money(p.precoVenda)}</td>
                   <td className="px-4 py-3 font-mono text-sm tabular-nums" style={{ color: statusCores[m.statusCor] }}>
                     {percent(m.margem)}
                   </td>
-                  <td className="px-4 py-3 font-mono text-sm tabular-nums text-txtDim">{money(m.lucroUnit)}</td>
-                  <td className="px-4 py-3 font-mono text-sm tabular-nums text-txtDim">{money(m.lucroCaixa)}</td>
-                  <td className="px-4 py-3 font-mono text-sm tabular-nums text-green">{money(m.lucroMensal)}</td>
+                  <td className="hidden px-3 py-3 font-mono text-sm tabular-nums text-txtDim xl:table-cell xl:px-4">{money(m.lucroUnit)}</td>
+                  <td className="hidden px-3 py-3 font-mono text-sm tabular-nums text-green xl:table-cell xl:px-4">{money(m.lucroMensal)}</td>
                   {/* stock is derived — the tooltip shows the movements behind the number */}
                   <td
                     className="px-4 py-3"
@@ -214,17 +238,40 @@ export function Produtos() {
                     {(() => {
                       const e = estoque.get(p.id);
                       if (!e) return <span className="text-txtFaint">—</span>;
+                      const c = cobertura.get(p.id);
                       return (
                         <div className="font-mono text-sm leading-tight tabular-nums">
                           <span className={e.atual < 0 ? "text-danger" : "text-txt"}>{number(e.atual)} un</span>
                           {p.qtdCaixa > 0 && (
                             <span className="block text-[11px] text-txtFaint">{number(e.atual / p.qtdCaixa)} cx</span>
                           )}
+                          {/* how long it lasts — the question stock levels are actually asked to answer */}
+                          {c && (
+                            <span
+                              className={`block text-[11px] ${
+                                c.pedirAgora ? "text-danger" : c.diasRestantes === null ? "text-txtFaint" : "text-txtDim"
+                              }`}
+                              title={
+                                c.diasRestantes === null
+                                  ? "Sem vendas na janela recente, então não há ritmo para estimar."
+                                  : `${number(c.vendidas)} un vendidas nos últimos ${JANELA_COBERTURA} dias · ${number(c.vendaDiaria)} un/dia` +
+                                    (c.diasParaPedir !== null
+                                      ? ` · repor leva ${p.prazoReposicaoDias} dias, então pedir em ${Math.max(0, Math.round(c.diasParaPedir))}`
+                                      : "")
+                              }
+                            >
+                              {c.diasRestantes === null
+                                ? "sem giro"
+                                : c.pedirAgora
+                                  ? `${Math.round(c.diasRestantes)} d · repor já`
+                                  : `${Math.round(c.diasRestantes)} d de estoque`}
+                            </span>
+                          )}
                         </div>
                       );
                     })()}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="hidden px-3 py-3 xl:table-cell xl:px-4">
                     {p.link ? (
                       <a
                         href={p.link}

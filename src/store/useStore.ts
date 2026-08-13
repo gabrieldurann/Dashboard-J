@@ -235,8 +235,9 @@ export const useStore = create<State>()(
       // v10: Amazon Ads ledger. v11: connections split per API (SP-API / Ads API) and imported
       // orders no longer carry buyer data. v12: June's seeded campaigns now carry the campaign
       // identity the Ads mock generates, so syncing Ads stops re-importing spend the seed
-      // already had.)
-      name: "painel-j-v12",
+      // already had. v13: two seeded products carry a supplier lead time, so the stock-cover
+      // column has something to warn about.)
+      name: "painel-j-v13",
     },
   ),
 );
