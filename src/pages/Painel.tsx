@@ -40,7 +40,7 @@ import { SalesByCountry } from "../components/SalesByCountry";
 import { Screen } from "../components/Screen";
 import { StatusDot } from "../components/StatusDot";
 import { paisByCode } from "../data/countries";
-import { money, percent } from "../i18n/format";
+import { labelDia, labelMes, labelSemana, mesCurto, money, percent } from "../i18n/format";
 import { useStore } from "../store/useStore";
 import { useConfig } from "../store/useConfig";
 
@@ -59,29 +59,16 @@ const CARDS: CardRegistrado[] = [
   { id: "painel.reavaliar", label: "Fila de re-avaliação" },
 ];
 
-const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-const mesCurto = (chave: string) => MESES[Number(chave.split("-")[1]) - 1] ?? chave;
-const labelMes = (chave: string) => `${mesCurto(chave)} ${chave.split("-")[0]}`;
-const labelDia = (chave: string) => {
-  const [, m, d] = chave.split("-");
-  return `${Number(d)} ${MESES[Number(m) - 1]}`;
-};
-/** "15–21 jun", or "29 jun – 5 jul" when the week crosses a month. */
-const labelSemana = (chave: string) => {
-  const [a, m, d] = chave.split("-").map(Number);
-  const fim = new Date(a, m - 1, d + 6);
-  const mesmoMes = fim.getMonth() === m - 1;
-  return mesmoMes
-    ? `${d}–${fim.getDate()} ${MESES[m - 1]}`
-    : `${d} ${MESES[m - 1]} – ${fim.getDate()} ${MESES[fim.getMonth()]}`;
-};
-
-/** The one period card's options. `label` is the card title, `rotulo` the selector chip. */
+/**
+ * The one period card's options. `label` is the card title, `rotulo` the selector chip, and
+ * `curto` names the timeframe on its own — the best-sellers panel sits below the card rather
+ * than inside it, so it has to say which period it belongs to.
+ */
 const PERIODOS = [
-  { id: "dia", rotulo: "Dia", label: "Vendas no dia" },
-  { id: "semana", rotulo: "Semana", label: "Vendas na semana" },
-  { id: "mes", rotulo: "Mês", label: "Vendas no mês" },
-  { id: "ano", rotulo: "Ano", label: "Vendas no ano" },
+  { id: "dia", rotulo: "Dia", label: "Vendas no dia", curto: "no dia" },
+  { id: "semana", rotulo: "Semana", label: "Vendas na semana", curto: "na semana" },
+  { id: "mes", rotulo: "Mês", label: "Vendas no mês", curto: "no mês" },
+  { id: "ano", rotulo: "Ano", label: "Vendas no ano", curto: "no ano" },
 ] as const;
 type PeriodoId = (typeof PERIODOS)[number]["id"];
 
@@ -119,11 +106,11 @@ export function Painel() {
   ]);
   const linhaVendas = distribuir([
     { id: "painel.vendas", peso: 6, visivel: visivel("painel.vendas") },
-    { id: "painel.capital", peso: 6, visivel: visivel("painel.capital") },
+    { id: "painel.lucroSemOp", peso: 6, visivel: visivel("painel.lucroSemOp") },
   ]);
   const linhaTempo = distribuir([
     { id: "painel.amazon", peso: 8, visivel: visivel("painel.amazon") },
-    { id: "painel.lucroSemOp", peso: 4, visivel: visivel("painel.lucroSemOp") },
+    { id: "painel.capital", peso: 4, visivel: visivel("painel.capital") },
   ]);
   const linhaGlobal = distribuir([
     { id: "painel.globo", peso: 6, visivel: visivel("painel.globo") },
@@ -194,6 +181,12 @@ export function Painel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vendas, produtos, cfg, periodo, periodoAtivo.atual?.chave]);
   const variacaoSemanal = useMemo(() => variacaoSemanalPorProduto(vendas), [vendas]);
+  // the rollup carries no product code, so the panel borrows it from the catalog for the
+  // name/código pair each row shows
+  const codigos = useMemo(
+    () => new Map(produtos.map((p) => [p.id, p.codigoProduto])),
+    [produtos],
+  );
 
   // realized financials for the latest month (joins ledger → products): real lucro/custo/imposto/comissão
   const mesChave = mensal.atual?.chave;
@@ -232,6 +225,8 @@ export function Painel() {
   const lucroLiquidoTotal = lucroSemOperacional - totalOp - gastoAds;
   // what share of the month's revenue actually survived to the bottom line
   const margemLiquidaMes = resMes.bruto > 0 ? lucroLiquidoTotal / resMes.bruto : 0;
+  // …and the same share before the company's own overhead is taken out
+  const margemSemOperacional = resMes.bruto > 0 ? lucroSemOperacional / resMes.bruto : 0;
   const variacaoLucro =
     lucroMesAnterior !== null && lucroMesAnterior !== 0
       ? (lucroLiquidoTotal - lucroMesAnterior) / Math.abs(lucroMesAnterior)
@@ -379,8 +374,8 @@ export function Painel() {
           )}
         </AnimatePresence>
 
-        {/* one sales card; the dropdown picks the timeframe. Shares the row with the stock
-            capital, so both get half the width instead of the sales card being squeezed. */}
+        {/* one sales card; the dropdown picks the timeframe. Shares the row with the profit
+            before overhead, so both get half the width instead of the sales card being squeezed. */}
         <Ocultavel id="painel.vendas" label="Vendas no período" className={`col-span-12 ${spanClass(linhaVendas, "painel.vendas")}`}>
           <PeriodCard
             label={PERIODOS.find((p) => p.id === periodo)!.label}
@@ -401,9 +396,8 @@ export function Painel() {
               </select>
             }
             rodape={
-              <MaisVendidosDoPeriodo
-                linhas={topVendidos}
-                variacao={variacaoSemanal}
+              <MaisVendidosBotao
+                total={topVendidos.length}
                 aberto={maisVendidosAberto}
                 onAlternar={() => setMaisVendidosAberto((v) => !v)}
               />
@@ -411,9 +405,62 @@ export function Painel() {
           />
         </Ocultavel>
 
-        <Ocultavel id="painel.capital" label="Capital em estoque" className={`col-span-12 ${spanClass(linhaVendas, "painel.capital")}`}>
-          <MetricTile label="Capital em estoque" value={t.capitalEstoque} format={money} icon={Wallet} accent="gold" footnote="Capital travado p/ manter 1 caixa de cada produto" delay={0.2} className="h-full" />
+        {/*
+          Profit before the company's own overhead — the sale-level result on its own. It shares
+          the row with the sales card, so it carries the two figures it is made of (realizado
+          minus devoluções) rather than sitting as a lone number in half a row.
+        */}
+        <Ocultavel id="painel.lucroSemOp" label="Lucro s/ operacional" className={`col-span-12 ${spanClass(linhaVendas, "painel.lucroSemOp")}`}>
+          <GlowCard accent="green" className="h-full" preencher delay={0.2}>
+            <div className="flex items-center gap-2">
+              <span className="flex h-[26px] w-[26px] items-center justify-center rounded-chip bg-greenSoft">
+                <Coins size={15} className="text-green" strokeWidth={2} />
+              </span>
+              <span className="font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">Lucro s/ operacional</span>
+            </div>
+
+            <div className="flex flex-1 items-center">
+              <BigStat
+                value={lucroSemOperacional}
+                format={money}
+                accent={lucroSemOperacional >= 0 ? "text-green" : "text-danger"}
+                className="text-4xl 2xl:text-5xl"
+              />
+            </div>
+
+            <div className="mt-4 grid grid-cols-3 gap-3 border-t border-line pt-3">
+              <Resumo rotulo="Realizado" valor={money(resMes.lucro)} />
+              <Resumo rotulo="Devoluções" valor={money(reembolsoMes)} cor="text-danger" />
+              <Resumo rotulo="Margem s/ oper." valor={percent(margemSemOperacional)} />
+            </div>
+          </GlowCard>
         </Ocultavel>
+
+        {/* The best-sellers list opens full width, the way "Mais métricas" does: the trigger stays
+            in the sales card it belongs to, but eight columns of money never read in half a row. */}
+        {visivel("painel.vendas") && (
+          <AnimatePresence initial={false}>
+            {maisVendidosAberto && (
+              <motion.div
+                key="mais-vendidos"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.3, ease: EASE }}
+                className="col-span-12 overflow-hidden"
+              >
+                <MaisVendidosPainel
+                  linhas={topVendidos}
+                  variacao={variacaoSemanal}
+                  codigos={codigos}
+                  periodoTexto={`${PERIODOS.find((p) => p.id === periodo)!.curto}${
+                    periodoAtivo.atual ? ` · ${rotuloPeriodo(periodoAtivo.atual.chave)}` : ""
+                  }`}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
 
         {/* sales over time (Amazon) */}
         <Ocultavel id="painel.amazon" label="Vendas no tempo · Amazon" className={`col-span-12 ${spanClass(linhaTempo, "painel.amazon")}`}>
@@ -439,18 +486,8 @@ export function Painel() {
         </GlowCard>
         </Ocultavel>
 
-        {/* profit before the company's own overhead — the sale-level result on its own */}
-        <Ocultavel id="painel.lucroSemOp" label="Lucro s/ operacional" className={`col-span-12 ${spanClass(linhaTempo, "painel.lucroSemOp")}`}>
-          <MetricTile
-            label="Lucro s/ operacional"
-            value={lucroSemOperacional}
-            format={money}
-            icon={Coins}
-            accent="green"
-            footnote="Após custos, impostos, comissão e devoluções — antes do overhead da empresa"
-            delay={0.25}
-            className="h-full"
-          />
+        <Ocultavel id="painel.capital" label="Capital em estoque" className={`col-span-12 ${spanClass(linhaTempo, "painel.capital")}`}>
+          <MetricTile label="Capital em estoque" value={t.capitalEstoque} format={money} icon={Wallet} accent="gold" footnote="Capital travado p/ manter 1 caixa de cada produto" delay={0.25} className="h-full" />
         </Ocultavel>
 
         {/* global reach: globe + sales by country */}
@@ -532,113 +569,149 @@ export function Painel() {
   );
 }
 
-/**
- * Best sellers of the period the card is showing, folded away like "Mais métricas".
- *
- * Answers "which products are actually carrying this number", so it lives inside the sales card
- * rather than somewhere else on the page — the list only means anything against the total right
- * above it, and it re-reads whenever the timeframe changes.
- */
-function MaisVendidosDoPeriodo({
-  linhas,
-  variacao,
-  aberto,
-  onAlternar,
-}: {
-  linhas: MaisVendido[];
-  variacao: Map<string, number | null>;
-  aberto: boolean;
-  onAlternar: () => void;
-}) {
+/** The trigger for the best-sellers panel. Lives in the sales card; the panel itself is below. */
+function MaisVendidosBotao({ total, aberto, onAlternar }: { total: number; aberto: boolean; onAlternar: () => void }) {
   return (
-    <>
-      <button
-        onClick={onAlternar}
-        className="mt-3 flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.1em] text-txtDim transition-colors hover:text-txt"
-      >
-        Mais vendidos
-        <span className="rounded-full bg-bgRaise px-1.5 py-0.5 text-[10px] text-txtFaint">{linhas.length}</span>
-        <ChevronDown size={13} className={`transition-transform ${aberto ? "rotate-180" : ""}`} />
-      </button>
-
-      <AnimatePresence initial={false}>
-        {aberto && (
-          <motion.div
-            key="mais-vendidos"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: EASE }}
-            className="overflow-hidden"
-          >
-            {linhas.length === 0 ? (
-              <p className="py-6 text-center text-sm text-txtDim">Nenhuma venda atribuída a produto no período.</p>
-            ) : (
-              <div className="mt-3 overflow-x-auto">
-                <table className="w-full border-collapse text-left">
-                  <thead>
-                    <tr className="border-b border-line">
-                      {["Produto", "Canal", "Qtd", "Faturamento", "Margem", "Lucro", "vs. sem."].map((h, i) => (
-                        <th
-                          key={h}
-                          className={`whitespace-nowrap px-2 py-2 font-mono text-[10px] uppercase tracking-[0.1em] text-txtFaint ${i > 1 ? "text-right" : ""}`}
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {linhas.map((l) => {
-                      const v = variacao.get(l.produtoId) ?? null;
-                      return (
-                        <tr key={l.produtoId} className="border-b border-line/60 last:border-0">
-                          <td className="max-w-[150px] truncate px-2 py-2 text-sm text-txt" title={l.nome}>
-                            {l.nome}
-                          </td>
-                          <td className="whitespace-nowrap px-2 py-2 font-mono text-[11px] text-txtDim">{l.canal}</td>
-                          <td className="px-2 py-2 text-right font-mono text-xs tabular-nums text-txtDim">{l.unidades}</td>
-                          <td className="whitespace-nowrap px-2 py-2 text-right font-mono text-sm tabular-nums text-txt">
-                            {money(l.bruto)}
-                          </td>
-                          <td className="px-2 py-2 text-right">
-                            <span
-                              className="rounded-full px-1.5 py-0.5 font-mono text-[10px] tabular-nums"
-                              style={{ color: STATUS_TEXTO[l.statusCor] }}
-                            >
-                              {percent(l.margem)}
-                            </span>
-                          </td>
-                          <td className="whitespace-nowrap px-2 py-2 text-right font-mono text-xs tabular-nums text-txtDim">
-                            {money(l.lucro)}
-                          </td>
-                          <td
-                            className={`whitespace-nowrap px-2 py-2 text-right font-mono text-xs tabular-nums ${
-                              v === null ? "text-txtFaint" : v >= 0 ? "text-green" : "text-danger"
-                            }`}
-                            title="Receita desta semana contra a semana anterior"
-                          >
-                            {v === null ? "—" : `${v >= 0 ? "+" : "−"}${percent(Math.abs(v))}`}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+    <button
+      onClick={onAlternar}
+      className="mt-3 flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.1em] text-txtDim transition-colors hover:text-txt"
+    >
+      Mais vendidos
+      <span className="rounded-full bg-bgRaise px-1.5 py-0.5 text-[10px] text-txtFaint">{total}</span>
+      <ChevronDown size={13} className={`transition-transform ${aberto ? "rotate-180" : ""}`} />
+    </button>
   );
 }
 
-/** Health-band text colours for the margin badge (Tailwind can't see interpolated names). */
-const STATUS_TEXTO: Record<string, string> = {
-  verde: "var(--c-green)",
-  amarelo: "var(--c-amber)",
-  vermelho: "var(--c-danger)",
+/**
+ * Columns of the best-sellers table, staged across two breakpoints. Bringing all three secondary
+ * columns back at `xl` needed 994px in the 934px box 1280 leaves, so preço médio — the one figure
+ * the row already implies (faturamento ÷ unidades) — waits for `2xl`.
+ */
+const MV_COLUNAS: { k: string; label: string; num?: boolean; cls?: string }[] = [
+  { k: "produto", label: "Produto" },
+  { k: "canal", label: "Canal", cls: "hidden xl:table-cell" },
+  { k: "precoMedio", label: "Preço médio", num: true, cls: "hidden 2xl:table-cell" },
+  { k: "unidades", label: "Unidades", num: true },
+  { k: "bruto", label: "Total faturado", num: true },
+  { k: "share", label: "Represent.", num: true, cls: "hidden xl:table-cell" },
+  { k: "lucro", label: "Lucro", num: true },
+  { k: "margem", label: "Margem", num: true },
+  { k: "semana", label: "vs. sem.", num: true },
+];
+
+/**
+ * Which products are actually carrying the period's total, at full width.
+ *
+ * Capped at 15 by `maisVendidos` and re-read whenever the timeframe changes, so the list always
+ * describes the number in the sales card above it — `periodoTexto` says which period that is,
+ * since the panel no longer sits inside the card.
+ */
+function MaisVendidosPainel({
+  linhas,
+  variacao,
+  codigos,
+  periodoTexto,
+}: {
+  linhas: MaisVendido[];
+  variacao: Map<string, number | null>;
+  codigos: Map<string, string | undefined>;
+  periodoTexto: string;
+}) {
+  return (
+    <GlowCard className="mb-4 overflow-hidden p-0">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line px-4 py-3.5">
+        <h3 className="font-display text-base text-txt">Produtos mais vendidos</h3>
+        <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-txtFaint">
+          {periodoTexto} · máx. 15
+        </span>
+      </div>
+
+      {linhas.length === 0 ? (
+        <p className="py-10 text-center text-sm text-txtDim">Nenhuma venda atribuída a produto no período.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-left">
+            <thead>
+              <tr className="border-b border-line">
+                {MV_COLUNAS.map((c) => (
+                  <th
+                    key={c.k}
+                    className={`whitespace-nowrap px-2 py-2.5 xl:px-3 font-mono text-[10px] uppercase tracking-[0.12em] text-txtFaint ${
+                      c.num ? "text-right" : ""
+                    } ${c.cls ?? ""}`}
+                  >
+                    {c.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {linhas.map((l) => {
+                const v = variacao.get(l.produtoId) ?? null;
+                const codigo = codigos.get(l.produtoId);
+                return (
+                  <tr key={l.produtoId} className="border-b border-line/60 transition-colors last:border-0 hover:bg-greenSoft/20">
+                    {/* name over code, the way the marketplace consoles show it */}
+                    <td className="max-w-[140px] xl:max-w-[200px] 2xl:max-w-[240px] px-2 py-3.5 xl:px-3">
+                      <span className="block truncate text-[15px] leading-tight text-txt" title={l.nome}>
+                        {l.nome}
+                      </span>
+                      {codigo && (
+                        <span className="mt-0.5 block truncate font-mono text-[11px] text-txtFaint">{codigo}</span>
+                      )}
+                    </td>
+                    <td className="hidden whitespace-nowrap px-2 py-3.5 xl:px-3 text-sm text-txtDim xl:table-cell">
+                      {l.canal}
+                    </td>
+                    <td className="hidden whitespace-nowrap px-2 py-3.5 xl:px-3 text-right font-mono text-sm tabular-nums text-txtDim 2xl:table-cell">
+                      {money(l.precoMedio)}
+                    </td>
+                    <td className="px-2 py-3.5 xl:px-3 text-right font-mono text-sm tabular-nums text-txt">
+                      {l.unidades}
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-3.5 xl:px-3 text-right font-mono text-[15px] tabular-nums text-txt">
+                      {money(l.bruto)}
+                    </td>
+                    <td className="hidden px-2 py-3.5 xl:px-3 text-right font-mono text-sm tabular-nums text-txtDim xl:table-cell">
+                      {percent(l.share)}
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-3.5 xl:px-3 text-right font-mono text-sm tabular-nums text-txt">
+                      {money(l.lucro)}
+                    </td>
+                    <td className="px-2 py-3.5 xl:px-3 text-right">
+                      <span
+                        className={`inline-block rounded-full px-2 py-1 font-mono text-[11px] tabular-nums ${
+                          MARGEM_BADGE[l.statusCor]
+                        }`}
+                      >
+                        {percent(l.margem)}
+                      </span>
+                    </td>
+                    <td
+                      className={`whitespace-nowrap px-2 py-3.5 xl:px-3 text-right font-mono text-sm tabular-nums ${
+                        v === null ? "text-txtFaint" : v >= 0 ? "text-green" : "text-danger"
+                      }`}
+                      title="Receita desta semana contra a semana anterior"
+                    >
+                      {v === null ? "—" : `${v >= 0 ? "+" : "−"}${percent(Math.abs(v))}`}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </GlowCard>
+  );
+}
+
+/** Health-band pill for the margin cell (Tailwind can't see interpolated class names). */
+const MARGEM_BADGE: Record<string, string> = {
+  verde: "bg-greenSoft text-green",
+  amarelo: "bg-amberSoft text-amber",
+  vermelho: "bg-danger/12 text-danger",
 };
 
 /** One supporting figure under the profit headline. */

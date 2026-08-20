@@ -1,14 +1,14 @@
 import { CalendarDays, ChevronDown, Coins, Eye, EyeOff, Package, Pencil, Plus, Receipt, Save, Search, Trash2, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Fragment, useMemo, useState, type ReactNode } from "react";
-import { detalharVenda } from "../calc/engine";
+import { chaveAno, chaveDia, chaveMes, chaveSemana, detalharVenda } from "../calc/engine";
 import type { Venda, VendaStatus } from "../calc/types";
 import { CascataVenda } from "../components/CascataVenda";
 import { Field, inputClass, NumberInput, TextInput } from "../components/Field";
 import { GlowCard } from "../components/GlowCard";
 import { MetricTile } from "../components/MetricTile";
 import { Screen } from "../components/Screen";
-import { date, datetime, money } from "../i18n/format";
+import { date, datetime, labelMes, labelSemana, money } from "../i18n/format";
 import { EASE } from "../theme/tokens";
 import { useConfig } from "../store/useConfig";
 import { useStore } from "../store/useStore";
@@ -44,6 +44,27 @@ const COLUNAS: { k: string; label: string; cls?: string }[] = [
   { k: "pais", label: "País", cls: "hidden xl:table-cell" },
   { k: "acoes", label: "" },
 ];
+
+/**
+ * Timeframes the summary tiles can show. "Tudo" is everything the current filters leave in view;
+ * the rest scope to the most recent day/week/month/year present in that same filtered set —
+ * anchored to the ledger, never the wall clock, like every other period figure in the app.
+ */
+const PERIODOS = [
+  { id: "tudo", rotulo: "Tudo" },
+  { id: "dia", rotulo: "Dia" },
+  { id: "semana", rotulo: "Semana" },
+  { id: "mes", rotulo: "Mês" },
+  { id: "ano", rotulo: "Ano" },
+] as const;
+type PeriodoId = (typeof PERIODOS)[number]["id"];
+
+const CHAVE_DE: Record<Exclude<PeriodoId, "tudo">, (d: Date) => string> = {
+  dia: chaveDia,
+  semana: chaveSemana,
+  mes: chaveMes,
+  ano: chaveAno,
+};
 
 const nowLocal = () => {
   const d = new Date();
@@ -105,11 +126,13 @@ export function Vendas() {
   const [showForm, setShowForm] = useState(false);
   /**
    * Screen-recording mode: keeps every row and every number, hides only what identifies the
-   * business. Deliberately NOT persisted — it is about the current recording, and a toggle that
-   * survived a reload would leave someone wondering why their products vanished.
+   * business and its customers — produto, conta, cliente and endereço de entrega. Deliberately
+   * NOT persisted — it is about the current recording, and a toggle that survived a reload would
+   * leave someone wondering why their products vanished.
    */
   const [privado, setPrivado] = useState(false);
-  const oculto = (texto?: string) => (privado ? "••••••••" : texto);
+  /** Masks a value only when there is one, so an empty field never turns into fake dots. */
+  const oculto = (texto?: string) => (texto && privado ? "••••••••" : texto);
   const [editId, setEditId] = useState<string | null>(null);
   const [aberta, setAberta] = useState<string | null>(null); // expanded order (one at a time)
   const [d, setD] = useState<Draft>(emptyDraft);
@@ -154,27 +177,42 @@ export function Vendas() {
     return v ? detalharVenda(v, produtos, cfg) : null;
   }, [linhas, aberta, produtos, cfg]);
 
-  const totais = useMemo(() => {
-    const receita = linhas.reduce((s, v) => s + v.valorTotal, 0);
-    const itens = linhas.reduce((s, v) => s + v.quantidade, 0);
+  // the day is what someone checks daily, so that is what the page opens on
+  const [periodo, setPeriodo] = useState<PeriodoId>("dia");
 
-    // Revenue of the most recent day in view. Anchored to the ledger rather than to the wall
-    // clock, like every other period figure here — otherwise the tile reads R$ 0,00 whenever
-    // the last sale was yesterday, which is most mornings.
-    const porDia = new Map<string, number>();
+  /**
+   * The three headline figures for whatever timeframe is selected.
+   *
+   * Every mode counts exactly what the filters leave in the table — no hidden status rule — so
+   * the tiles always describe the rows underneath them. Filtering to "Cancelado" therefore shows
+   * the cancelled ones rather than three zeros.
+   */
+  const resumo = useMemo(() => {
+    const somar = (rows: Venda[]) => ({
+      vendas: rows.length,
+      receita: rows.reduce((s, v) => s + v.valorTotal, 0),
+      itens: rows.reduce((s, v) => s + v.quantidade, 0),
+      // Surfaced because the Painel and the DRE count only realized sales: without this note the
+      // same month reads R$ 14.846,40 here and R$ 13.888,80 there, with nothing to explain the gap.
+      cancelado: rows.filter((v) => v.status === "cancelado").reduce((s, v) => s + v.valorTotal, 0),
+    });
+    if (periodo === "tudo") return { ...somar(linhas), rotulo: "tudo que está no filtro" };
+
+    const chaveDe = CHAVE_DE[periodo];
+    const baldes = new Map<string, Venda[]>();
     for (const v of linhas) {
-      if (v.status === "cancelado") continue;
-      porDia.set(v.data.slice(0, 10), (porDia.get(v.data.slice(0, 10)) ?? 0) + v.valorTotal);
+      const k = chaveDe(new Date(v.data));
+      const balde = baldes.get(k);
+      if (balde) balde.push(v);
+      else baldes.set(k, [v]);
     }
-    const ultimoDia = [...porDia.keys()].sort().pop();
-    return {
-      receita,
-      itens,
-      qtd: linhas.length,
-      diaChave: ultimoDia,
-      receitaDia: ultimoDia ? porDia.get(ultimoDia)! : 0,
-    };
-  }, [linhas]);
+    // the most recent period present in the ledger, not the one the calendar happens to be in
+    const ultima = [...baldes.keys()].sort().pop();
+    if (!ultima) return { vendas: 0, receita: 0, itens: 0, cancelado: 0, rotulo: "sem vendas no filtro" };
+    const rotulo =
+      periodo === "dia" ? date(ultima) : periodo === "semana" ? labelSemana(ultima) : periodo === "mes" ? labelMes(ultima) : ultima;
+    return { ...somar(baldes.get(ultima)!), rotulo };
+  }, [linhas, periodo]);
 
   const temFiltro = busca || fProduto !== "todos" || fStatus !== "todos" || fCanal !== "todos" || dataDe || dataAte;
   const limpar = () => {
@@ -290,11 +328,15 @@ export function Vendas() {
       title="Vendas"
       actions={
         <div className="flex flex-wrap items-center gap-2">
-          {/* every row and every figure stays; only the two things that identify the business
-              are covered, for recording the screen */}
+          {/* every row and every figure stays; only what identifies the business and its
+              customers is covered, for recording the screen */}
           <button
             onClick={() => setPrivado((v) => !v)}
-            title={privado ? "Mostrar produto e conta" : "Ocultar produto e conta (para gravação)"}
+            title={
+              privado
+                ? "Mostrar produto, conta, cliente e endereço"
+                : "Ocultar produto, conta, cliente e endereço (para gravação)"
+            }
             aria-pressed={privado}
             className={`flex items-center gap-2 rounded-chip border px-3 py-2.5 font-mono text-sm transition-colors ${
               privado ? "border-lineStrong bg-amberSoft text-amber" : "border-line text-txtDim hover:text-txt"
@@ -417,21 +459,51 @@ export function Vendas() {
         </GlowCard>
       )}
 
-      {/* summary (reflects current filters) */}
-      <div className="mb-4 grid grid-cols-12 gap-4">
-        <MetricTile label="Vendas" value={totais.qtd} format={(v) => String(Math.round(v))} icon={Receipt} className="col-span-6 lg:col-span-3" />
-        <MetricTile label="Receita" value={totais.receita} format={money} icon={Coins} accent="gold" className="col-span-6 lg:col-span-3" delay={0.05} />
-        <MetricTile
-          label="Receita no dia"
-          value={totais.receitaDia}
-          format={money}
-          icon={CalendarDays}
-          accent="gold"
-          footnote={totais.diaChave ? date(totais.diaChave) : "sem vendas no filtro"}
-          className="col-span-6 lg:col-span-3"
-          delay={0.1}
-        />
-        <MetricTile label="Itens vendidos" value={totais.itens} format={(v) => String(Math.round(v))} icon={Package} className="col-span-6 lg:col-span-3" delay={0.15} />
+      {/* summary — one row of three, with the timeframe picker deciding what they count */}
+      <div className="mb-4">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-txtFaint">{resumo.rotulo}</span>
+          <select
+            value={periodo}
+            onChange={(e) => setPeriodo(e.target.value as PeriodoId)}
+            className="rounded-chip border border-line bg-panel px-2 py-1 font-mono text-[11px] text-txt outline-none"
+          >
+            {PERIODOS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.rotulo}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="grid grid-cols-12 gap-4">
+          <MetricTile
+            label="Vendas"
+            value={resumo.vendas}
+            format={(v) => String(Math.round(v))}
+            icon={periodo === "tudo" ? Receipt : CalendarDays}
+            className="col-span-6 lg:col-span-4"
+          />
+          {/* the caveat sits on the figure it qualifies: this total counts cancelled sales, the
+              Painel and the DRE do not, and that is the whole of the difference between them */}
+          <MetricTile
+            label="Receita"
+            value={resumo.receita}
+            format={money}
+            icon={Coins}
+            accent="gold"
+            footnote={resumo.cancelado > 0 ? `inclui ${money(resumo.cancelado)} cancelados` : undefined}
+            className="col-span-6 lg:col-span-4"
+            delay={0.05}
+          />
+          <MetricTile
+            label="Itens vendidos"
+            value={resumo.itens}
+            format={(v) => String(Math.round(v))}
+            icon={Package}
+            className="col-span-6 lg:col-span-4"
+            delay={0.1}
+          />
+        </div>
       </div>
 
       {/* filters */}
@@ -633,7 +705,7 @@ export function Vendas() {
                                       <Dado termo="Código" valor={v.codigoProduto} />
                                       <Dado termo="ASIN" valor={produto?.asin} />
                                       <Dado termo="EAN" valor={produto?.ean} />
-                                      <Dado termo="Cliente" valor={v.cliente} />
+                                      <Dado termo="Cliente" valor={oculto(v.cliente)} />
                                       <Dado
                                         termo="País"
                                         valor={v.pais ? `${paisFlag(v.pais)} ${paisNome(v.pais)}` : undefined}
@@ -643,9 +715,11 @@ export function Vendas() {
                                       <dl className="grid grid-cols-1 gap-2.5">
                                         <Dado
                                           termo="Entrega"
-                                          valor={[v.enderecoEntrega, v.cidade && `${v.cidade}${v.uf ? "/" + v.uf : ""}`, v.cep]
-                                            .filter(Boolean)
-                                            .join(" · ")}
+                                          valor={oculto(
+                                            [v.enderecoEntrega, v.cidade && `${v.cidade}${v.uf ? "/" + v.uf : ""}`, v.cep]
+                                              .filter(Boolean)
+                                              .join(" · "),
+                                          )}
                                         />
                                       </dl>
                                     )}

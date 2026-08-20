@@ -359,10 +359,10 @@ export function Compras() {
       {/* summary (reflects the current filters) */}
       <Ocultavel id="compras.kpis" label="Indicadores do topo" className="mb-4 block">
         <div className="grid grid-cols-12 gap-4">
-        <MetricTile dense label="Investido" value={resumo.investido} format={money} icon={Coins} accent="gold" footnote="Produtos + frete + outros custos" className="col-span-6 lg:col-span-3" />
+        <MetricTile dense label="Investido" value={resumo.investido} format={money} icon={Coins} accent="gold" className="col-span-6 lg:col-span-3" />
         <MetricTile dense label="Unidades compradas" value={resumo.unidades} format={(v) => number(v)} icon={ShoppingCart} footnote={`${resumo.pedidos} compra(s)`} className="col-span-6 lg:col-span-3" delay={0.05} />
-        <MetricTile dense label="Já recebidas" value={resumo.recebidas} format={(v) => number(v)} icon={PackageCheck} accent="green" footnote="Compras que entraram no estoque" className="col-span-6 lg:col-span-3" delay={0.1} />
-        <MetricTile dense label="A caminho" value={resumo.aCaminho} format={(v) => number(v)} icon={Truck} accent="red" footnote={`${resumo.pendentes} compra(s) pendente(s), em unidades`} className="col-span-6 lg:col-span-3" delay={0.15} />
+        <MetricTile dense label="Já recebidas" value={resumo.recebidas} format={(v) => number(v)} icon={PackageCheck} accent="green" className="col-span-6 lg:col-span-3" delay={0.1} />
+        <MetricTile dense label="A caminho" value={resumo.aCaminho} format={(v) => number(v)} icon={Truck} accent="red" footnote={`${resumo.pendentes} compra(s) pendente(s)`} className="col-span-6 lg:col-span-3" delay={0.15} />
         </div>
       </Ocultavel>
 

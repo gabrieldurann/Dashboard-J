@@ -340,12 +340,21 @@ const segundaDaSemana = (d: Date) => {
   return ymd(seg);
 };
 
+/**
+ * The period keys themselves, exported so a page can bucket its own filtered rows with exactly
+ * the keys these aggregations use. Two notions of "the same week" would file one sale under two
+ * different buckets — the same reason `chavePedido`/`chaveAds` are exported for the importers.
+ */
+export const chaveDia = ymd;
+export const chaveSemana = segundaDaSemana;
+export const chaveMes = (d: Date) => ymd(d).slice(0, 7);
+export const chaveAno = (d: Date) => String(d.getFullYear());
+
 /** Sales grouped by day (`YYYY-MM-DD`), week (its Monday), month (`YYYY-MM`) and year (`YYYY`). */
-export const vendasPorDia = (vendas: Venda[]) => agruparPorChave(vendas, ymd);
-export const vendasPorSemana = (vendas: Venda[]) => agruparPorChave(vendas, segundaDaSemana);
-export const vendasPorMes = (vendas: Venda[]) => agruparPorChave(vendas, (d) => ymd(d).slice(0, 7));
-export const vendasPorAno = (vendas: Venda[]) =>
-  agruparPorChave(vendas, (d) => String(d.getFullYear()));
+export const vendasPorDia = (vendas: Venda[]) => agruparPorChave(vendas, chaveDia);
+export const vendasPorSemana = (vendas: Venda[]) => agruparPorChave(vendas, chaveSemana);
+export const vendasPorMes = (vendas: Venda[]) => agruparPorChave(vendas, chaveMes);
+export const vendasPorAno = (vendas: Venda[]) => agruparPorChave(vendas, chaveAno);
 
 /** Monthly revenue time-series, optionally filtered to a single channel (e.g. "Amazon"). */
 export function serieMensal(vendas: Venda[], canal?: string): AggPeriodo[] {
