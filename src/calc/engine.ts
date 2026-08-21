@@ -6,6 +6,7 @@ import {
   CONFIG_PADRAO,
   FRETE_GRATIS_ACIMA,
   FRETE_UNIT,
+  IMPOSTO_POR_PAIS,
   type Configuracoes,
   type StatusCor,
 } from "./constants";
@@ -467,6 +468,27 @@ export type DetalheVenda = {
  * A sale with no matching catalog product (`avulsa`) has no cost basis, so it reports the gross
  * with `atribuido: false` and a zero lucro — it must not inflate profit with pure revenue.
  */
+/**
+ * The tax rate a sale actually pays, resolved from where it was shipped.
+ *
+ * Order: the **destination country** first, then the product's own rate, then the global default.
+ * The country has to win — every product carries a domestic rate, so without this an export would
+ * be taxed as though it never left the country, which is the whole gap "supports international
+ * sales" has to close.
+ *
+ * A sale with no `pais`, or a country nobody has configured, falls back exactly as before.
+ */
+export function taxaImpostoDaVenda(
+  venda: Venda,
+  produto: Produto | undefined,
+  cfg: Configuracoes = CONFIG_PADRAO,
+): { taxa: number; pais?: string } {
+  const tabela = cfg.impostosPorPais ?? IMPOSTO_POR_PAIS;
+  const doPais = venda.pais ? tabela[venda.pais] : undefined;
+  if (doPais !== undefined) return { taxa: doPais, pais: venda.pais };
+  return { taxa: produto?.imposto ?? cfg.imposto };
+}
+
 export function detalharVenda(
   venda: Venda,
   produtos: Produto[],
@@ -492,7 +514,7 @@ export function detalharVenda(
   };
   if (!p) return vazio;
 
-  const taxaImposto = p.imposto ?? cfg.imposto;
+  const { taxa: taxaImposto, pais: paisDoImposto } = taxaImpostoDaVenda(venda, p, cfg);
   const taxaComissao = p.comissao ?? cfg.comissao;
   const imposto = bruto * taxaImposto;
   const comissao = bruto * taxaComissao;
@@ -508,7 +530,13 @@ export function detalharVenda(
 
   const todas: LinhaCascata[] = [
     { chave: "itens", label: "Total dos itens", nota: porUnidade(venda.valorUnitario), valor: bruto, tipo: "entrada" },
-    { chave: "imposto", label: "Imposto", nota: pct(taxaImposto), valor: imposto, tipo: "saida" },
+    {
+      chave: "imposto",
+      label: "Imposto",
+      nota: paisDoImposto ? `${pct(taxaImposto)} · ${paisDoImposto}` : pct(taxaImposto),
+      valor: imposto,
+      tipo: "saida",
+    },
     { chave: "comissao", label: "Comissão do canal", nota: pct(taxaComissao), valor: comissao, tipo: "saida" },
     { chave: "custo", label: "Custo dos produtos", nota: porUnidade(p.custoUnit), valor: custo, tipo: "saida" },
     { chave: "embalagem", label: "Embalagem", nota: porUnidade(p.custoEmbalagem ?? 0), valor: embalagem, tipo: "saida" },

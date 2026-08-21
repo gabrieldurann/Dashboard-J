@@ -48,6 +48,38 @@ export type Configuracoes = {
   margemAmarelo: number;
   /** a product is auto-approved at/above this margin */
   margemAprovacao: number;
+  /**
+   * Tax rate per destination country, as ISO code → rate (0.19 = 19%).
+   *
+   * Optional so a browser holding an older `configuracoes` still hydrates; absent falls back to
+   * `IMPOSTO_POR_PAIS`. A country present here overrides the product's own rate for sales shipped
+   * there — that is the whole point, since every product carries a domestic rate and an export
+   * would otherwise be taxed as if it never left.
+   */
+  impostosPorPais?: Record<string, number>;
+};
+
+/**
+ * Default destination tax rates. Brazil keeps the sheet's 4%; the rest are each country's
+ * standard VAT/GST headline rate, and the United States is 0 because sales tax there is collected
+ * by the marketplace rather than borne by the seller.
+ *
+ * These are DEFAULTS, not truths: the real rate depends on the regime, the marketplace and the
+ * product category, which is exactly why Configurações lets every one of them be edited.
+ */
+export const IMPOSTO_POR_PAIS: Record<string, number> = {
+  BR: IMPOSTO_PADRAO,
+  US: 0,
+  CA: 0.05,
+  MX: 0.16,
+  GB: 0.2,
+  PT: 0.23,
+  ES: 0.21,
+  FR: 0.2,
+  DE: 0.19,
+  IT: 0.22,
+  JP: 0.1,
+  AU: 0.1,
 };
 
 export const CONFIG_PADRAO: Configuracoes = {

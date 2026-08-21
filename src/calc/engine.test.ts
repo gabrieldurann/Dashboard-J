@@ -4,6 +4,7 @@ import {
   aplicarRetencao,
   capitalEmEstoque,
   daLoja,
+  taxaImpostoDaVenda,
   produtosDaLoja,
   TODAS_LOJAS,
   calcularMetricas,
@@ -1795,5 +1796,49 @@ describe("capitalEmEstoque (the parts must add up to the whole)", () => {
   it("treats an oversold shelf as zero rather than negative money", () => {
     const vendas = [venda({ produtoId: "p1", quantidade: 999 })];
     expect(capitalEmEstoque(produtos, compras, vendas, [], false)).toBeCloseTo(30, 6); // only p2 left
+  });
+});
+
+describe("taxaImpostoDaVenda (a sale is taxed where it landed)", () => {
+  const produto: Produto = {
+    id: "p1", nome: "P", precoVenda: 100, vendasMes: 0, custoUnit: 40,
+    qtdCaixa: 10, imposto: 0.04, comissao: 0.15,
+  };
+  const cfg = { ...CONFIG_PADRAO, impostosPorPais: { BR: 0.04, DE: 0.19, US: 0 } };
+
+  it("uses the destination country's rate", () => {
+    expect(taxaImpostoDaVenda(venda({ pais: "DE" }), produto, cfg).taxa).toBeCloseTo(0.19, 6);
+    expect(taxaImpostoDaVenda(venda({ pais: "DE" }), produto, cfg).pais).toBe("DE");
+  });
+
+  /**
+   * The property the whole feature turns on: every product carries a domestic rate, so unless the
+   * country wins an export is taxed as though it never left.
+   */
+  it("lets the country override the product's own rate", () => {
+    const domestico = taxaImpostoDaVenda(venda({ pais: "BR" }), produto, cfg).taxa;
+    const exportado = taxaImpostoDaVenda(venda({ pais: "DE" }), produto, cfg).taxa;
+    expect(domestico).toBeCloseTo(produto.imposto, 6);
+    expect(exportado).not.toBeCloseTo(produto.imposto, 6);
+  });
+
+  it("honours a configured zero rather than treating it as unset", () => {
+    expect(taxaImpostoDaVenda(venda({ pais: "US" }), produto, cfg).taxa).toBe(0);
+  });
+
+  it("falls back to the product, then the global default", () => {
+    expect(taxaImpostoDaVenda(venda({ pais: "JP" }), produto, cfg).taxa).toBeCloseTo(0.04, 6);
+    expect(taxaImpostoDaVenda(venda({}), produto, cfg).taxa).toBeCloseTo(0.04, 6);
+    expect(taxaImpostoDaVenda(venda({}), undefined, cfg).taxa).toBeCloseTo(cfg.imposto, 6);
+  });
+
+  it("carries through to the sale's waterfall", () => {
+    const alemanha = detalharVenda(venda({ pais: "DE", valorTotal: 1000, quantidade: 1, produtoId: "p1" }), [produto], cfg);
+    const brasil = detalharVenda(venda({ pais: "BR", valorTotal: 1000, quantidade: 1, produtoId: "p1" }), [produto], cfg);
+    expect(alemanha.imposto).toBeCloseTo(190, 6);
+    expect(brasil.imposto).toBeCloseTo(40, 6);
+    expect(alemanha.lucro).toBeLessThan(brasil.lucro);
+    // the line says which country's rate was applied, so an unexpected figure explains itself
+    expect(alemanha.linhas.find((l) => l.chave === "imposto")?.nota).toContain("DE");
   });
 });

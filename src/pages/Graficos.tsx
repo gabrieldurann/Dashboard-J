@@ -314,6 +314,7 @@ export function Graficos() {
 
         <Grafico
           titulo="Dependência por classe"
+          legenda="Classe A é dependência, não saúde — um produto A pode ter margem ruim"
           className="col-span-12 lg:col-span-5"
           delay={0.3}
         >

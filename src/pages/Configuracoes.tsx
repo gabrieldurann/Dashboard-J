@@ -1,9 +1,10 @@
-import { Landmark, LayoutGrid, Moon, Plus, RotateCcw, Store, Sun, Trash2, Truck, TriangleAlert } from "lucide-react";
+import { Globe, Landmark, LayoutGrid, Moon, Plus, RotateCcw, Store, Sun, Trash2, Truck, TriangleAlert } from "lucide-react";
 import { useMemo, useState } from "react";
-import { CONFIG_PADRAO, type Configuracoes as Cfg } from "../calc/constants";
+import { CONFIG_PADRAO, IMPOSTO_POR_PAIS, type Configuracoes as Cfg } from "../calc/constants";
 import { calcularMetricas } from "../calc/engine";
 import { Field, NumberInput } from "../components/Field";
 import { GlowCard } from "../components/GlowCard";
+import { PAISES } from "../data/countries";
 import { Screen } from "../components/Screen";
 import { StatusDot } from "../components/StatusDot";
 import { money, percent } from "../i18n/format";
@@ -193,6 +194,16 @@ export function Configuracoes() {
           delay={0.05}
         >
           <GerenciarLojas />
+        </Secao>
+
+        <Secao
+          icone={Globe}
+          titulo="Imposto por país de destino"
+          descricao="A venda é tributada onde ela chegou: o país vence a taxa do produto. Deixe em branco para usar a taxa do produto."
+          className="col-span-12"
+          delay={0.07}
+        >
+          <ImpostosPorPais cfg={cfg} onChange={setCfg} />
         </Secao>
 
         {/* taxes & commission */}
@@ -440,6 +451,54 @@ function GerenciarLojas() {
           <Plus size={14} /> Adicionar
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Destination tax rates, one row per country the app knows about.
+ *
+ * Editable because the correct number depends on the regime, the marketplace and the product
+ * category — the app ships defaults, not truths. An empty box means "no country rule", and the
+ * sale falls back to the product's own rate.
+ */
+function ImpostosPorPais({ cfg, onChange }: { cfg: Cfg; onChange: (patch: Partial<Cfg>) => void }) {
+  const tabela = cfg.impostosPorPais ?? IMPOSTO_POR_PAIS;
+  const set = (code: string, valor: number | undefined) => {
+    const proxima = { ...tabela };
+    if (valor === undefined) delete proxima[code];
+    else proxima[code] = valor / 100;
+    onChange({ impostosPorPais: proxima });
+  };
+  const padrao = JSON.stringify(tabela) === JSON.stringify(IMPOSTO_POR_PAIS);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-1 gap-x-4 gap-y-2 sm:grid-cols-2 xl:grid-cols-3">
+        {PAISES.map((p) => (
+          <label key={p.code} className="flex items-center gap-2 rounded-chip border border-line px-2.5 py-1.5 [&_input]:w-[88px]">
+            <span className="shrink-0 text-base leading-none">{p.flag}</span>
+            <span className="min-w-0 flex-1 truncate text-sm text-txtDim" title={p.nome}>
+              {p.nome}
+            </span>
+            <NumberInput
+              value={tabela[p.code] !== undefined ? +(tabela[p.code] * 100).toFixed(2) : undefined}
+              onValue={(v) => set(p.code, v === undefined || v === null ? undefined : v)}
+              unit="%"
+              allowEmpty
+              mostrarZero
+            />
+          </label>
+        ))}
+      </div>
+      {!padrao && (
+        <button
+          onClick={() => onChange({ impostosPorPais: { ...IMPOSTO_POR_PAIS } })}
+          className="w-fit rounded-chip border border-line px-3 py-1.5 font-mono text-xs text-txtDim transition-colors hover:text-txt"
+        >
+          Restaurar taxas padrão
+        </button>
+      )}
     </div>
   );
 }
