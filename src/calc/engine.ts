@@ -350,6 +350,24 @@ export const chaveSemana = segundaDaSemana;
 export const chaveMes = (d: Date) => ymd(d).slice(0, 7);
 export const chaveAno = (d: Date) => String(d.getFullYear());
 
+/**
+ * The sentinel for "every storefront at once". A plain string rather than `null` so it survives
+ * `localStorage` and reads clearly in the picker.
+ */
+export const TODAS_LOJAS = "todas";
+
+/**
+ * Narrow any tagged collection to one storefront.
+ *
+ * Records with no `lojaId` belong to no storefront, so they appear under "Todas" and nowhere else
+ * — never silently folded into whichever store happens to be selected. Every figure in the app is
+ * computed from collections that went through here, which is what keeps the Painel, the DRE and
+ * the ledgers agreeing on what "this store" means.
+ */
+export function daLoja<T extends { lojaId?: string }>(itens: T[], lojaId: string): T[] {
+  return lojaId === TODAS_LOJAS ? itens : itens.filter((i) => i.lojaId === lojaId);
+}
+
 /** Sales grouped by day (`YYYY-MM-DD`), week (its Monday), month (`YYYY-MM`) and year (`YYYY`). */
 export const vendasPorDia = (vendas: Venda[]) => agruparPorChave(vendas, chaveDia);
 export const vendasPorSemana = (vendas: Venda[]) => agruparPorChave(vendas, chaveSemana);
@@ -813,11 +831,28 @@ export function estoqueProdutos(
   compras: Compra[],
   vendas: Venda[],
   devolucoes: Devolucao[],
+  /**
+   * Whether the product's opening balance counts.
+   *
+   * `estoqueInicial` lives on the product, and the catalogue is shared across storefronts, so it
+   * belongs to the company rather than to any one of them. Scoped to a single storefront it must
+   * be left out — otherwise every store claims the whole opening balance and the shelves add up
+   * to more than the company owns. Defaults to `true`, so "Todas" and every existing caller are
+   * unchanged.
+   */
+  incluirEstoqueInicial = true,
 ): Map<string, EstoqueProduto> {
   const mapa = new Map<string, EstoqueProduto>(
     produtos.map((p) => [
       p.id,
-      { produtoId: p.id, inicial: p.estoqueInicial ?? 0, comprado: 0, vendido: 0, devolvido: 0, atual: 0 },
+      {
+        produtoId: p.id,
+        inicial: incluirEstoqueInicial ? p.estoqueInicial ?? 0 : 0,
+        comprado: 0,
+        vendido: 0,
+        devolvido: 0,
+        atual: 0,
+      },
     ]),
   );
 
@@ -1129,6 +1164,58 @@ export function variacaoSemanalPorProduto(vendas: Venda[]): Map<string, number |
   return out;
 }
 
+/**
+ * The catalogue narrowed to what one storefront actually trades.
+ *
+ * The catalogue itself is shared, so the product-level cards (capital em estoque, total de
+ * produtos, fila de re-avaliação) have no storefront dimension of their own. Scoping the PRODUCT
+ * SET rather than redefining those metrics is what lets each store answer them without any of
+ * them changing meaning: "Todas" keeps the whole catalogue, a store keeps what it moves.
+ *
+ * A product counts as traded if the storefront has sold it, bought it, or had it returned.
+ * Cancelled records are ignored — a cancelled order never moved anything.
+ */
+/**
+ * What the stock on the shelves is worth at cost — the money actually tied up right now.
+ *
+ * NOT the same thing as `MetricasProduto.capitalEstoque`, which is a per-product *projection*
+ * ("what one box of this would cost"). That projection is a set-union across storefronts: the
+ * same product belongs to several of them, so store figures could never add up to the company's.
+ * This one is a genuine sum — every unit sits in exactly one storefront — so the parts compose
+ * into the whole, which is what a company-wide total has to mean.
+ *
+ * A negative shelf counts as zero: oversold stock is a data problem to fix on the Produtos page,
+ * not money the company holds less than none of.
+ */
+export function capitalEmEstoque(
+  produtos: Produto[],
+  compras: Compra[],
+  vendas: Venda[],
+  devolucoes: Devolucao[],
+  incluirEstoqueInicial = true,
+): number {
+  const estoques = estoqueProdutos(produtos, compras, vendas, devolucoes, incluirEstoqueInicial);
+  let total = 0;
+  for (const p of produtos) {
+    const un = estoques.get(p.id)?.atual ?? 0;
+    if (un > 0) total += un * p.custoUnit;
+  }
+  return total;
+}
+
+export function produtosDaLoja(
+  produtos: Produto[],
+  vendas: Venda[],
+  compras: Compra[],
+  devolucoes: Devolucao[],
+): Produto[] {
+  const ativos = new Set<string>();
+  for (const v of vendasRealizadas(vendas)) if (v.produtoId) ativos.add(v.produtoId);
+  for (const c of compras) if (c.status !== "cancelada" && c.produtoId) ativos.add(c.produtoId);
+  for (const d of devolucoes) if (d.produtoId) ativos.add(d.produtoId);
+  return produtos.filter((p) => ativos.has(p.id));
+}
+
 /** How long a product's shelf lasts at the rate it has been selling. */
 export type CoberturaEstoque = {
   produtoId: string;
@@ -1164,8 +1251,9 @@ export function coberturaEstoque(
   vendas: Venda[],
   devolucoes: Devolucao[],
   janelaDias = JANELA_COBERTURA,
+  incluirEstoqueInicial = true,
 ): Map<string, CoberturaEstoque> {
-  const estoques = estoqueProdutos(produtos, compras, vendas, devolucoes);
+  const estoques = estoqueProdutos(produtos, compras, vendas, devolucoes, incluirEstoqueInicial);
   const realizadas = vendasRealizadas(vendas);
   const ultima = realizadas.reduce<number>((max, v) => Math.max(max, new Date(v.data).getTime()), 0);
   const inicio = ultima - janelaDias * 24 * 60 * 60 * 1000;

@@ -6,6 +6,7 @@ import type { DesempenhoAds } from "../calc/engine";
 import type { AnuncioAds } from "../calc/types";
 import { ExibicaoMenu, type LayoutLedger } from "../components/ExibicaoMenu";
 import { Field, inputClass, NumberInput, TextInput } from "../components/Field";
+import { CampoLoja, useLojaPadrao } from "../components/CampoLoja";
 import { GlowCard } from "../components/GlowCard";
 import { MetricTile } from "../components/MetricTile";
 import { Ocultavel, type CardRegistrado } from "../components/Ocultavel";
@@ -16,6 +17,7 @@ import { useCores } from "../theme/useCores";
 import { confirmAction } from "../store/useConfirm";
 import { toast } from "../store/useToast";
 import { useStore } from "../store/useStore";
+import { useEscopo } from "../store/useEscopo";
 
 const PAGINA = "ads";
 const CARDS: CardRegistrado[] = [
@@ -37,6 +39,7 @@ const acosCor = (v: number | null, cores: ReturnType<typeof useCores>) => {
 const hoje = () => new Date().toISOString().slice(0, 10);
 
 type Draft = {
+  lojaId: string;
   produtoId: string;
   produtoNome: string;
   sku: string;
@@ -50,7 +53,8 @@ type Draft = {
   observacao: string;
 };
 
-const emptyDraft = (): Draft => ({
+const emptyDraft = (lojaId = ""): Draft => ({
+  lojaId,
   produtoId: "",
   produtoNome: "",
   sku: "",
@@ -66,7 +70,9 @@ const emptyDraft = (): Draft => ({
 
 export function Ads() {
   const cores = useCores();
-  const anuncios = useStore((s) => s.anunciosAds);
+  // scoped to the selected storefront — see useEscopo
+  const escopo = useEscopo();
+  const anuncios = escopo.anunciosAds;
   const produtos = useStore((s) => s.produtos);
   const addAnuncio = useStore((s) => s.addAnuncioAds);
   const updateAnuncio = useStore((s) => s.updateAnuncioAds);
@@ -75,7 +81,8 @@ export function Ads() {
 
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [d, setD] = useState<Draft>(emptyDraft);
+  const lojaPadrao = useLojaPadrao();
+  const [d, setD] = useState<Draft>(() => emptyDraft(lojaPadrao));
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((p) => ({ ...p, [k]: v }));
 
   const [busca, setBusca] = useState("");
@@ -124,12 +131,13 @@ export function Ads() {
 
   const abrirNovo = () => {
     setEditId(null);
-    setD(emptyDraft());
+    setD(emptyDraft(lojaPadrao));
     setShowForm(true);
   };
   const abrirEdicao = (a: AnuncioAds) => {
     setEditId(a.id);
     setD({
+      lojaId: a.lojaId ?? "",
       produtoId: a.produtoId ?? "",
       produtoNome: a.produtoNome,
       sku: a.sku ?? "",
@@ -150,6 +158,7 @@ export function Ads() {
   const salvar = () => {
     if (!valido) return;
     const payload: Omit<AnuncioAds, "id"> = {
+      lojaId: d.lojaId || undefined,
       produtoId: d.produtoId || undefined,
       produtoNome: d.produtoNome.trim(),
       sku: d.sku.trim() || undefined,
@@ -171,7 +180,7 @@ export function Ads() {
     }
     setShowForm(false);
     setEditId(null);
-    setD(emptyDraft());
+    setD(emptyDraft(lojaPadrao));
   };
 
   const excluir = async (a: AnuncioAds) => {
@@ -230,6 +239,7 @@ export function Ads() {
             <Field label="SKU">
               <TextInput value={d.sku} onChange={(e) => set("sku", e.target.value)} />
             </Field>
+            <CampoLoja valor={d.lojaId} onChange={(v) => set("lojaId", v)} />
             <Field label="Canal">
               <TextInput value={d.canal} onChange={(e) => set("canal", e.target.value)} placeholder="Amazon…" />
             </Field>
@@ -276,7 +286,6 @@ export function Ads() {
               format={money}
               icon={Megaphone}
               accent="red"
-              footnote="O que saiu em tráfego pago"
               className="col-span-6 lg:col-span-3 h-full"
             />
             <MetricTile
@@ -441,9 +450,6 @@ export function Ads() {
           >
             <GlowCard className="h-full">
               <span className="font-mono text-[11.5px] uppercase tracking-[0.1em] text-txtDim">Desempenho por produto</span>
-              <p className="mt-0.5 font-mono text-[11px] text-txtFaint">
-                Quanto do volume veio do anúncio e a que custo
-              </p>
               <ul
                 className={`mt-4 grid gap-4 ${dividido ? "" : "sm:grid-cols-2 xl:grid-cols-3"}`}
               >

@@ -14,6 +14,7 @@ import { StatusDot } from "../components/StatusDot";
 import { date, money, number, percent } from "../i18n/format";
 import { EASE } from "../theme/tokens";
 import { useStore } from "../store/useStore";
+import { useEscopo } from "../store/useEscopo";
 import { confirmAction } from "../store/useConfirm";
 import { toast } from "../store/useToast";
 import { useConfig } from "../store/useConfig";
@@ -50,9 +51,11 @@ const FILTROS: { key: Filtro; label: string }[] = [
 
 export function Produtos() {
   const statusCores = useStatusCores();
-  const compras = useStore((s) => s.compras);
-  const vendasLedger = useStore((s) => s.vendas);
-  const devolucoes = useStore((s) => s.devolucoes);
+  // scoped to the selected storefront — see useEscopo
+  const escopo = useEscopo();
+  const compras = escopo.compras;
+  const vendasLedger = escopo.vendas;
+  const devolucoes = escopo.devolucoes;
   const cfg = useConfig();
   const produtos = useStore((s) => s.produtos);
   const removeProduto = useStore((s) => s.removeProduto);
@@ -64,15 +67,17 @@ export function Produtos() {
   const [caixaEstoque, setCaixaEstoque] = useState<{ id: string; rect: DOMRect } | null>(null);
   const filtrosAtivos = busca.trim() !== "" || filtro !== "todos";
 
-  // stock is derived from the ledgers, never stored (idea #3)
+  // Stock is derived from the ledgers, never stored (idea #3). The product's opening balance is
+  // company-wide, so it only counts under "Todas" — scoped to one storefront the shelf is exactly
+  // what that storefront bought, sold and had returned.
   const estoque = useMemo(
-    () => estoqueProdutos(produtos, compras, vendasLedger, devolucoes),
-    [produtos, compras, vendasLedger, devolucoes],
+    () => estoqueProdutos(produtos, compras, vendasLedger, devolucoes, escopo.todas),
+    [produtos, compras, vendasLedger, devolucoes, escopo.todas],
   );
   // how long that stock lasts at the recent sales rate, and whether it is already time to order
   const cobertura = useMemo(
-    () => coberturaEstoque(produtos, compras, vendasLedger, devolucoes),
-    [produtos, compras, vendasLedger, devolucoes],
+    () => coberturaEstoque(produtos, compras, vendasLedger, devolucoes, JANELA_COBERTURA, escopo.todas),
+    [produtos, compras, vendasLedger, devolucoes, escopo.todas],
   );
 
   // duplicate cleanup (idea #10) — catches dupes from the calculator, manual adds, anywhere

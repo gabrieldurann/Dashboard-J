@@ -32,6 +32,7 @@ import {
 import { toast } from "../store/useToast";
 import { useConfig } from "../store/useConfig";
 import { useStore } from "../store/useStore";
+import { useEscopo } from "../store/useEscopo";
 
 /**
  * The month's report: what actually happened, and nothing else.
@@ -51,12 +52,14 @@ import { useStore } from "../store/useStore";
 type Modo = "realizado" | "projetado";
 export function Relatorios() {
   const cfg = useConfig();
-  const vendas = useStore((s) => s.vendas);
+  // scoped to the selected storefront — see useEscopo
+  const escopo = useEscopo();
+  const vendas = escopo.vendas;
   const produtos = useStore((s) => s.produtos);
-  const devolucoes = useStore((s) => s.devolucoes);
-  const compras = useStore((s) => s.compras);
-  const custosOperacionais = useStore((s) => s.custosOperacionais);
-  const anuncios = useStore((s) => s.anunciosAds);
+  const devolucoes = escopo.devolucoes;
+  const compras = escopo.compras;
+  const custosOperacionais = escopo.custosOperacionais;
+  const anuncios = escopo.anunciosAds;
 
   const meses = useMemo(() => mesesComVendas(vendas), [vendas]);
   const [mes, setMes] = useState("");

@@ -7,6 +7,7 @@ import { MetricTile } from "../components/MetricTile";
 import { Screen } from "../components/Screen";
 import { date, money, percent } from "../i18n/format";
 import { useStore } from "../store/useStore";
+import { useEscopo } from "../store/useEscopo";
 import { confirmAction } from "../store/useConfirm";
 import { toast } from "../store/useToast";
 
@@ -27,7 +28,9 @@ const lucroVenda = (v: { precoVendido: number; custo: number; frete: number }) =
   v.precoVendido - v.custo - v.frete;
 
 export function VendasAvulsas() {
-  const vendas = useStore((s) => s.vendasAvulsas);
+  // scoped to the selected storefront — see useEscopo
+  const escopo = useEscopo();
+  const vendas = escopo.vendasAvulsas;
   const addVenda = useStore((s) => s.addVendaAvulsa);
   const removeVenda = useStore((s) => s.removeVendaAvulsa);
   const [f, setF] = useState<Form>(inicial);

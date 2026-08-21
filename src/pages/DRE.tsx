@@ -7,6 +7,7 @@ import { money, percent } from "../i18n/format";
 import { abrirImpressao, dreHTML } from "../report/printable";
 import { useConfig } from "../store/useConfig";
 import { useStore } from "../store/useStore";
+import { useEscopo } from "../store/useEscopo";
 
 /**
  * Demonstração do resultado, one month at a time.
@@ -29,11 +30,13 @@ const sinal = (l: LinhaDRE) =>
 
 export function DRE() {
   const cfg = useConfig();
-  const vendas = useStore((s) => s.vendas);
+  // scoped to the selected storefront — see useEscopo
+  const escopo = useEscopo();
+  const vendas = escopo.vendas;
   const produtos = useStore((s) => s.produtos);
-  const devolucoes = useStore((s) => s.devolucoes);
-  const custosOperacionais = useStore((s) => s.custosOperacionais);
-  const anuncios = useStore((s) => s.anunciosAds);
+  const devolucoes = escopo.devolucoes;
+  const custosOperacionais = escopo.custosOperacionais;
+  const anuncios = escopo.anunciosAds;
 
   const meses = useMemo(() => mesesComVendas(vendas), [vendas]);
   const [mes, setMes] = useState<string>("");

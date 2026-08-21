@@ -4,6 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { comprasPorFornecedor, custoTotalCompra, resumoCompras } from "../calc/engine";
 import type { Compra, CompraStatus } from "../calc/types";
 import { Field, inputClass, NumberInput, TextInput } from "../components/Field";
+import { CampoLoja, useLojaPadrao } from "../components/CampoLoja";
 import { GlowCard } from "../components/GlowCard";
 import { MetricTile } from "../components/MetricTile";
 import { ExibicaoMenu } from "../components/ExibicaoMenu";
@@ -15,6 +16,7 @@ import { EASE } from "../theme/tokens";
 import { confirmAction } from "../store/useConfirm";
 import { toast } from "../store/useToast";
 import { useStore } from "../store/useStore";
+import { useEscopo } from "../store/useEscopo";
 
 // Compras = the stock purchase ledger (idea #3). Received purchases feed the derived stock
 // (see `estoqueProdutos`); the unit cost paid is kept per purchase and only copied onto the
@@ -42,6 +44,7 @@ const nowLocal = () => {
 const hoje = () => new Date().toISOString().slice(0, 10);
 
 type Draft = {
+  lojaId: string;
   produtoId: string;
   produtoNome: string;
   codigoProduto: string;
@@ -57,7 +60,8 @@ type Draft = {
   observacao: string;
 };
 
-const emptyDraft = (): Draft => ({
+const emptyDraft = (lojaId = ""): Draft => ({
+  lojaId,
   produtoId: "",
   produtoNome: "",
   codigoProduto: "",
@@ -74,7 +78,9 @@ const emptyDraft = (): Draft => ({
 });
 
 export function Compras() {
-  const compras = useStore((s) => s.compras);
+  // scoped to the selected storefront — see useEscopo
+  const escopo = useEscopo();
+  const compras = escopo.compras;
   const produtos = useStore((s) => s.produtos);
   const addCompra = useStore((s) => s.addCompra);
   const updateCompra = useStore((s) => s.updateCompra);
@@ -85,7 +91,8 @@ export function Compras() {
   const dividido = useStore((s) => s.layouts["compras"]) === "dividido";
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [d, setD] = useState<Draft>(emptyDraft);
+  const lojaPadrao = useLojaPadrao();
+  const [d, setD] = useState<Draft>(() => emptyDraft(lojaPadrao));
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((p) => ({ ...p, [k]: v }));
 
   const [busca, setBusca] = useState("");
@@ -146,12 +153,13 @@ export function Compras() {
 
   const abrirNovo = () => {
     setEditId(null);
-    setD(emptyDraft());
+    setD(emptyDraft(lojaPadrao));
     setShowForm(true);
   };
   const editar = (c: Compra) => {
     setEditId(c.id);
     setD({
+      lojaId: c.lojaId ?? "",
       produtoId: c.produtoId ?? "",
       produtoNome: c.produtoNome,
       codigoProduto: c.codigoProduto ?? "",
@@ -174,6 +182,7 @@ export function Compras() {
   const salvar = () => {
     if (!valido) return;
     const payload: Omit<Compra, "id"> = {
+      lojaId: d.lojaId || undefined,
       produtoId: d.produtoId || undefined,
       produtoNome: d.produtoNome.trim(),
       codigoProduto: d.codigoProduto || undefined,
@@ -196,7 +205,7 @@ export function Compras() {
       addCompra({ id: crypto.randomUUID(), ...payload });
       toast.success("Compra registrada");
     }
-    setD(emptyDraft());
+    setD(emptyDraft(lojaPadrao));
     setEditId(null);
     setShowForm(false);
   };
@@ -321,6 +330,7 @@ export function Compras() {
                 />
               </Field>
             )}
+            <CampoLoja valor={d.lojaId} onChange={(v) => set("lojaId", v)} />
             <Field label="Fornecedor">
               <TextInput value={d.fornecedor} onChange={(e) => set("fornecedor", e.target.value)} />
             </Field>

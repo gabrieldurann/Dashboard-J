@@ -1,5 +1,5 @@
-import { Landmark, LayoutGrid, Moon, RotateCcw, Sun, Truck, TriangleAlert } from "lucide-react";
-import { useMemo } from "react";
+import { Landmark, LayoutGrid, Moon, Plus, RotateCcw, Store, Sun, Trash2, Truck, TriangleAlert } from "lucide-react";
+import { useMemo, useState } from "react";
 import { CONFIG_PADRAO, type Configuracoes as Cfg } from "../calc/constants";
 import { calcularMetricas } from "../calc/engine";
 import { Field, NumberInput } from "../components/Field";
@@ -185,6 +185,16 @@ export function Configuracoes() {
           </div>
         </Secao>
 
+        <Secao
+          icone={Store}
+          titulo="Lojas"
+          descricao="Cada venda, compra, custo e devolução pertence a uma loja. O seletor na barra lateral filtra o app inteiro."
+          className="col-span-12"
+          delay={0.05}
+        >
+          <GerenciarLojas />
+        </Secao>
+
         {/* taxes & commission */}
         <Secao
           icone={Landmark}
@@ -330,5 +340,106 @@ export function Configuracoes() {
         </Secao>
       </div>
     </Screen>
+  );
+}
+
+/**
+ * Add, rename and remove storefronts.
+ *
+ * Removing one is the dangerous direction: its sales, purchases, costs and returns would be left
+ * pointing at a store that no longer exists — visible only under "Todas", and silently missing
+ * from every scoped figure. So a store that still owns records cannot be deleted; the count says
+ * what is in the way.
+ */
+function GerenciarLojas() {
+  const lojas = useStore((s) => s.lojas);
+  const addLoja = useStore((s) => s.addLoja);
+  const updateLoja = useStore((s) => s.updateLoja);
+  const removeLoja = useStore((s) => s.removeLoja);
+  const vendas = useStore((s) => s.vendas);
+  const compras = useStore((s) => s.compras);
+  const devolucoes = useStore((s) => s.devolucoes);
+  const custos = useStore((s) => s.custosOperacionais);
+  const anuncios = useStore((s) => s.anunciosAds);
+  const [nova, setNova] = useState("");
+
+  const registrosDe = (id: string) =>
+    [vendas, compras, devolucoes, custos, anuncios].reduce(
+      (total, colecao) => total + colecao.filter((r) => r.lojaId === id).length,
+      0,
+    );
+
+  const criar = () => {
+    const nome = nova.trim();
+    if (!nome) return;
+    addLoja({ id: crypto.randomUUID(), nome });
+    setNova("");
+    toast.success("Loja criada");
+  };
+
+  const excluir = async (id: string, nome: string) => {
+    const n = registrosDe(id);
+    if (n > 0) {
+      await confirmAction({
+        title: "Não dá para excluir esta loja",
+        message: `"${nome}" ainda tem ${n} ${n === 1 ? "registro" : "registros"}. Mova ou exclua esses registros primeiro — sem isso eles ficariam apontando para uma loja que não existe mais.`,
+        confirmLabel: "Entendi",
+      });
+      return;
+    }
+    const ok = await confirmAction({
+      title: "Excluir loja?",
+      message: `"${nome}" será removida. Nenhum registro pertence a ela.`,
+      confirmLabel: "Excluir",
+      danger: true,
+    });
+    if (!ok) return;
+    removeLoja(id);
+    toast.success("Loja excluída");
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      {lojas.map((l) => {
+        const n = registrosDe(l.id);
+        return (
+          <div key={l.id} className="flex items-center gap-3 rounded-chip border border-line px-3 py-2">
+            <Store size={14} className="shrink-0 text-txtFaint" />
+            <input
+              value={l.nome}
+              onChange={(e) => updateLoja(l.id, { nome: e.target.value })}
+              className="min-w-0 flex-1 bg-transparent text-sm text-txt outline-none"
+            />
+            <span className="shrink-0 font-mono text-[11px] text-txtFaint">
+              {n} {n === 1 ? "registro" : "registros"}
+            </span>
+            <button
+              onClick={() => excluir(l.id, l.nome)}
+              title={n > 0 ? `${n} registros ainda apontam para esta loja` : "Excluir loja"}
+              className={`shrink-0 transition-colors ${n > 0 ? "text-txtFaint" : "text-txtDim hover:text-danger"}`}
+            >
+              <Trash2 size={15} />
+            </button>
+          </div>
+        );
+      })}
+
+      <div className="mt-1 flex items-center gap-2">
+        <input
+          value={nova}
+          onChange={(e) => setNova(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && criar()}
+          placeholder="Nome da nova loja"
+          className="min-w-0 flex-1 rounded-chip border border-line bg-panel px-3 py-2 text-sm text-txt outline-none placeholder:text-txtFaint"
+        />
+        <button
+          onClick={criar}
+          disabled={!nova.trim()}
+          className="flex items-center gap-2 rounded-chip border border-lineStrong bg-greenSoft px-3 py-2 font-mono text-xs text-txt transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Plus size={14} /> Adicionar
+        </button>
+      </div>
+    </div>
   );
 }

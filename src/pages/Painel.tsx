@@ -4,10 +4,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import {
   calcularMetricas,
+  capitalEmEstoque,
   dre,
   maisVendidos,
   mesesComVendas,
   preencherMeses,
+  produtosDaLoja,
   resultadoVendas,
   resumoDevolucoes,
   resumoPeriodo,
@@ -42,6 +44,7 @@ import { StatusDot } from "../components/StatusDot";
 import { paisByCode } from "../data/countries";
 import { labelDia, labelMes, labelSemana, mesCurto, money, percent } from "../i18n/format";
 import { useStore } from "../store/useStore";
+import { useEscopo } from "../store/useEscopo";
 import { useConfig } from "../store/useConfig";
 
 // Cards the user can hide (idea: keep the Painel readable for whoever is looking at it).
@@ -75,11 +78,43 @@ type PeriodoId = (typeof PERIODOS)[number]["id"];
 export function Painel() {
   const cfg = useConfig();
   const produtos = useStore((s) => s.produtos);
-  const vendas = useStore((s) => s.vendas);
-  const devolucoes = useStore((s) => s.devolucoes);
-  const custosOperacionais = useStore((s) => s.custosOperacionais);
-  const anunciosAds = useStore((s) => s.anunciosAds);
-  const t = useMemo(() => totaisPortfolio(produtos, cfg), [produtos, cfg]);
+  // scoped to the selected storefront — see useEscopo
+  const escopo = useEscopo();
+  const vendas = escopo.vendas;
+  const devolucoes = escopo.devolucoes;
+  const custosOperacionais = escopo.custosOperacionais;
+  const anunciosAds = escopo.anunciosAds;
+
+  /**
+   * The catalogue this view is about.
+   *
+   * Capital em estoque, the product counters and the re-avaliação queue are all product-level, and
+   * the catalogue is shared across storefronts — so they are scoped by narrowing the PRODUCT SET
+   * rather than by redefining the metrics. Each keeps its exact meaning; "Todas" keeps the whole
+   * catalogue (including items with no movement yet, which is precisely what the re-avaliação
+   * queue exists to flag), and a storefront keeps what it actually trades.
+   */
+  const produtosEscopo = useMemo(
+    () =>
+      escopo.todas
+        ? produtos
+        : produtosDaLoja(produtos, vendas, escopo.compras, devolucoes),
+    [escopo.todas, produtos, vendas, escopo.compras, devolucoes],
+  );
+  const t = useMemo(() => totaisPortfolio(produtosEscopo, cfg), [produtosEscopo, cfg]);
+
+  /**
+   * Money actually sitting in stock, at cost.
+   *
+   * A real sum rather than the per-product projection `totaisPortfolio` carries: every unit is in
+   * exactly one storefront, so the stores add up to the company. The opening balance no longer
+   * needs special handling here — it is booked as purchases in the ledger like everything else —
+   * but the flag stays wired for any product that still carries one.
+   */
+  const capitalEstoque = useMemo(
+    () => capitalEmEstoque(produtosEscopo, escopo.compras, vendas, devolucoes, escopo.todas),
+    [produtosEscopo, escopo.compras, vendas, devolucoes, escopo.todas],
+  );
 
   // reveal/hide the deduction cascade + the secondary metric cards
   const [detalhes, setDetalhes] = useState(false);
@@ -209,6 +244,20 @@ export function Painel() {
   // advertising spend for the same month — the last deduction before "money in pocket" (idea #14)
   const gastoAds = useMemo(() => custoAds(anunciosAds, mesChave), [anunciosAds, mesChave]);
 
+  /**
+   * Company overhead that this view is NOT carrying.
+   *
+   * Rent, accounting and internet belong to the company, not to a storefront — pro-rating them
+   * across stores would be an allocation rather than something that happened. So a scoped bottom
+   * line legitimately excludes them, and saying so is the difference between an honest figure and
+   * a store that merely looks more profitable than it is.
+   */
+  const custosTodasLojas = useStore((st) => st.custosOperacionais);
+  const overheadNaoAtribuido = useMemo(
+    () => (escopo.todas ? 0 : totalOperacional(custosTodasLojas, mesChave) - totalOp),
+    [escopo.todas, custosTodasLojas, mesChave, totalOp],
+  );
+
   // Last month's bottom line, for the comparison on the profit card. Taken from `dre` rather than
   // recomputed here so the Painel and the DRE page can never drift apart on what "líquido" means.
   const lucroMesAnterior = useMemo(() => {
@@ -241,11 +290,11 @@ export function Painel() {
   // products to re-evaluate (red band), worst margin first
   const reavaliar = useMemo(
     () =>
-      produtos
+      produtosEscopo
         .map((p) => ({ p, m: calcularMetricas(p, cfg) }))
         .filter((x) => x.m.statusCor === "vermelho")
         .sort((a, b) => a.m.margem - b.m.margem),
-    [produtos, cfg],
+    [produtosEscopo, cfg],
   );
 
   // gauge: company realized margin scaled so 40% reads as a "full" healthy ring
@@ -361,6 +410,12 @@ export function Painel() {
                     {money(lucroLiquidoTotal)}
                   </span>
                 </div>
+                {overheadNaoAtribuido > 0 && (
+                  <p className="mt-2 font-mono text-[11px] text-txtFaint">
+                    Fora desta conta: {money(overheadNaoAtribuido)} de custos operacionais da empresa, que não
+                    pertencem a uma loja específica.
+                  </p>
+                )}
               </GlowCard>
               <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
                 <MetricTile dense label="Custo / mês" value={resMes.custo} format={money} icon={Package} accent="red" footnote="Custo do fornecedor" />
@@ -487,7 +542,7 @@ export function Painel() {
         </Ocultavel>
 
         <Ocultavel id="painel.capital" label="Capital em estoque" className={`col-span-12 ${spanClass(linhaTempo, "painel.capital")}`}>
-          <MetricTile label="Capital em estoque" value={t.capitalEstoque} format={money} icon={Wallet} accent="gold" footnote="Capital travado p/ manter 1 caixa de cada produto" delay={0.25} className="h-full" />
+          <MetricTile label="Capital em estoque" value={capitalEstoque} format={money} icon={Wallet} accent="gold" delay={0.25} className="h-full" />
         </Ocultavel>
 
         {/* global reach: globe + sales by country */}
@@ -543,7 +598,7 @@ export function Painel() {
 
         <Ocultavel id="painel.contadores" label="Produtos e países" className={`col-span-12 ${spanClass(linhaFinal, "painel.contadores")}`}>
           <GlowCard className="flex h-full flex-col justify-center gap-4" delay={0.45}>
-            <Counter icon={Package} label="Total de produtos" value={produtos.length} accent="green" />
+            <Counter icon={Package} label="Total de produtos" value={produtosEscopo.length} accent="green" />
             <div className="border-t border-line" />
             <Counter icon={MapPin} label="Locais de venda · países" value={porPais.length} accent="gold" />
           </GlowCard>

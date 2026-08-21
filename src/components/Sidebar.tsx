@@ -1,9 +1,10 @@
-import {
+import { Store,
   ChevronDown, Megaphone, BarChart3, Building2, ShoppingCart, Calculator, ClipboardList, FileText, LayoutDashboard, Package, Pencil, Plug, Receipt, RotateCcw, Scale, Settings, SlidersHorizontal } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { EASE } from "../theme/tokens";
+import { TODAS_LOJAS } from "../calc/engine";
 import { useStore } from "../store/useStore";
 
 const NAV = [
@@ -97,6 +98,49 @@ function ContasConectadas() {
   );
 }
 
+/**
+ * Which storefront the whole app is looking at.
+ *
+ * It lives in the sidebar rather than in each page's header so that one control scopes every
+ * page at once — the Painel, the ledgers, the DRE and the charts all read through `useEscopo`.
+ * "Todas" is the default and reproduces the company-wide figures exactly.
+ */
+function SeletorLoja() {
+  const lojas = useStore((s) => s.lojas);
+  const lojaAtiva = useStore((s) => s.lojaAtiva);
+  const setLojaAtiva = useStore((s) => s.setLojaAtiva);
+  // with a single storefront there is nothing to choose between, and the control would only be
+  // one more thing on screen
+  if (lojas.length < 2) return null;
+
+  const escopoNomeado = lojaAtiva !== TODAS_LOJAS;
+  return (
+    <label className="mb-6 block px-1">
+      <span className="eyebrow mb-1.5 block !tracking-[0.1em]">Loja</span>
+      <div
+        className={`flex items-center gap-2 rounded-chip border px-2.5 py-2 transition-colors ${
+          escopoNomeado ? "border-green/40 bg-greenSoft" : "border-line bg-panel"
+        }`}
+      >
+        <Store size={14} className={escopoNomeado ? "shrink-0 text-green" : "shrink-0 text-txtFaint"} />
+        <select
+          value={lojaAtiva}
+          onChange={(e) => setLojaAtiva(e.target.value)}
+          title="Filtra o app inteiro por loja"
+          className="w-full min-w-0 bg-transparent font-mono text-xs text-txt outline-none"
+        >
+          <option value={TODAS_LOJAS}>Todas as lojas</option>
+          {lojas.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.nome}
+            </option>
+          ))}
+        </select>
+      </div>
+    </label>
+  );
+}
+
 export function Sidebar() {
   // The section only exists once something is connected — an empty "Contas conectadas" heading
   // would promise a place that has nothing to show.
@@ -115,6 +159,8 @@ export function Sidebar() {
           <div className="eyebrow">Estoque & Vendas</div>
         </div>
       </div>
+
+      <SeletorLoja />
 
       <nav className="flex flex-col gap-1">
         {NAV.map(({ to, label, icon: Icon, end }) => (

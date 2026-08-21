@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   acos,
   aplicarRetencao,
+  capitalEmEstoque,
+  daLoja,
+  produtosDaLoja,
+  TODAS_LOJAS,
   calcularMetricas,
   custoAds,
   dre,
@@ -1685,5 +1689,111 @@ describe("resumoPeriodo (latest vs previous period)", () => {
     const r = resumoPeriodo(vendasPorMes([venda({ data: "2026-06-01T10:00", valorTotal: 150 })]));
     expect(r.anterior).toBeNull();
     expect(r.variacao).toBeNull();
+  });
+});
+
+describe("daLoja (scoping every figure to one storefront)", () => {
+  const itens = [
+    { id: "a", lojaId: "loja-1" },
+    { id: "b", lojaId: "loja-2" },
+    { id: "c", lojaId: "loja-1" },
+    { id: "d" }, // never assigned to a storefront
+  ];
+
+  it("returns everything under TODAS, untouched", () => {
+    expect(daLoja(itens, TODAS_LOJAS)).toHaveLength(4);
+  });
+
+  it("keeps only the selected store's records", () => {
+    expect(daLoja(itens, "loja-1").map((i) => i.id)).toEqual(["a", "c"]);
+    expect(daLoja(itens, "loja-2").map((i) => i.id)).toEqual(["b"]);
+  });
+
+  /**
+   * The property that stops a store's numbers quietly absorbing unassigned money: an untagged row
+   * shows under "Todas" and nowhere else. Without this, selecting a store would inflate it by
+   * whatever was never assigned.
+   */
+  it("never folds untagged records into a specific store", () => {
+    expect(daLoja(itens, "loja-1").some((i) => i.lojaId === undefined)).toBe(false);
+    expect(daLoja(itens, "loja-2").some((i) => i.lojaId === undefined)).toBe(false);
+    expect(daLoja(itens, TODAS_LOJAS).some((i) => i.lojaId === undefined)).toBe(true);
+  });
+
+  it("gives an unknown store id nothing rather than everything", () => {
+    expect(daLoja(itens, "loja-que-nao-existe")).toEqual([]);
+  });
+});
+
+describe("produtosDaLoja (the catalogue a storefront actually trades)", () => {
+  const produtos: Produto[] = [
+    { id: "p1", nome: "Vendido", precoVenda: 100, vendasMes: 0, custoUnit: 40, qtdCaixa: 10, imposto: 0.04, comissao: 0.15 },
+    { id: "p2", nome: "Comprado", precoVenda: 100, vendasMes: 0, custoUnit: 40, qtdCaixa: 10, imposto: 0.04, comissao: 0.15 },
+    { id: "p3", nome: "Devolvido", precoVenda: 100, vendasMes: 0, custoUnit: 40, qtdCaixa: 10, imposto: 0.04, comissao: 0.15 },
+    { id: "p4", nome: "Nunca movimentado", precoVenda: 100, vendasMes: 0, custoUnit: 40, qtdCaixa: 10, imposto: 0.04, comissao: 0.15 },
+    { id: "p5", nome: "Só em compra cancelada", precoVenda: 100, vendasMes: 0, custoUnit: 40, qtdCaixa: 10, imposto: 0.04, comissao: 0.15 },
+  ];
+
+  const vendas = [venda({ produtoId: "p1" })];
+  const compras = [
+    { id: "c1", produtoId: "p2", produtoNome: "Comprado", data: "2026-06-01T10:00", quantidade: 10, custoUnit: 5, status: "recebida" as const },
+    { id: "c2", produtoId: "p5", produtoNome: "Cancelado", data: "2026-06-01T10:00", quantidade: 10, custoUnit: 5, status: "cancelada" as const },
+  ];
+  const devolucoes = [devolucao({ produtoId: "p3" })];
+
+  it("keeps what the store sold, bought or had returned", () => {
+    const r = produtosDaLoja(produtos, vendas, compras, devolucoes).map((p) => p.id);
+    expect(r).toEqual(["p1", "p2", "p3"]);
+  });
+
+  /** A product nobody touched is not this store's problem — that is the point of scoping. */
+  it("drops products with no movement at all", () => {
+    expect(produtosDaLoja(produtos, vendas, compras, devolucoes).some((p) => p.id === "p4")).toBe(false);
+  });
+
+  /** A cancelled purchase never moved anything, so it cannot make a product belong to a store. */
+  it("ignores cancelled purchases", () => {
+    expect(produtosDaLoja(produtos, vendas, compras, devolucoes).some((p) => p.id === "p5")).toBe(false);
+  });
+
+  it("returns nothing when the store moved nothing", () => {
+    expect(produtosDaLoja(produtos, [], [], [])).toEqual([]);
+  });
+});
+
+describe("capitalEmEstoque (the parts must add up to the whole)", () => {
+  const produtos: Produto[] = [
+    { id: "p1", nome: "A", precoVenda: 100, vendasMes: 0, custoUnit: 10, qtdCaixa: 10, imposto: 0.04, comissao: 0.15 },
+    { id: "p2", nome: "B", precoVenda: 100, vendasMes: 0, custoUnit: 5, qtdCaixa: 10, imposto: 0.04, comissao: 0.15 },
+  ];
+  // p1 is stocked by BOTH storefronts — the case a per-product projection cannot add up
+  const compras = [
+    { id: "c1", lojaId: "l1", produtoId: "p1", produtoNome: "A", data: "2026-01-02T09:00", quantidade: 10, custoUnit: 10, status: "recebida" as const },
+    { id: "c2", lojaId: "l2", produtoId: "p1", produtoNome: "A", data: "2026-01-02T09:00", quantidade: 4, custoUnit: 10, status: "recebida" as const },
+    { id: "c3", lojaId: "l2", produtoId: "p2", produtoNome: "B", data: "2026-01-02T09:00", quantidade: 6, custoUnit: 5, status: "recebida" as const },
+  ];
+
+  const capital = (lojaId: string) =>
+    capitalEmEstoque(produtos, daLoja(compras, lojaId), [], [], false);
+
+  it("values the shelf at cost", () => {
+    // l1: 10 un × R$10 = 100
+    expect(capital("l1")).toBeCloseTo(100, 6);
+    // l2: 4 × 10 + 6 × 5 = 70
+    expect(capital("l2")).toBeCloseTo(70, 6);
+  });
+
+  /**
+   * The whole point of the metric: a storefront total is a real slice of the company total, so
+   * the slices sum to it. This is what the per-product projection could never do.
+   */
+  it("sums across storefronts to the company figure", () => {
+    expect(capital("l1") + capital("l2")).toBeCloseTo(capital(TODAS_LOJAS), 6);
+    expect(capital(TODAS_LOJAS)).toBeCloseTo(170, 6);
+  });
+
+  it("treats an oversold shelf as zero rather than negative money", () => {
+    const vendas = [venda({ produtoId: "p1", quantidade: 999 })];
+    expect(capitalEmEstoque(produtos, compras, vendas, [], false)).toBeCloseTo(30, 6); // only p2 left
   });
 });

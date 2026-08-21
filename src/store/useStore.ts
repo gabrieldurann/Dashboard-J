@@ -3,15 +3,25 @@ import { persist } from "zustand/middleware";
 import { CONFIG_PADRAO, type Configuracoes } from "../calc/constants";
 import type { Tema } from "../theme/tokens";
 import type { LayoutLedger } from "../components/ExibicaoMenu";
-import { aplicarRetencao, vincularImportados } from "../calc/engine";
-import type { AnuncioAds, ContaAmazon, CalculoSalvo, Compra, CustoOperacional, Devolucao, ExecucaoSync, Pesquisa, Produto, Venda, VendaAvulsa } from "../calc/types";
-import { ANUNCIOS_ADS_SEED, CONTAS_AMAZON_SEED, COMPRAS_SEED, CUSTOS_OPERACIONAIS_SEED, DEVOLUCOES_SEED, PESQUISAS_SEED, PRODUTOS_SEED, VENDAS_SEED } from "../data/seed";
+import { aplicarRetencao, TODAS_LOJAS, vincularImportados } from "../calc/engine";
+import type { AnuncioAds, ContaAmazon, CalculoSalvo, Compra, CustoOperacional, Devolucao, ExecucaoSync, Loja, Pesquisa, Produto, Venda, VendaAvulsa } from "../calc/types";
+import { ANUNCIOS_ADS_SEED, CONTAS_AMAZON_SEED, COMPRAS_SEED, CUSTOS_OPERACIONAIS_SEED, DEVOLUCOES_SEED, LOJAS_SEED, PESQUISAS_SEED, PRODUTOS_SEED, VENDAS_SEED } from "../data/seed";
 
 // Local-first store (PLAN.md §6): hydrates from the bundled seed, then persists the user's edits
 // to localStorage. The deployed link shows the seed to the partner; the user's test edits live
 // only in their own browser. Swap `persist` storage for a backend adapter later — no UI change.
 
 type State = {
+  /** The storefronts the business sells through. A flat list — see the `Loja` type. */
+  lojas: Loja[];
+  /**
+   * Which storefront every page is scoped to, or `TODAS_LOJAS`.
+   *
+   * A display preference like the theme, so it persists and `resetSeed` leaves it alone. It
+   * defaults to "todas", which is what keeps every existing figure identical for anyone who
+   * never opens the picker.
+   */
+  lojaAtiva: string;
   produtos: Produto[];
   pesquisas: Pesquisa[];
   vendas: Venda[];
@@ -24,6 +34,10 @@ type State = {
   contasAmazon: ContaAmazon[];
   /** History of every sync run — what each connection actually delivered, and when. */
   execucoesSync: ExecucaoSync[];
+  addLoja: (l: Loja) => void;
+  updateLoja: (id: string, patch: Partial<Loja>) => void;
+  removeLoja: (id: string) => void;
+  setLojaAtiva: (id: string) => void;
   addProduto: (p: Produto) => void;
   updateProduto: (id: string, patch: Partial<Produto>) => void;
   removeProduto: (id: string) => void;
@@ -138,6 +152,19 @@ export const useStore = create<State>()(
         })),
       removeCustoOperacional: (id) =>
         set((s) => ({ custosOperacionais: s.custosOperacionais.filter((c) => c.id !== id) })),
+      lojas: LOJAS_SEED,
+      lojaAtiva: TODAS_LOJAS,
+      addLoja: (l) => set((st) => ({ lojas: [...st.lojas, l] })),
+      updateLoja: (id, patch) =>
+        set((st) => ({ lojas: st.lojas.map((l) => (l.id === id ? { ...l, ...patch } : l)) })),
+      // Removing the store that is currently selected would leave every page scoped to something
+      // that no longer exists, so the selection falls back to "todas".
+      removeLoja: (id) =>
+        set((st) => ({
+          lojas: st.lojas.filter((l) => l.id !== id),
+          lojaAtiva: st.lojaAtiva === id ? TODAS_LOJAS : st.lojaAtiva,
+        })),
+      setLojaAtiva: (id) => set({ lojaAtiva: id }),
       tema: "escuro",
       setTema: (t) => set({ tema: t }),
       configuracoes: CONFIG_PADRAO,
@@ -212,6 +239,7 @@ export const useStore = create<State>()(
           produtos: PRODUTOS_SEED,
           pesquisas: PESQUISAS_SEED,
           vendas: VENDAS_SEED,
+          lojas: LOJAS_SEED,
           vendasAvulsas: [],
           calculosSalvos: [],
           custosOperacionais: CUSTOS_OPERACIONAIS_SEED,
@@ -236,8 +264,10 @@ export const useStore = create<State>()(
       // orders no longer carry buyer data. v12: June's seeded campaigns now carry the campaign
       // identity the Ads mock generates, so syncing Ads stops re-importing spend the seed
       // already had. v13: two seeded products carry a supplier lead time, so the stock-cover
-      // column has something to warn about.)
-      name: "painel-j-v13",
+      // column has something to warn about. v14: multi-loja — every money record gained an
+      // optional lojaId, the seed gained four storefronts mapped from the channels it already
+      // used, and four small purchases so each storefront's derived stock starts positive.)
+      name: "painel-j-v14",
     },
   ),
 );

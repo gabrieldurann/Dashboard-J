@@ -2,6 +2,7 @@ import { AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { pendenciasImportacao } from "../calc/engine";
 import { useStore } from "../store/useStore";
+import { useEscopo } from "../store/useEscopo";
 
 /**
  * Painel warning: imported SKUs the app cannot cost.
@@ -16,8 +17,10 @@ import { useStore } from "../store/useStore";
  * the margin quietly reads better than reality.
  */
 export function AvisoSkuSemCusto() {
-  const vendas = useStore((s) => s.vendas);
-  const anuncios = useStore((s) => s.anunciosAds);
+  // scoped to the selected storefront — see useEscopo
+  const escopo = useEscopo();
+  const vendas = escopo.vendas;
+  const anuncios = escopo.anunciosAds;
   const produtos = useStore((s) => s.produtos);
 
   // every account: the Painel's figures are company-wide, so the warning has to be too

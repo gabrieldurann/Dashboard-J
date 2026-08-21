@@ -1,5 +1,25 @@
 // Domain types for Painel J. See PLAN.md §4.
 
+/**
+ * A storefront the business sells through — "Loja 1 — Amazon BR", "Loja 2 — Mercado Livre".
+ *
+ * One flat level, mirroring Gestor Seller's single "Empresa" field. Taxes, commission and the
+ * health bands stay global (they live in `Configuracoes`); a loja owns only the money that moved
+ * through it: vendas, compras, devoluções, custos operacionais and anúncios.
+ *
+ * The product CATALOGUE is deliberately shared. Stock is already derived from
+ * `compras − vendas + devoluções`, so tagging those three gives per-store stock for free while the
+ * same product can sell from more than one storefront without becoming two drifting records.
+ */
+export type Loja = {
+  id: string;
+  nome: string;
+  /** e.g. "Amazon", "Mercado Livre" — a hint only; the sale's own `canal` is what counts. */
+  canal?: string;
+  observacao?: string;
+};
+
+
 /** A sourced product (one row of the research sheet + new fields). */
 export type Produto = {
   id: string;
@@ -25,6 +45,12 @@ export type Produto = {
   prazoReposicaoDias?: number;
   /** Opening balance in units. Real stock is DERIVED from here plus the ledgers
    *  (see `estoqueProdutos`): inicial + compras recebidas − vendidas + devoluções reestocadas. */
+  /**
+   * Legacy opening balance. No longer settable in the app: an opening balance on the product is
+   * company-wide, so it belongs to no storefront and stops the stores adding up to the company.
+   * Opening stock is recorded as a received purchase in Compras, which carries a loja, a cost and
+   * a date. Still honoured here for data that predates that.
+   */
   estoqueInicial?: number;
   /** manual override of the auto Aprovado/Reprovado rule; null = use auto */
   aprovadoManual?: boolean | null;
@@ -35,6 +61,8 @@ export type VendaStatus = "pendente" | "enviado" | "entregue" | "cancelado";
 /** An individual sale record (the sales ledger). A sale with no `produtoId` is "avulsa". */
 export type Venda = {
   id: string;
+  /** which storefront this sale belongs to. Absent = not assigned; shows only under "Todas". */
+  lojaId?: string;
   data: string; // ISO datetime (timestamp)
   produtoId?: string; // link to a catalog product (optional → venda avulsa)
   produtoNome: string; // snapshot of the product name
@@ -130,6 +158,8 @@ export type DevolucaoStatus =
  *  rate per product, reason analysis, and the financial hit that eats into realized profit. */
 export type Devolucao = {
   id: string;
+  /** which storefront this belongs to. Absent = not assigned; shows only under "Todas". */
+  lojaId?: string;
   vendaId?: string; // link to the originating sale (optional)
   produtoId?: string; // link to a catalog product (optional → avulsa)
   produtoNome: string; // snapshot of the product name
@@ -158,6 +188,8 @@ export type CompraStatus = "pedida" | "em_transito" | "recebida" | "cancelada";
  */
 export type Compra = {
   id: string;
+  /** which storefront this belongs to. Absent = not assigned; shows only under "Todas". */
+  lojaId?: string;
   produtoId?: string; // link to a catalog product (optional → avulsa)
   produtoNome: string; // snapshot of the product name
   codigoProduto?: string; // snapshot
@@ -176,6 +208,8 @@ export type Compra = {
 /** A one-off ("avulsa") sale recorded by hand (idea #4) — quick manual entry, kept in its own list. */
 export type VendaAvulsa = {
   id: string;
+  /** which storefront this belongs to. Absent = not assigned; shows only under "Todas". */
+  lojaId?: string;
   produtoId?: string;
   nome: string;
   data: string; // ISO date
@@ -229,6 +263,8 @@ export type TipoOperacional = "despesa" | "receita";
  *  single product: rent, internet, salaries, but also interest earned or a supplier rebate. */
 export type CustoOperacional = {
   id: string;
+  /** which storefront this belongs to. Absent = not assigned; shows only under "Todas". */
+  lojaId?: string;
   nome: string;
   categoria: CategoriaOperacional;
   /** Amount for one month (R$). Named `valorMensal` since every entry is read per month. */
@@ -276,6 +312,8 @@ export type ConexaoServico = {
  */
 export type ContaAmazon = {
   id: string;
+  /** which storefront this belongs to. Absent = not assigned; shows only under "Todas". */
+  lojaId?: string;
   /** User-facing name, so several stores stay tellable apart. */
   apelido: string;
   /** Amazon's Seller ID (merchant token). Shown masked. */
@@ -335,6 +373,8 @@ export type ExecucaoSync = {
  */
 export type AnuncioAds = {
   id: string;
+  /** which storefront this belongs to. Absent = not assigned; shows only under "Todas". */
+  lojaId?: string;
   produtoId?: string; // link to a catalog product (optional → avulso)
   produtoNome: string; // snapshot of the product name
   sku?: string;

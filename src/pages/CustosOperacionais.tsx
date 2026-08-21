@@ -18,6 +18,7 @@ import type {
 } from "../calc/types";
 import { BigStat } from "../components/BigStat";
 import { Field, inputClass, NumberInput, TextInput } from "../components/Field";
+import { CampoLoja, useLojaPadrao } from "../components/CampoLoja";
 import { GlowCard } from "../components/GlowCard";
 import { MetricTile } from "../components/MetricTile";
 import { Screen } from "../components/Screen";
@@ -26,6 +27,7 @@ import { EASE } from "../theme/tokens";
 import { confirmAction } from "../store/useConfirm";
 import { toast } from "../store/useToast";
 import { useStore } from "../store/useStore";
+import { useEscopo } from "../store/useEscopo";
 import { useConfig } from "../store/useConfig";
 
 const CATEGORIA_LABEL: Record<CategoriaCusto, string> = {
@@ -67,6 +69,7 @@ const mesCurto = (iso?: string) => {
 };
 
 type Draft = {
+  lojaId: string;
   nome: string;
   tipo: TipoOperacional;
   categoria: CategoriaOperacional;
@@ -75,7 +78,8 @@ type Draft = {
   data: string;
   observacao: string;
 };
-const emptyDraft = (): Draft => ({
+const emptyDraft = (lojaId = ""): Draft => ({
+  lojaId,
   nome: "",
   tipo: "despesa",
   categoria: "aluguel",
@@ -87,8 +91,10 @@ const emptyDraft = (): Draft => ({
 
 export function CustosOperacionais() {
   const cfg = useConfig();
-  const custos = useStore((s) => s.custosOperacionais);
-  const vendas = useStore((s) => s.vendas);
+  // scoped to the selected storefront — see useEscopo
+  const escopo = useEscopo();
+  const custos = escopo.custosOperacionais;
+  const vendas = escopo.vendas;
   const produtos = useStore((s) => s.produtos);
   const addCusto = useStore((s) => s.addCustoOperacional);
   const updateCusto = useStore((s) => s.updateCustoOperacional);
@@ -96,7 +102,8 @@ export function CustosOperacionais() {
 
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [d, setD] = useState<Draft>(emptyDraft);
+  const lojaPadrao = useLojaPadrao();
+  const [d, setD] = useState<Draft>(() => emptyDraft(lojaPadrao));
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((p) => ({ ...p, [k]: v }));
 
   // realized profit for the latest month, then net of operating costs ("money in pocket")
@@ -116,12 +123,13 @@ export function CustosOperacionais() {
 
   const abrirNovo = () => {
     setEditId(null);
-    setD(emptyDraft());
+    setD(emptyDraft(lojaPadrao));
     setShowForm(true);
   };
   const abrirEdicao = (c: CustoOperacional) => {
     setEditId(c.id);
     setD({
+      lojaId: c.lojaId ?? "",
       nome: c.nome,
       tipo: c.tipo ?? "despesa",
       categoria: c.categoria,
@@ -141,6 +149,7 @@ export function CustosOperacionais() {
   const salvar = () => {
     if (!valido) return;
     const limpo: Omit<CustoOperacional, "id"> = {
+      lojaId: d.lojaId || undefined,
       nome: d.nome.trim(),
       tipo: d.tipo,
       categoria: d.categoria,
@@ -159,7 +168,7 @@ export function CustosOperacionais() {
     }
     setShowForm(false);
     setEditId(null);
-    setD(emptyDraft());
+    setD(emptyDraft(lojaPadrao));
   };
 
   const excluir = async (c: CustoOperacional) => {
@@ -199,10 +208,6 @@ export function CustosOperacionais() {
           <div className="mt-3">
             <BigStat value={lucroLiquido} format={money} accent={lucroLiquido >= 0 ? "text-green" : "text-danger"} className="text-3xl" />
           </div>
-          <p className="mt-1.5 font-mono text-xs text-txtFaint">
-            Lucro realizado do mês − despesas operacionais + receitas operacionais. O que sobra no bolso
-            (custos de anúncios entram na fase de Ads).
-          </p>
         </GlowCard>
 
         <MetricTile
@@ -211,7 +216,6 @@ export function CustosOperacionais() {
           format={money}
           icon={Building2}
           accent="red"
-          footnote="Recorrentes + pontuais do mês"
           delay={0.05}
           className="col-span-12 lg:col-span-4"
         />
@@ -221,7 +225,6 @@ export function CustosOperacionais() {
           format={money}
           icon={TrendingUp}
           accent="green"
-          footnote="Entradas que não são venda de produto"
           delay={0.1}
           className="col-span-12 lg:col-span-4"
         />
@@ -267,6 +270,7 @@ export function CustosOperacionais() {
                 />
               </Field>
             </div>
+            <CampoLoja valor={d.lojaId} onChange={(v) => set("lojaId", v)} />
             <Field label="Categoria">
               <select
                 value={d.categoria}

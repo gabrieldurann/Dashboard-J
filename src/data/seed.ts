@@ -1,5 +1,6 @@
 import { COMISSAO_PADRAO, IMPOSTO_PADRAO } from "../calc/constants";
-import type { AnuncioAds, ContaAmazon, Compra, CustoOperacional, Devolucao, Pesquisa, Produto, Venda } from "../calc/types";
+import type {
+  Loja, AnuncioAds, ContaAmazon, Compra, CustoOperacional, Devolucao, Pesquisa, Produto, Venda } from "../calc/types";
 import { idCampanhaAmazon } from "./amazonMock";
 
 // ⚠️ SAMPLE DATA ONLY — safe to be public.
@@ -12,6 +13,33 @@ import { idCampanhaAmazon } from "./amazonMock";
 // (🔴 < 11% · 🟡 11–15% · 🟢 > 15%) so the UI demonstrates well.
 
 const d = IMPOSTO_PADRAO;
+
+/**
+ * The storefronts the demo sells through (idea: multi-loja, §3.4 of the GS review).
+ *
+ * Modelled on the channels the seed ledger already uses, because that is what a storefront IS
+ * for this business — one flat level, exactly like Gestor Seller's single "Empresa" field.
+ */
+export const LOJAS_SEED: Loja[] = [
+  { id: "loja-1", nome: "Loja 1 — Amazon BR", canal: "Amazon" },
+  { id: "loja-2", nome: "Loja 2 — Mercado Livre", canal: "Mercado Livre" },
+  { id: "loja-3", nome: "Loja 3 — Shopee", canal: "Shopee" },
+  { id: "loja-4", nome: "Loja 4 — Site próprio", canal: "Site próprio" },
+];
+
+/**
+ * Which storefront a seeded row belongs to, derived from the channel it already carried.
+ *
+ * Applied at export time rather than written onto every literal: the ledger is ~60 records and
+ * hand-tagging each one is exactly how a seed drifts out of step with itself.
+ */
+const LOJA_POR_CANAL: Record<string, string> = {
+  Amazon: "loja-1",
+  "Mercado Livre": "loja-2",
+  Shopee: "loja-3",
+  "Site próprio": "loja-4",
+};
+const lojaDoCanal = (canal?: string) => (canal ? LOJA_POR_CANAL[canal] : undefined);
 
 export const PRODUTOS_SEED: Produto[] = [
   {
@@ -27,7 +55,6 @@ export const PRODUTOS_SEED: Produto[] = [
     qtdCaixa: 30,
     imposto: d,
     comissao: 0.15,
-    estoqueInicial: 24,
     // importado: o fornecedor leva ~45 dias, o que torna a reposição o gargalo
     prazoReposicaoDias: 45,
     aprovadoManual: null,
@@ -44,7 +71,6 @@ export const PRODUTOS_SEED: Produto[] = [
     qtdCaixa: 80,
     imposto: d,
     comissao: 0.13,
-    estoqueInicial: 70,
     prazoReposicaoDias: 15,
     aprovadoManual: null,
   },
@@ -61,7 +87,6 @@ export const PRODUTOS_SEED: Produto[] = [
     qtdCaixa: 100,
     imposto: d,
     comissao: 0.15,
-    estoqueInicial: 90,
     aprovadoManual: null,
   },
   {
@@ -76,7 +101,6 @@ export const PRODUTOS_SEED: Produto[] = [
     qtdCaixa: 150,
     imposto: d,
     comissao: 0.15,
-    estoqueInicial: 140,
     aprovadoManual: null,
   },
 ];
@@ -574,6 +598,7 @@ const VENDAS_BASE: Venda[] = [
 const ESCALA_DEMO = 12;
 export const VENDAS_SEED: Venda[] = VENDAS_BASE.map((v) => ({
   ...v,
+  lojaId: lojaDoCanal(v.canal),
   quantidade: v.quantidade * ESCALA_DEMO,
   valorTotal: +(v.valorTotal * ESCALA_DEMO).toFixed(2),
   frete: v.frete != null ? +(v.frete * ESCALA_DEMO).toFixed(2) : v.frete,
@@ -627,7 +652,7 @@ export const PESQUISAS_SEED: Pesquisa[] = [
 // Sample returns (demo only) — each references one of the sample sales above so the ledger link
 // reads well. Refunds are sized to a believable ~5–10% return rate against the scaled sales, and
 // most (but not all) units are restocked. Real returns are entered in the app (stay local).
-export const DEVOLUCOES_SEED: Devolucao[] = [
+const DEVOLUCOES_BASE: Devolucao[] = [
   // ── Junho 2026 (mês corrente → entra no "líquido após devoluções" do Painel) ──
   {
     id: "dev-1",
@@ -735,7 +760,12 @@ export const DEVOLUCOES_SEED: Devolucao[] = [
 // Sample stock purchases (demo only). Sized in whole boxes so the DERIVED stock
 // (inicial + recebidas − vendidas + devolvidas reestocadas) lands on a healthy positive figure
 // for every product. Includes one in-transit and one cancelled purchase to exercise those states.
-export const COMPRAS_SEED: Compra[] = [
+export const DEVOLUCOES_SEED: Devolucao[] = DEVOLUCOES_BASE.map((d) => ({
+  ...d,
+  lojaId: lojaDoCanal(d.canal),
+}));
+
+const COMPRAS_BASE: Compra[] = [
   {
     id: "c-1001",
     produtoId: "demo-1",
@@ -844,9 +874,105 @@ export const COMPRAS_SEED: Compra[] = [
  * ⚠️ SIMULATED connection — no real OAuth, no tokens, no Amazon call. Seeded so the connected
  * state is visible immediately; connecting another account from the page exercises the flow.
  */
+/**
+ * Purchases the demo already had, all bought for the Amazon storefront, plus one small received
+ * batch per other storefront.
+ *
+ * Those four exist so each store's derived stock stays positive: stock is
+ * `compras − vendas + devoluções`, and the opening balance on the product is company-wide, so a
+ * storefront that sells without ever having bought would show a negative shelf.
+ */
+export const COMPRAS_SEED: Compra[] = [
+  /*
+   * Opening stock, as real purchases.
+   *
+   * It used to live on the product as `estoqueInicial`, which made it company-wide: a figure
+   * belonging to no storefront, counted under "Todas" and nowhere else. That is what stopped the
+   * stores from adding up to the company. Booking it as received purchases puts every unit in
+   * exactly one storefront, so the shelf is derived from the ledger alone and the parts compose
+   * into the whole. It lands on Loja 1 because the business was that one Amazon store before the
+   * others existed.
+   */
+  ...[
+    { id: "c-0001", produtoId: "demo-1", produtoNome: "Mini Projetor Portátil", codigoProduto: "DEMO-001", quantidade: 24, custoUnit: 40 },
+    { id: "c-0002", produtoId: "demo-2", produtoNome: "Garrafa Térmica Inox 1L", codigoProduto: "DEMO-002", quantidade: 70, custoUnit: 22 },
+    { id: "c-0003", produtoId: "demo-3", produtoNome: "Organizador de Cabos (kit 5)", codigoProduto: "DEMO-003", quantidade: 90, custoUnit: 21.5 },
+    { id: "c-0004", produtoId: "demo-4", produtoNome: "Suporte de Copo Veicular", codigoProduto: "DEMO-004", quantidade: 140, custoUnit: 16 },
+  ].map((c) => ({
+    ...c,
+    lojaId: "loja-1",
+    data: "2026-01-02T09:00",
+    dataRecebimento: "2026-01-02",
+    status: "recebida" as const,
+    fornecedor: "Estoque de abertura",
+  })),
+  ...COMPRAS_BASE.map((c) => ({ ...c, lojaId: "loja-1" })),
+  {
+    id: "c-2001",
+    lojaId: "loja-2",
+    produtoId: "demo-2",
+    produtoNome: "Garrafa Térmica Inox 1L",
+    codigoProduto: "DEMO-002",
+    data: "2026-03-12T10:00",
+    dataRecebimento: "2026-03-24",
+    quantidade: 36,
+    custoUnit: 22,
+    frete: 90,
+    status: "recebida",
+    fornecedor: "Fornecedor Exemplo B",
+    numeroNota: "NF-2310",
+  },
+  {
+    id: "c-2002",
+    lojaId: "loja-2",
+    produtoId: "demo-4",
+    produtoNome: "Suporte de Copo Veicular",
+    codigoProduto: "DEMO-004",
+    data: "2026-03-12T10:00",
+    dataRecebimento: "2026-03-24",
+    quantidade: 60,
+    custoUnit: 16,
+    frete: 70,
+    status: "recebida",
+    fornecedor: "Fornecedor Exemplo C",
+    numeroNota: "NF-2311",
+  },
+  {
+    id: "c-2003",
+    lojaId: "loja-3",
+    produtoId: "demo-4",
+    produtoNome: "Suporte de Copo Veicular",
+    codigoProduto: "DEMO-004",
+    data: "2026-04-02T10:00",
+    dataRecebimento: "2026-04-15",
+    quantidade: 48,
+    custoUnit: 16,
+    frete: 60,
+    status: "recebida",
+    fornecedor: "Fornecedor Exemplo C",
+    numeroNota: "NF-2402",
+  },
+  {
+    id: "c-2004",
+    lojaId: "loja-4",
+    produtoId: "demo-3",
+    produtoNome: "Organizador de Cabos (kit 5)",
+    codigoProduto: "DEMO-003",
+    data: "2026-04-02T10:00",
+    dataRecebimento: "2026-04-14",
+    quantidade: 24,
+    custoUnit: 21.5,
+    frete: 40,
+    status: "recebida",
+    fornecedor: "Fornecedor Exemplo A",
+    numeroNota: "NF-2403",
+  },
+];
+
 export const CONTAS_AMAZON_SEED: ContaAmazon[] = [
   {
     id: "conta-1",
+    lojaId: "loja-1",
     apelido: "Loja Principal",
     sellerId: "A2X9KDEMO4B1QZ",
     marketplace: "Amazon.com.br",
@@ -865,7 +991,7 @@ export const CONTAS_AMAZON_SEED: ContaAmazon[] = [
   },
 ];
 
-export const ANUNCIOS_ADS_SEED: AnuncioAds[] = [
+const ANUNCIOS_ADS_BASE: AnuncioAds[] = [
   // June — the month the Painel shows.
   //
   // These three rows ARE the three campaigns the Ads API mock reports, so they carry the same
@@ -968,6 +1094,19 @@ export const ANUNCIOS_ADS_SEED: AnuncioAds[] = [
   },
 ];
 
+export const ANUNCIOS_ADS_SEED: AnuncioAds[] = ANUNCIOS_ADS_BASE.map((a) => ({
+  ...a,
+  lojaId: lojaDoCanal(a.canal),
+}));
+
+/**
+ * Company overhead is deliberately left WITHOUT a storefront.
+ *
+ * Rent, accounting and internet are not attributable to one storefront without pro-rating them,
+ * and a pro-rate is an allocation rather than something that happened — the same reason the
+ * weekly comparison on the Painel measures revenue instead of profit. So they show under "Todas"
+ * and nowhere else. Only the Amazon freight reimbursement names a storefront, because it is one.
+ */
 export const CUSTOS_OPERACIONAIS_SEED: CustoOperacional[] = [
   { id: "op-1", nome: "Aluguel (galpão/escritório)", categoria: "aluguel", valorMensal: 1200 },
   { id: "op-2", nome: "Energia elétrica", categoria: "energia", valorMensal: 320 },
@@ -989,6 +1128,7 @@ export const CUSTOS_OPERACIONAIS_SEED: CustoOperacional[] = [
   { id: "op-8", nome: "Rendimento da aplicação", categoria: "juros", valorMensal: 210, tipo: "receita" },
   {
     id: "op-9",
+    lojaId: "loja-1",
     nome: "Reembolso de frete (Amazon)",
     categoria: "reembolso",
     valorMensal: 340,

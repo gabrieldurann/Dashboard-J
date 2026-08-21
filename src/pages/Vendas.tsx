@@ -5,6 +5,7 @@ import { chaveAno, chaveDia, chaveMes, chaveSemana, detalharVenda } from "../cal
 import type { Venda, VendaStatus } from "../calc/types";
 import { CascataVenda } from "../components/CascataVenda";
 import { Field, inputClass, NumberInput, TextInput } from "../components/Field";
+import { CampoLoja, useLojaPadrao } from "../components/CampoLoja";
 import { GlowCard } from "../components/GlowCard";
 import { MetricTile } from "../components/MetricTile";
 import { Screen } from "../components/Screen";
@@ -12,6 +13,7 @@ import { date, datetime, labelMes, labelSemana, money } from "../i18n/format";
 import { EASE } from "../theme/tokens";
 import { useConfig } from "../store/useConfig";
 import { useStore } from "../store/useStore";
+import { useEscopo } from "../store/useEscopo";
 import { confirmAction } from "../store/useConfirm";
 import { toast } from "../store/useToast";
 import { PAISES, paisFlag, paisNome } from "../data/countries";
@@ -73,6 +75,7 @@ const nowLocal = () => {
 };
 
 type Draft = {
+  lojaId: string;
   produtoId: string; // "" = avulsa
   produtoNome: string;
   codigoProduto: string;
@@ -93,7 +96,8 @@ type Draft = {
   observacao: string;
 };
 
-const emptyDraft = (): Draft => ({
+const emptyDraft = (lojaId = ""): Draft => ({
+  lojaId,
   produtoId: "",
   produtoNome: "",
   codigoProduto: "",
@@ -116,7 +120,9 @@ const emptyDraft = (): Draft => ({
 
 export function Vendas() {
   const cfg = useConfig();
-  const vendas = useStore((s) => s.vendas);
+  // scoped to the selected storefront — see useEscopo
+  const escopo = useEscopo();
+  const vendas = escopo.vendas;
   const produtos = useStore((s) => s.produtos);
   const contas = useStore((s) => s.contasAmazon);
   const addVenda = useStore((s) => s.addVenda);
@@ -135,7 +141,8 @@ export function Vendas() {
   const oculto = (texto?: string) => (texto && privado ? "••••••••" : texto);
   const [editId, setEditId] = useState<string | null>(null);
   const [aberta, setAberta] = useState<string | null>(null); // expanded order (one at a time)
-  const [d, setD] = useState<Draft>(emptyDraft);
+  const lojaPadrao = useLojaPadrao();
+  const [d, setD] = useState<Draft>(() => emptyDraft(lojaPadrao));
 
   const [busca, setBusca] = useState("");
   const [fProduto, setFProduto] = useState("todos"); // todos | avulsa | <produtoId>
@@ -247,6 +254,7 @@ export function Vendas() {
   const registrar = () => {
     if (!valido) return;
     const payload: Omit<Venda, "id"> = {
+      lojaId: d.lojaId || undefined,
       data: d.data || nowLocal(),
       produtoId: d.produtoId || undefined,
       produtoNome: d.produtoNome.trim(),
@@ -273,20 +281,21 @@ export function Vendas() {
       addVenda({ id: crypto.randomUUID(), ...payload });
       toast.success("Venda registrada");
     }
-    setD(emptyDraft());
+    setD(emptyDraft(lojaPadrao));
     setEditId(null);
     setShowForm(false);
   };
 
   const novaVenda = () => {
     setEditId(null);
-    setD(emptyDraft());
+    setD(emptyDraft(lojaPadrao));
     setShowForm(true);
   };
 
   const editar = (v: Venda) => {
     setEditId(v.id);
     setD({
+      lojaId: v.lojaId ?? "",
       produtoId: v.produtoId ?? "",
       produtoNome: v.produtoNome,
       codigoProduto: v.codigoProduto ?? "",
@@ -411,6 +420,7 @@ export function Vendas() {
                 ))}
               </select>
             </Field>
+            <CampoLoja valor={d.lojaId} onChange={(v) => set("lojaId", v)} />
             <Field label="Canal">
               <TextInput value={d.canal} onChange={(e) => set("canal", e.target.value)} placeholder="Amazon, Shopee..." />
             </Field>

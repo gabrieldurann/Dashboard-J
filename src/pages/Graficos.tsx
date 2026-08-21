@@ -26,6 +26,7 @@ import { MOTIVO_LABEL } from "../i18n/labels";
 import { EASE, type Paleta } from "../theme/tokens";
 import { useCores, useStatusCores } from "../theme/useCores";
 import { useStore } from "../store/useStore";
+import { useEscopo } from "../store/useEscopo";
 import { useConfig } from "../store/useConfig";
 
 // Gráficos = the visual read of the business, for a quick overview or to present. Numbers only
@@ -89,9 +90,11 @@ export function Graficos() {
   const cores = useCores();
   const statusCores = useStatusCores();
   const cicla = (i: number) => paletaItens(cores)[i % 7];
-  const vendas = useStore((s) => s.vendas);
+  // scoped to the selected storefront — see useEscopo
+  const escopo = useEscopo();
+  const vendas = escopo.vendas;
   const produtos = useStore((s) => s.produtos);
-  const devolucoes = useStore((s) => s.devolucoes);
+  const devolucoes = escopo.devolucoes;
 
   const [canal, setCanal] = useState("todos");
 

@@ -4,6 +4,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { devolucoesPorMotivo, devolucoesPorProduto, resumoDevolucoes, taxaDevolucao } from "../calc/engine";
 import type { Devolucao, DevolucaoStatus, MotivoDevolucao } from "../calc/types";
 import { Field, inputClass, NumberInput, TextInput } from "../components/Field";
+import { CampoLoja, useLojaPadrao } from "../components/CampoLoja";
 import { GlowCard } from "../components/GlowCard";
 import { MetricTile } from "../components/MetricTile";
 import { ExibicaoMenu } from "../components/ExibicaoMenu";
@@ -15,6 +16,7 @@ import { EASE } from "../theme/tokens";
 import { confirmAction } from "../store/useConfirm";
 import { toast } from "../store/useToast";
 import { useStore } from "../store/useStore";
+import { useEscopo } from "../store/useEscopo";
 import { useConfig } from "../store/useConfig";
 
 
@@ -56,6 +58,7 @@ const nowLocal = () => {
 };
 
 type Draft = {
+  lojaId: string;
   vendaId: string; // "" = sem venda vinculada
   produtoId: string;
   produtoNome: string;
@@ -73,7 +76,8 @@ type Draft = {
   observacao: string;
 };
 
-const emptyDraft = (): Draft => ({
+const emptyDraft = (lojaId = ""): Draft => ({
+  lojaId,
   vendaId: "",
   produtoId: "",
   produtoNome: "",
@@ -93,8 +97,10 @@ const emptyDraft = (): Draft => ({
 
 export function Devolucoes() {
   const cfg = useConfig();
-  const devolucoes = useStore((s) => s.devolucoes);
-  const vendas = useStore((s) => s.vendas);
+  // scoped to the selected storefront — see useEscopo
+  const escopo = useEscopo();
+  const devolucoes = escopo.devolucoes;
+  const vendas = escopo.vendas;
   const produtos = useStore((s) => s.produtos);
   const addDevolucao = useStore((s) => s.addDevolucao);
   const updateDevolucao = useStore((s) => s.updateDevolucao);
@@ -104,7 +110,8 @@ export function Devolucoes() {
   const dividido = useStore((s) => s.layouts["devolucoes"]) === "dividido";
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [d, setD] = useState<Draft>(emptyDraft);
+  const lojaPadrao = useLojaPadrao();
+  const [d, setD] = useState<Draft>(() => emptyDraft(lojaPadrao));
   const set = <K extends keyof Draft>(k: K, v: Draft[K]) => setD((p) => ({ ...p, [k]: v }));
 
   const [busca, setBusca] = useState("");
@@ -205,12 +212,13 @@ export function Devolucoes() {
 
   const abrirNovo = () => {
     setEditId(null);
-    setD(emptyDraft());
+    setD(emptyDraft(lojaPadrao));
     setShowForm(true);
   };
   const editar = (r: Devolucao) => {
     setEditId(r.id);
     setD({
+      lojaId: r.lojaId ?? "",
       vendaId: r.vendaId ?? "",
       produtoId: r.produtoId ?? "",
       produtoNome: r.produtoNome,
@@ -235,6 +243,7 @@ export function Devolucoes() {
   const salvar = () => {
     if (!valido) return;
     const payload: Omit<Devolucao, "id"> = {
+      lojaId: d.lojaId || undefined,
       vendaId: d.vendaId || undefined,
       produtoId: d.produtoId || undefined,
       produtoNome: d.produtoNome.trim(),
@@ -258,7 +267,7 @@ export function Devolucoes() {
       addDevolucao({ id: crypto.randomUUID(), ...payload });
       toast.success("Devolução registrada");
     }
-    setD(emptyDraft());
+    setD(emptyDraft(lojaPadrao));
     setEditId(null);
     setShowForm(false);
   };
@@ -340,6 +349,7 @@ export function Devolucoes() {
             <Field label="Valor reembolsado">
               <NumberInput value={d.valorReembolsado} onValue={(v) => set("valorReembolsado", v ?? 0)} unit="R$" />
             </Field>
+            <CampoLoja valor={d.lojaId} onChange={(v) => set("lojaId", v)} />
             <Field label="Motivo">
               <select value={d.motivo} onChange={(e) => set("motivo", e.target.value as MotivoDevolucao)} className={inputClass}>
                 {MOTIVOS.map((m) => (
@@ -419,10 +429,10 @@ export function Devolucoes() {
       {/* summary (reflects current filters) */}
       <Ocultavel id="devolucoes.kpis" label="Indicadores do topo" className="mb-4 block">
         <div className="grid grid-cols-12 gap-4">
-        <MetricTile label="Reembolso total" value={resumo.reembolso} format={money} icon={Coins} accent="gold" footnote="Valor devolvido aos clientes (nas devoluções filtradas)" className="col-span-6 lg:col-span-3" />
+        <MetricTile label="Reembolso total" value={resumo.reembolso} format={money} icon={Coins} accent="gold" className="col-span-6 lg:col-span-3" />
         <MetricTile label="Taxa de devolução" value={taxa} format={percent} icon={RotateCcw} footnote="Unidades devolvidas ÷ unidades vendidas" className="col-span-6 lg:col-span-3" delay={0.05} />
         <MetricTile label="Unidades devolvidas" value={resumo.unidades} format={(v) => String(Math.round(v))} icon={Undo2} footnote={`${resumo.registros} devolução(ões)`} className="col-span-6 lg:col-span-3" delay={0.1} />
-        <MetricTile label="Reestocadas" value={resumo.reestocadas} format={(v) => String(Math.round(v))} icon={PackageCheck} accent="green" footnote="Unidades que voltaram ao estoque" className="col-span-6 lg:col-span-3" delay={0.15} />
+        <MetricTile label="Reestocadas" value={resumo.reestocadas} format={(v) => String(Math.round(v))} icon={PackageCheck} accent="green" className="col-span-6 lg:col-span-3" delay={0.15} />
         </div>
       </Ocultavel>
 
